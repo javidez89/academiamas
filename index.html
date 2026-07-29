@@ -4,23 +4,41 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://storage.ko-fi.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://storage.ko-fi.com; font-src 'self' https://fonts.gstatic.com; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
   <meta name="description" content="Academia multi-certificación con teoría, práctica, simulacros, flashcards y progreso local por curso.">
-  <title>ISTQB Academia Multi-certificación · Inicio</title>
+  <title>QA &amp; Testing Academia · Inicio</title>
   <link rel="stylesheet" href="assets/css/app.css">
   <script defer src="assets/js/core/security.js"></script>
   <script defer src="assets/js/core/registry.js"></script>
   <script defer src="assets/js/core/storage.js"></script>
   <script defer src="assets/js/config.js"></script>
   <script defer src="courses/catalog.js"></script>
+  <script defer type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
   <script defer src="assets/js/app.js"></script>
 </head>
 <body>
-  <header>
+  <header id="inicio">
+    <div class="wrap siteTopbar">
+      <a class="brandMark" href="#inicio" data-home-anchor="inicio" aria-label="Ir al inicio">
+        <img class="brandLogo" src="assets/img/academiaqa-logo.png" width="1640" height="435" alt="AcademiaQA - QA &amp; Testing Academia">
+      </a>
+      <button class="menuToggle" type="button" data-action="toggle-site-menu" aria-controls="siteMenu" aria-expanded="false">
+        <span class="srOnly">Abrir menú principal</span>
+        <span aria-hidden="true">☰</span>
+      </button>
+      <nav class="siteNav" id="siteMenu" aria-label="Menú principal">
+        <a href="#inicio" data-home-anchor="inicio">Inicio</a>
+        <a href="#cursos-istqb" data-home-anchor="cursos-istqb">Cursos ISTQB</a>
+        <a href="#como-estudiar" data-home-anchor="como-estudiar">Cómo estudiar</a>
+        <a href="#contactanos" data-home-anchor="contactanos">Contáctanos</a>
+        <a href="#redes" data-home-anchor="redes">Redes</a>
+        <button class="coffeeLink" type="button">Invítame un café</button>
+      </nav>
+    </div>
     <div class="wrap hero">
       <div>
-        <h1 id="heroTitle">ISTQB Academia Multi-certificación</h1>
+        <h1 id="heroTitle">QA &amp; Testing Academia</h1>
         <p class="subtitle" id="heroSubtitle">Programa para estudiar teoría, practicar por objetivo de aprendizaje y realizar simulacros aleatorios.</p>
         <div class="topbadges">
           <span class="badge" id="topChapters">📘 Syllabus completo por capítulos</span>
@@ -56,7 +74,7 @@
         <div class="card"><p>Cargando cursos…</p></div>
       </section>
     </div>
-    <div class="footer" id="footerText">Hecho para estudio personal · progreso guardado por certificación en este navegador.</div>
+    <div class="footer" id="footerText"></div>
   </main>
 </body>
 </html>

@@ -5,6 +5,7 @@
   const Registry = global.AcademyRegistry;
   const Storage = global.AcademyStorage;
   const Config = global.ACADEMY_CONFIG || {};
+  const KOFI_PAGE_URL = 'https://ko-fi.com/Q4S6243T7H';
 
   const VIEW_RENDERERS = Object.freeze({
     home: renderHome,
@@ -98,6 +99,8 @@
   }
 
   function bindDom() {
+    dom.siteMenu = $('siteMenu');
+    dom.siteMenuToggle = document.querySelector('[data-action="toggle-site-menu"]');
     dom.app = $('app');
     dom.notice = $('appNotice');
     dom.mainLayout = $('mainLayout');
@@ -128,6 +131,11 @@
   }
 
   function handleKeyboardActivation(event) {
+    if (event.key === 'Escape') {
+      closeSiteMenu();
+      return;
+    }
+
     if (!['Enter', ' '].includes(event.key)) return;
     const target = event.target.closest('[role="button"][data-action], [role="button"][data-view]');
     if (!target) return;
@@ -136,6 +144,20 @@
   }
 
   function handleClick(event) {
+    const kofiTrigger = event.target.closest('.kofiButtonMount a.kofi-button, .coffeeLink, .coffeeCta');
+    if (kofiTrigger) {
+      event.preventDefault();
+      openKofiPopup();
+      return;
+    }
+
+    const homeAnchor = event.target.closest('[data-home-anchor]');
+    if (homeAnchor) {
+      event.preventDefault();
+      goToHomeAnchor(homeAnchor.dataset.homeAnchor || 'inicio');
+      return;
+    }
+
     const viewButton = event.target.closest('[data-view]');
     if (viewButton) {
       setView(viewButton.dataset.view);
@@ -149,6 +171,12 @@
     switch (action) {
       case 'select-course':
         setCourse(actionTarget.dataset.course);
+        break;
+      case 'toggle-site-menu':
+        toggleSiteMenu();
+        break;
+      case 'close-site-menu':
+        closeSiteMenu();
         break;
       case 'open-chapter':
         openChapter(Number(actionTarget.dataset.chapter));
@@ -216,6 +244,39 @@
       default:
         console.warn(`Acción no reconocida: ${action}`);
     }
+  }
+
+  function toggleSiteMenu(forceOpen) {
+    if (!dom.siteMenu || !dom.siteMenuToggle) return;
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !dom.siteMenu.classList.contains('open');
+    dom.siteMenu.classList.toggle('open', shouldOpen);
+    dom.siteMenuToggle.setAttribute('aria-expanded', String(shouldOpen));
+  }
+
+  function closeSiteMenu() {
+    toggleSiteMenu(false);
+  }
+
+  function goToHomeAnchor(anchorId) {
+    closeSiteMenu();
+    if (state.view !== 'home') setView('home');
+    global.setTimeout(() => {
+      const target = $(anchorId) || (anchorId === 'inicio' ? document.querySelector('header') : null);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }
+
+  function openKofiPopup() {
+    closeSiteMenu();
+    const width = 520;
+    const height = 720;
+    const left = Math.max(0, Math.round((global.screen.width - width) / 2));
+    const top = Math.max(0, Math.round((global.screen.height - height) / 2));
+    global.open(
+      KOFI_PAGE_URL,
+      'academiaqaKofi',
+      `popup=yes,width=${width},height=${height},left=${left},top=${top},noopener`
+    );
   }
 
   function handleChange(event) {
@@ -286,7 +347,7 @@
     const blueprint = course?.blueprint || {};
 
     dom.mainLayout.classList.toggle('homeLayout', isHome);
-    dom.heroTitle.textContent = isHome ? (Config.title || 'Academia Multi-certificación') : courseLabel();
+    dom.heroTitle.textContent = isHome ? (Config.title || 'QA & Testing Academia') : courseLabel();
     dom.heroSubtitle.textContent = isHome
       ? (Config.description || 'Selecciona una certificación para iniciar.')
       : `Menú de estudio de ${courseLabel()}: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.`;
@@ -300,8 +361,9 @@
     dom.navCaps.textContent = `${course?.chapters?.length || 0} caps`;
     dom.navExamCount.textContent = String(blueprint.totalQuestions || 0);
     dom.footerText.textContent = isHome
-      ? (Config.footerHome || 'Hecho para estudio personal.')
+      ? ''
       : `Hecho para estudio personal · ${courseLabel()} · progreso independiente por certificación.`;
+    dom.footerText.hidden = isHome;
 
     const hasK3 = questions.some((question) => question.k === 'K3');
     const hasFlashcards = Array.isArray(course.flashcards) && course.flashcards.length > 0;
@@ -373,52 +435,126 @@
     return result;
   }
 
+  function coursePublicVersion(key, item) {
+    if (key === 'ctfl') return 'CTFL 4.0';
+    if (key === 'ctai') return 'CT-AI 2.0';
+    return item.meta?.code || String(key).toUpperCase();
+  }
+
   function renderHomeCards() {
     return Registry.entries().map(([key, item]) => {
       const blueprint = item.blueprint || {};
       const best = progressPercent(key, item);
       const pass = `${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions || 0}`;
-      const isLast = key === activeCourseKey;
+      const publicVersion = coursePublicVersion(key, item);
 
-      return `<div class="certHomeCard homePick" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}">
-        <div>
-          <div class="certHomeHead"><div><h3>${h(item.meta?.name || key)}</h3><p class="small">${h(item.meta?.subtitle || 'Certificación disponible para estudio.')}</p></div></div>
-          <div class="certBadgeLine">
-            <span>${item.chapters.length} capítulos</span>
-            <span>${item.objectives?.length || 0} LO</span>
-            <span>${item.questions?.length || 0} preguntas</span>
-            <span>Simulacro ${blueprint.totalQuestions || 0} preguntas</span>
-            <span>Aprueba ${h(pass)}</span>
-            <span>Mejor ${best}%</span>
-            ${isLast ? '<span>Última usada</span>' : ''}
-          </div>
+      return `<article class="availableCourseCard" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}">
+        <div class="courseCardTop">
+          <span class="statusDot">Disponible</span>
+          <strong>${h(publicVersion)}</strong>
         </div>
-        <div class="btnrow"><span class="btn">Entrar al curso</span></div>
-      </div>`;
+        <h3>${h(item.meta?.name || key)}</h3>
+        <p>${h(item.meta?.subtitle || 'Curso disponible para estudio independiente.')}</p>
+        <div class="courseStatsLine">
+          <span>${item.chapters.length} capítulos</span>
+          <span>${item.objectives?.length || 0} LO</span>
+          <span>${item.questions?.length || 0} preguntas</span>
+          <span>Simulacro ${blueprint.totalQuestions || 0}</span>
+          <span>Aprueba ${h(pass)}</span>
+          <span>Mejor ${best}%</span>
+        </div>
+        <span class="courseEnter">Entrar al curso</span>
+      </article>`;
     }).join('');
   }
 
+  function renderUpcomingCards() {
+    const upcoming = [
+      ['Ruta avanzada', 'Especializaciones ISTQB por rol, nivel y foco de práctica.'],
+      ['Pruebas ágiles', 'Preparación orientada a equipos iterativos y criterios de aceptación.'],
+      ['Automatización', 'Laboratorios y práctica para estrategia, diseño y mantenimiento de pruebas.']
+    ];
+
+    return upcoming.map(([title, description]) => `<article class="upcomingCard">
+      <span>Próximamente</span>
+      <h3>${h(title)}</h3>
+      <p>${h(description)}</p>
+    </article>`).join('');
+  }
+
+  function renderKofiButton() {
+    const fallback = '<button class="btn coffeeCta" type="button">Invítame un café</button>';
+    if (!global.kofiwidget2?.init || !global.kofiwidget2?.getHTML) return fallback;
+
+    try {
+      global.kofiwidget2.init('Invítame un café', '#d68f00', 'Q4S6243T7H');
+      return `<span class="kofiButtonMount">${global.kofiwidget2.getHTML()}</span>`;
+    } catch (error) {
+      console.warn('No fue posible renderizar el botón Ko-fi.', error);
+      return fallback;
+    }
+  }
+
   function renderHome() {
-    const totalBank = Registry.entries().reduce((sum, [, item]) => sum + (item.questions?.length || 0), 0);
-    return `<div class="academyHeroCard homeOnlyCard">
-      <div class="academyHeroGrid">
-        <div class="homeTitleBlock">
-          <span class="pill">${h(Config.homeBadge || '🚀 Plataforma multi-certificación')}</span>
-          <h2>${h(Config.homeTitle || 'Elige una certificación para empezar')}</h2>
-          <p>Este es el inicio general de la academia. Al entrar a una certificación encontrarás únicamente su menú de estudio y su progreso independiente.</p>
-          <div class="certHomeGrid homeSelection">${renderHomeCards()}</div>
-        </div>
-        <div class="homeRoute">
-          <h3>Ruta rápida recomendada</h3>
-          <div class="stepList">
-            <div class="stepItem"><span class="stepNum">1</span><div><b>Selecciona certificación</b><br><span class="small">Los nuevos cursos se cargan desde el catálogo modular.</span></div></div>
-            <div class="stepItem"><span class="stepNum">2</span><div><b>Entra al menú del curso</b><br><span class="small">Cada certificación conserva su avance y banco.</span></div></div>
-            <div class="stepItem"><span class="stepNum">3</span><div><b>Estudia por capítulos y objetivos</b><br><span class="small">Teoría, explicación y puntos clave.</span></div></div>
-            <div class="stepItem"><span class="stepNum">4</span><div><b>Practica y simula examen</b><br><span class="small">Preguntas aleatorias según la certificación activa.</span></div></div>
+    return `<div class="publicHome">
+      <section class="landingHero" aria-labelledby="homeMainTitle">
+        <div class="landingCopy">
+          <h2 id="homeMainTitle">Prepárate, simula y alcanza tu próxima certificación QA.</h2>
+          <p>Eleva tus habilidades de testing. Accede gratis a material de estudio estructurado por objetivos de aprendizaje y simulacros de exámenes reales. Guarda tu progreso de forma segura y prepárate para certificar tu experiencia.</p>
+          <div class="landingActions">
+            <a class="btn" href="#cursos-istqb" data-home-anchor="cursos-istqb">Ver rutas de estudio</a>
+            ${renderKofiButton()}
           </div>
-          <div class="okbox small"><b>Disponible ahora:</b> ${Registry.keys().length} certificaciones · ${totalBank} preguntas · progreso separado por curso.</div>
         </div>
-      </div>
+      </section>
+
+      <section class="homeSection" id="cursos-istqb" aria-labelledby="coursesTitle">
+        <div class="sectionIntro">
+          <h2 id="coursesTitle">Disponibles ahora</h2>
+          <p>CTFL 4.0 y CT-AI 2.0 están habilitados para estudiar, practicar y simular desde el banco modular existente.</p>
+        </div>
+        <div class="availableCoursesGrid">${renderHomeCards()}</div>
+      </section>
+
+      <section class="homeSection" id="como-estudiar" aria-labelledby="studyTitle">
+        <div class="sectionIntro">
+          <h2 id="studyTitle">Ruta simple para avanzar</h2>
+        </div>
+        <div class="studyPathGrid">
+          <article><strong>1</strong><h3>Elige certificación</h3><p>Entra al curso disponible y mantén su avance separado.</p></article>
+          <article><strong>2</strong><h3>Lee por capítulos</h3><p>Repasa teoría, objetivos LO y puntos clave antes de practicar.</p></article>
+          <article><strong>3</strong><h3>Practica por foco</h3><p>Filtra por capítulo, nivel K u objetivo de aprendizaje.</p></article>
+          <article><strong>4</strong><h3>Simula y refuerza</h3><p>Usa el simulacro oficial aleatorio y revisa tus estadísticas.</p></article>
+        </div>
+      </section>
+
+      <section class="homeSection" aria-labelledby="soonTitle">
+        <div class="sectionIntro">
+          <h2 id="soonTitle">Sección escalable para nuevos cursos</h2>
+          <p>La home queda lista para añadir próximas certificaciones sin mezclar contenido académico con la presentación.</p>
+        </div>
+        <div class="upcomingGrid">${renderUpcomingCards()}</div>
+      </section>
+
+      <section class="contactSocialBand" id="contactanos" aria-labelledby="contactTitle">
+        <div>
+          <h2 id="contactTitle">Colaboraciones, dudas y apoyo</h2>
+          <p>Este espacio queda preparado para recibir mensajes, correcciones, propuestas de nuevos cursos y apoyo voluntario al proyecto.</p>
+          ${renderKofiButton()}
+        </div>
+        <div id="redes" class="socialPanel" aria-labelledby="socialTitle">
+          <h3 id="socialTitle">Redes</h3>
+          <div class="socialLinks">
+            <span>LinkedIn</span>
+            <span>GitHub</span>
+            <span>YouTube</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="legalNotice" aria-label="Aviso legal">
+        <b>Aviso legal:</b> AcademiaQA es una plataforma independiente de apoyo al estudio. No representa a ISTQB®, no emite certificaciones y no sustituye syllabus, glosarios, reglas, materiales ni exámenes oficiales.
+      </section>
     </div>`;
   }
 
