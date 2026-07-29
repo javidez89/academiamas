@@ -1,0 +1,71 @@
+# Academia Multi-certificación · Arquitectura modular segura
+
+Esta versión conserva el diseño y las funciones principales del simulador, pero separa el motor, la seguridad, el almacenamiento, el estilo y los datos de cada curso.
+
+## Estructura
+
+```text
+index.html
+assets/
+  css/app.css
+  js/config.js
+  js/app.js
+  js/core/security.js
+  js/core/registry.js
+  js/core/storage.js
+courses/
+  catalog.js
+  ctfl/course-data.js
+  ctai/course-data.js
+  _template/course-data.example.js
+```
+
+## Ejecutar
+
+### GitHub Pages
+
+Sube toda la carpeta al repositorio y publica la rama desde GitHub Pages. `index.html` debe permanecer en la raíz.
+
+### Prueba local recomendada
+
+Desde la carpeta ejecuta:
+
+```bash
+python -m http.server 8080
+```
+
+Luego abre `http://localhost:8080`.
+
+También puede abrirse directamente como archivo local en navegadores que permitan cargar scripts relativos, pero el servidor local reproduce mejor el comportamiento del hosting.
+
+## Agregar un curso nuevo
+
+1. Copia `courses/_template/` como `courses/nuevo-curso/`.
+2. Renombra `course-data.example.js` a `course-data.js`.
+3. Cambia la clave de registro y completa `meta`, `chapters`, `objectives`, `questions`, `flashcards` y `blueprint`.
+4. Añade una entrada en `courses/catalog.js`:
+
+```js
+Object.freeze({ key: 'nuevo-curso', src: 'courses/nuevo-curso/course-data.js' })
+```
+
+5. Abre la academia. El registro valida capítulos, objetivos, IDs, opciones, respuestas y matriz antes de habilitar el curso.
+
+## Contrato mínimo de un curso
+
+- `meta.name`, `meta.code`, `meta.storageKey`
+- uno o más `chapters`
+- uno o más `objectives`
+- preguntas con IDs únicos, capítulo y objetivo existentes
+- opciones entre 2 y 10 y respuestas dentro del rango
+- `blueprint` con cantidad, puntos, aprobación y tiempo válidos
+
+## Alcance de seguridad
+
+Esta aplicación es estática y no contiene un backend. El progreso se guarda localmente y puede ser modificado por el usuario. No almacenes contraseñas, tokens, datos personales, secretos ni controles de acceso premium dentro de estos archivos.
+
+Para membresías, pagos o cursos privados se necesita un backend con autenticación, autorización, base de datos y entrega controlada del contenido.
+
+## Paquete para publicación
+
+Este paquete incluye `.nojekyll` para que GitHub Pages sirva los archivos estáticos directamente. Consulta `DEPLOY_GITHUB.md` antes de cargarlo al repositorio.

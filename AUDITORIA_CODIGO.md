@@ -1,94 +1,58 @@
-'use strict';
+# Auditoría de código y refactorización
 
-/*
-  1. Copia esta carpeta con un nombre corto, por ejemplo: courses/scrum-master/
-  2. Renombra este archivo a course-data.js.
-  3. Completa el objeto respetando el esquema.
-  4. Agrega la ruta en courses/catalog.js.
-*/
+Archivo revisado: `SIMULADOR_MULTICERTIFICACION_QA_FINAL_RESPONSIVE-1.html`
 
-AcademyRegistry.register('curso-ejemplo', {
-  meta: {
-    key: 'curso-ejemplo',
-    code: 'EJEMPLO',
-    name: 'Nombre completo del curso',
-    shortName: 'Curso ejemplo',
-    subtitle: 'Descripción que se mostrará en el inicio y en el panel.',
-    versionLabel: 'Versión del temario',
-    storageKey: 'academy_curso_ejemplo_progress',
-    sourceLanguage: 'ES',
-    questionLanguage: 'ES',
-    k3Description: 'Descripción opcional del laboratorio de aplicación.'
-  },
-  chapters: [
-    {
-      id: 1,
-      title: 'Capítulo de ejemplo',
-      minutes: 60,
-      summary: 'Resumen del capítulo.',
-      terms: ['término'],
-      pitfalls: ['Trampa frecuente.'],
-      examples: ['Ejemplo aplicado.'],
-      theorySections: [
-        { title: 'Tema principal', body: 'Explicación propia y resumida.', bullets: ['Punto clave.'] }
-      ],
-      completeSyllabusText: 'Texto autorizado o contenido propio del temario.',
-      completeSyllabusPages: '1-10',
-      syllabusSource: 'Fuente y versión'
-    }
-  ],
-  objectives: [
-    {
-      lo: 'EJ-1.1.1',
-      chapter: 1,
-      k: 'K2',
-      text: 'Explicar un concepto de ejemplo',
-      theory: 'Teoría para estudiar el objetivo.',
-      remember: 'Idea clave.',
-      example: 'Ejemplo del objetivo.',
-      trap: 'Error frecuente.'
-    }
-  ],
-  questions: [
-    {
-      id: 'EJ-Q001',
-      chapter: 1,
-      k: 'K2',
-      lo: 'EJ-1.1.1',
-      objective: 'Explicar un concepto de ejemplo',
-      topic: 'Concepto de ejemplo',
-      stem: '¿Cuál opción representa mejor el concepto?',
-      options: ['Opción correcta', 'Distractor 1', 'Distractor 2', 'Distractor 3'],
-      correct: [0],
-      explanation: 'Explicación de la respuesta.',
-      multi: false,
-      difficulty: 'normal',
-      points: 1
-    }
-  ],
-  flashcards: [
-    {
-      front: 'Término de ejemplo',
-      back: 'Definición del término.',
-      meaning: 'Definición del término.',
-      chapter: 1,
-      lo: 'EJ-1.1.1',
-      kind: 'Término',
-      hint: 'Pista opcional.'
-    }
-  ],
-  blueprint: {
-    totalQuestions: 1,
-    totalPoints: 1,
-    passingScore: 1,
-    minutes: 5,
-    extraTime25: 7,
-    chapterDistribution: { 1: 1 },
-    kDistribution: { K2: 1 },
-    matrix: { 1: { K2: 1 } },
-    version: 'Matriz de ejemplo'
-  },
-  generatedAt: new Date().toISOString(),
-  qaValidation: null,
-  syllabusCoverageNote: null
-});
+## Diagnóstico de la versión original
+
+### Riesgo alto: inyección de HTML/JavaScript mediante importación JSON
+
+La importación aceptaba objetos sin validar y luego mostraba campos como `id`, `stem`, `topic`, `lo`, opciones y explicaciones mediante `innerHTML`. Algunos valores también se incorporaban en atributos `onclick`. Un JSON manipulado podía insertar etiquetas, atributos o código ejecutable en el DOM.
+
+### Riesgo alto: arquitectura incompatible con una CSP estricta
+
+El documento contenía un script inline grande y numerosos manejadores `onclick`, `onchange` y `oninput`. Para permitir ese patrón sería necesario habilitar `unsafe-inline`, debilitando la protección frente a XSS.
+
+### Riesgo de producto: no existe backend
+
+El archivo es una aplicación estática. El banco, las respuestas correctas, el progreso y toda la lógica llegan al navegador. Esto es válido para una herramienta gratuita y offline, pero no protege cursos premium, resultados oficiales, cuentas, membresías ni pagos.
+
+### Mantenibilidad
+
+- Datos, estilos, vistas, almacenamiento, lógica de examen y contenido estaban en un único archivo de aproximadamente 1,1 MB.
+- Había estado global mutable y funciones expuestas en `window`.
+- La navegación dependía de cadenas HTML con eventos inline.
+- Existían textos específicos de CT-AI dentro del motor genérico.
+- El número `40` estaba fijo en partes del menú.
+- El registro de una certificación nueva exigía modificar el bloque central del programa.
+- No había validación de esquema para capítulos, objetivos, preguntas ni matrices.
+
+### Robustez
+
+- La mezcla aleatoria usaba `sort(() => Math.random() - 0.5)`, que no garantiza una distribución uniforme.
+- Al cambiar de certificación se reemplazaba el estado antes de limpiar el temporizador anterior.
+- `localStorage` podía fallar por bloqueo, modo privado o cuota sin una respuesta controlada.
+- IDs duplicados podían mezclar respuestas y estadísticas.
+- Una pregunta importada con índices incorrectos podía romper el flujo.
+- La revocación inmediata de la URL de descarga podía ser inestable en algunos navegadores.
+
+## Cambios aplicados
+
+1. Separación por capas: presentación, motor, seguridad, registro, almacenamiento y contenido.
+2. Un archivo independiente por curso.
+3. Catálogo central para agregar cursos sin modificar el motor ni el front.
+4. Validación completa antes de registrar un curso.
+5. Validación atómica y límites para importaciones JSON.
+6. Escape HTML de todo contenido dinámico.
+7. Eliminación de eventos inline y uso de delegación de eventos.
+8. CSP que bloquea scripts inline.
+9. Aleatorización Fisher–Yates con `crypto.getRandomValues` cuando está disponible.
+10. Limpieza correcta de intervalos y temporizadores pendientes.
+11. Normalización y migración compatible del progreso local.
+12. Funciones y vistas encapsuladas, sin API global mutable.
+13. Menú adaptativo según las funciones reales del curso.
+14. Plantilla de ejemplo documentada para cursos futuros.
+15. Documentación de límites de seguridad y requisitos de un backend premium.
+
+## Resultado
+
+El diseño visual y las funciones principales se mantienen, mientras que la incorporación de un curso nuevo se limita a crear su archivo de datos y registrarlo en `courses/catalog.js`.

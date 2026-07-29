@@ -1,0 +1,23 @@
+=== Verificación sintáctica ===
+OK: assets/js/core/registry.js
+OK: assets/js/core/security.js
+OK: assets/js/core/storage.js
+OK: assets/js/app.js
+OK: assets/js/config.js
+OK: courses/catalog.js
+OK: courses/ctfl/course-data.js
+OK: courses/ctai/course-data.js
+
+=== Eventos inline en index y motor ===
+OK: no encontrados
+
+=== Funciones peligrosas ===
+OK: no encontradas
+
+=== Registro de cursos ===
+registry [ 'ctfl', 'ctai' ]
+app has CTFL true
+app has CTAI true
+cards 2
+hero ISTQB Academia Multi-certificación
+bank 530
