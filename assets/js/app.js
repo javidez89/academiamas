@@ -6,7 +6,9 @@
   const Storage = global.AcademyStorage;
   const Config = global.ACADEMY_CONFIG || {};
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
-  const COFFEE_COP_PER_USD = 3206.18;
+  const TRM_API_URL = 'https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde DESC';
+  const COFFEE_COP_PER_USD_FALLBACK = 3206.18;
+  const COFFEE_TRM_FALLBACK_DATE = '2026-07-30';
   const PAYMENT_POPUP_LOCK_MS = 1_500;
   const LEARNING_ROUTES = Object.freeze([
     Object.freeze({
@@ -55,6 +57,10 @@
   let progressStorageKey = '';
   let state = createState('home');
   let paymentPopupLocked = false;
+  let coffeeCopPerUsd = COFFEE_COP_PER_USD_FALLBACK;
+  let coffeeTrmDate = COFFEE_TRM_FALLBACK_DATE;
+  let coffeeTrmSource = 'fallback';
+  let coffeeTrmRequest = null;
 
   function createState(view = 'home') {
     return {
@@ -331,6 +337,7 @@
     dom.coffeeModal.hidden = false;
     document.body.classList.add('modalOpen');
     updateCoffeeAmount();
+    loadCurrentTrm().then(updateCoffeeAmount).catch(() => updateCoffeeAmount());
     global.setTimeout(() => dom.coffeeModal.querySelector('.coffeeOption.active, .coffeeCheckout')?.focus(), 0);
   }
 
@@ -361,11 +368,53 @@
   }
 
   function coffeeCopAmount(usd = selectedCoffeeUsd()) {
-    return Math.round(number(usd, 10) * COFFEE_COP_PER_USD);
+    return Math.round(number(usd, 10) * coffeeCopPerUsd);
   }
 
   function formatCopAmount(value) {
     return `COP $${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(number(value, 0))}`;
+  }
+
+  function formatTrmDate(value) {
+    const [date] = String(value || '').split('T');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'fecha no disponible';
+    const [year, month, day] = date.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
+  function trmSourceLabel() {
+    const date = formatTrmDate(coffeeTrmDate);
+    return coffeeTrmSource === 'datos.gov.co'
+      ? `TRM vigente ${date}`
+      : `TRM referencial ${date}`;
+  }
+
+  async function loadCurrentTrm() {
+    if (coffeeTrmSource === 'datos.gov.co') return coffeeCopPerUsd;
+    if (coffeeTrmRequest) return coffeeTrmRequest;
+    if (typeof global.fetch !== 'function') return coffeeCopPerUsd;
+
+    coffeeTrmRequest = global.fetch(TRM_API_URL, { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`TRM HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((records) => {
+        const record = Array.isArray(records) ? records[0] : null;
+        const value = number(record?.valor, 0);
+        if (value <= 0) throw new Error('TRM inválida');
+        coffeeCopPerUsd = value;
+        coffeeTrmDate = record?.vigenciadesde || record?.vigenciahasta || coffeeTrmDate;
+        coffeeTrmSource = 'datos.gov.co';
+        return coffeeCopPerUsd;
+      })
+      .catch((error) => {
+        console.warn('No fue posible actualizar la TRM; se usa valor referencial.', error);
+        coffeeTrmRequest = null;
+        return coffeeCopPerUsd;
+      });
+
+    return coffeeTrmRequest;
   }
 
   function updateCoffeeAmount() {
@@ -379,7 +428,7 @@
     const usd = selectedCoffeeUsd();
     const cop = formatCopAmount(coffeeCopAmount(usd));
     if (dom.coffeeCopHint) {
-      dom.coffeeCopHint.textContent = `Seleccionaste USD ${usd}. Valor referencial: ${cop}. En Wompi confirma este valor en COP.`;
+      dom.coffeeCopHint.textContent = `Seleccionaste USD ${usd}. Valor referencial: ${cop} (${trmSourceLabel()}). En Wompi confirma el valor final en COP.`;
     }
 
     const checkout = dom.coffeeModal.querySelector('.coffeeCheckout');

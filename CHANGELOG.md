@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- El modal **Invítame un café** consulta la TRM vigente desde Datos Abiertos Colombia para mostrar el valor referencial en COP.
+- La conversión conserva fallback local si la consulta pública de TRM no está disponible.
+
+### Validation
+
+- Pendiente de cierre de versión.
+
 ## [v0.3.1] - 2026-07-30
 
 ### Changed

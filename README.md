@@ -75,6 +75,8 @@ El botón **Invítame un café** abre el checkout oficial de Wompi:
 https://checkout.wompi.co/l/VPOS_52PXST
 ```
 
+El valor COP mostrado en el modal es referencial y se calcula con la TRM vigente consultada desde Datos Abiertos Colombia. Si esa consulta no está disponible, la app usa un valor local de respaldo y Wompi sigue confirmando el valor final antes del pago.
+
 La app no procesa tarjetas ni confirma compras por sí sola. Los aportes voluntarios son independientes de los cursos; cualquier curso premium futuro requiere backend, autenticación y verificación segura de pago antes de habilitar acceso.
 
 ## Contrato mínimo de un curso

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://www.datos.gov.co; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
   <meta name="description" content="AcademiaQA: rutas de preparación y aprendizaje en Testing e ISTQB, inteligencia artificial, Scrum, agilidad y gestión de proyectos.">
   <title>AcademiaQA · Rutas de preparación y aprendizaje</title>
@@ -67,7 +67,7 @@
       </div>
       <div class="coffeeSecure">
         <b>Cobro seguro mediante Wompi</b>
-        <span id="coffeeCopHint">Wompi procesa en COP; antes de pagar confirma el valor final.</span>
+        <span id="coffeeCopHint" aria-live="polite">Wompi procesa en COP; antes de pagar confirma el valor final.</span>
       </div>
       <button class="btn coffeeCheckout" type="button" data-action="continue-wompi">Continuar con Wompi</button>
       <p class="coffeeFineprint">Aporte voluntario y único. No compra ni desbloquea cursos. La confirmación depende del proceso aprobado por Wompi.</p>
