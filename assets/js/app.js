@@ -578,40 +578,74 @@
     const progress = Storage.getProgress(keyForStorage);
     const attempts = progress.attempts || [];
     const best = attempts.length ? Math.max(...attempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
-    return { attempts, best, last: attempts.at(-1) || null };
+    const answered = Object.values(progress.byLo || {}).reduce((sum, item) => sum + number(item.ok) + number(item.bad), 0);
+    const marked = Array.isArray(progress.marked) ? progress.marked.length : 0;
+    const started = attempts.length > 0 || answered > 0 || marked > 0;
+    return { attempts, best, last: attempts.at(-1) || null, answered, marked, started };
   }
 
   function heroProgressCourse() {
+    return heroProgressSummary().resumeEntry;
+  }
+
+  function heroProgressSummary() {
     const entries = Registry.entries();
     const active = Storage.getActiveCourse();
-    const withProgress = entries
-      .map(([key, item]) => ({ key, item, details: courseProgressDetails(key, item) }))
-      .sort((left, right) => right.details.best - left.details.best);
+    const courses = entries.map(([key, item]) => ({ key, item, details: courseProgressDetails(key, item) }));
+    const totalCourses = courses.length;
+    const startedCourses = courses.filter((entry) => entry.details.started).length;
+    const totalAnswered = courses.reduce((sum, entry) => sum + number(entry.details.answered), 0);
+    const averageBest = totalCourses
+      ? Math.round(courses.reduce((sum, entry) => sum + number(entry.details.best), 0) / totalCourses)
+      : 0;
+    const bestEntry = [...courses].sort((left, right) => right.details.best - left.details.best)[0] || null;
+    const lastEntry = courses
+      .filter((entry) => entry.details.last)
+      .sort((left, right) => {
+        const rightTime = new Date(right.details.last.date).getTime() || 0;
+        const leftTime = new Date(left.details.last.date).getTime() || 0;
+        return rightTime - leftTime;
+      })[0] || null;
+    const activeEntry = courses.find((entry) => entry.key === active) || null;
+    const resumeEntry = lastEntry || activeEntry || bestEntry || courses[0] || null;
 
-    return withProgress.find((entry) => entry.details.best > 0)
-      || withProgress.find((entry) => entry.key === active)
-      || withProgress[0]
-      || null;
+    return {
+      courses,
+      totalCourses,
+      startedCourses,
+      totalAnswered,
+      averageBest,
+      bestEntry,
+      lastEntry,
+      resumeEntry
+    };
   }
 
   function renderHeroProgressCard() {
-    const entry = heroProgressCourse();
+    const summary = heroProgressSummary();
+    const entry = summary.resumeEntry;
     if (!entry) return '';
 
-    const { key, item, details } = entry;
-    const publicVersion = coursePublicVersion(key, item);
-    const pctValue = Math.max(0, Math.min(100, number(details.best, 0)));
-    const lastText = details.last
-      ? `Último intento: ${formatDate(details.last.date)} · ${number(details.last.scorePct)}%`
+    const pctValue = Math.max(0, Math.min(100, number(summary.averageBest, 0)));
+    const bestText = summary.bestEntry && summary.bestEntry.details.best > 0
+      ? `Mejor: ${coursePublicVersion(summary.bestEntry.key, summary.bestEntry.item)} ${number(summary.bestEntry.details.best)}%`
+      : 'Sin simulacros registrados';
+    const lastText = summary.lastEntry?.details.last
+      ? `Último intento: ${coursePublicVersion(summary.lastEntry.key, summary.lastEntry.item)} · ${formatDate(summary.lastEntry.details.last.date)} · ${number(summary.lastEntry.details.last.scorePct)}%`
       : 'Empieza gratis y guarda tu progreso en este navegador.';
-    const actionText = details.attempts.length ? 'Retomar sesión' : 'Comenzar curso';
+    const actionText = summary.startedCourses ? 'Retomar sesión' : 'Comenzar curso';
 
     return `<aside class="heroProgressPanel" aria-label="Resumen de progreso">
-      <span>Tu progreso</span>
-      <div class="heroProgressTop"><strong>${h(publicVersion)}</strong><b>${pctValue}%</b></div>
+      <span>Tu progreso general</span>
+      <div class="heroProgressTop"><strong>AcademiaQA</strong><b>${pctValue}%</b></div>
       <div class="progressbar heroProgressBar" aria-hidden="true"><div style="width:${pctValue}%"></div></div>
+      <div class="heroProgressStats" aria-label="Detalle de progreso general">
+        <span>${number(summary.startedCourses)}/${number(summary.totalCourses)} cursos con avance</span>
+        <span>${number(summary.totalAnswered)} respuestas</span>
+        <span>${h(bestText)}</span>
+      </div>
       <p>${h(lastText)}</p>
-      <button class="btn heroResume" type="button" data-action="select-course" data-course="${h(key)}">${h(actionText)}</button>
+      <button class="btn heroResume" type="button" data-action="select-course" data-course="${h(entry.key)}">${h(actionText)}</button>
     </aside>`;
   }
 
