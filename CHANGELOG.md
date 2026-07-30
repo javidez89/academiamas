@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] - 2026-07-30
+## [v0.3.0] - 2026-07-30
 
 ### Added
 
@@ -25,4 +25,4 @@
 
 ### Deployment
 
-- Pendiente de autorización explícita para `push` y despliegue en GitHub Pages.
+- Preparado para despliegue desde `main` mediante GitHub Pages.
