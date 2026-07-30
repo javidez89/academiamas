@@ -7,6 +7,7 @@
 - Ajuste visual UX/UI v3 para la home pública: header compacto, hero oscuro, CTA de continuidad y tarjeta de progreso.
 - Catálogo visual con filtros, barras de progreso y tarjetas comparables para CTFL 4.0 y CT-AI 2.0.
 - Modal de **Invítame un café** con opciones USD 5/10/15 y continuación al checkout oficial de Wompi.
+- Bloqueo anti doble apertura para que **Continuar con Wompi** solicite un solo popup y muestre el valor referencial en COP.
 
 ### Validation
 

@@ -61,13 +61,13 @@
         </div>
       </div>
       <div class="coffeeOptions" role="group" aria-label="Opciones de aporte">
-        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 5"><strong>USD 5</strong><span>Un café</span></button>
-        <button class="coffeeOption active" type="button" data-action="select-coffee-tier" data-tier="USD 10"><small>Elegido</small><strong>USD 10</strong><span>Dos cafés</span></button>
-        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 15"><strong>USD 15</strong><span>Gran apoyo</span></button>
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 5" data-usd="5"><strong>USD 5</strong><span>Un café</span><em></em></button>
+        <button class="coffeeOption active" type="button" data-action="select-coffee-tier" data-tier="USD 10" data-usd="10"><small>Elegido</small><strong>USD 10</strong><span>Dos cafés</span><em></em></button>
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 15" data-usd="15"><strong>USD 15</strong><span>Gran apoyo</span><em></em></button>
       </div>
       <div class="coffeeSecure">
         <b>Cobro seguro mediante Wompi</b>
-        <span>Wompi procesa en COP; antes de pagar se muestra el valor exacto.</span>
+        <span id="coffeeCopHint">Wompi procesa en COP; antes de pagar confirma el valor final.</span>
       </div>
       <button class="btn coffeeCheckout" type="button" data-action="continue-wompi">Continuar con Wompi</button>
       <p class="coffeeFineprint">Aporte voluntario y único. No compra ni desbloquea cursos. La confirmación depende del proceso aprobado por Wompi.</p>

@@ -6,6 +6,8 @@
   const Storage = global.AcademyStorage;
   const Config = global.ACADEMY_CONFIG || {};
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
+  const COFFEE_COP_PER_USD = 3206.18;
+  const PAYMENT_POPUP_LOCK_MS = 1_500;
   const LEARNING_ROUTES = Object.freeze([
     Object.freeze({
       key: 'testing-istqb',
@@ -52,6 +54,7 @@
   let questions = [];
   let progressStorageKey = '';
   let state = createState('home');
+  let paymentPopupLocked = false;
 
   function createState(view = 'home') {
     return {
@@ -132,6 +135,7 @@
     dom.app = $('app');
     dom.notice = $('appNotice');
     dom.coffeeModal = $('coffeeModal');
+    dom.coffeeCopHint = $('coffeeCopHint');
     dom.mainLayout = $('mainLayout');
     dom.heroTitle = $('heroTitle');
     dom.heroSubtitle = $('heroSubtitle');
@@ -326,6 +330,7 @@
     }
     dom.coffeeModal.hidden = false;
     document.body.classList.add('modalOpen');
+    updateCoffeeAmount();
     global.setTimeout(() => dom.coffeeModal.querySelector('.coffeeOption.active, .coffeeCheckout')?.focus(), 0);
   }
 
@@ -344,9 +349,50 @@
       if (active && !label) button.insertAdjacentHTML('afterbegin', '<small>Elegido</small>');
       if (!active) label?.remove();
     });
+    updateCoffeeAmount();
+  }
+
+  function selectedCoffeeOption() {
+    return dom.coffeeModal?.querySelector('.coffeeOption.active') || null;
+  }
+
+  function selectedCoffeeUsd() {
+    return number(selectedCoffeeOption()?.dataset.usd, 10);
+  }
+
+  function coffeeCopAmount(usd = selectedCoffeeUsd()) {
+    return Math.round(number(usd, 10) * COFFEE_COP_PER_USD);
+  }
+
+  function formatCopAmount(value) {
+    return `COP $${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(number(value, 0))}`;
+  }
+
+  function updateCoffeeAmount() {
+    if (!dom.coffeeModal) return;
+    dom.coffeeModal.querySelectorAll('.coffeeOption').forEach((button) => {
+      const amount = coffeeCopAmount(button.dataset.usd);
+      const label = button.querySelector('em');
+      if (label) label.textContent = formatCopAmount(amount);
+    });
+
+    const usd = selectedCoffeeUsd();
+    const cop = formatCopAmount(coffeeCopAmount(usd));
+    if (dom.coffeeCopHint) {
+      dom.coffeeCopHint.textContent = `Seleccionaste USD ${usd}. Valor referencial: ${cop}. En Wompi confirma este valor en COP.`;
+    }
+
+    const checkout = dom.coffeeModal.querySelector('.coffeeCheckout');
+    if (checkout) checkout.textContent = `Continuar con Wompi · ${cop}`;
   }
 
   function openPaymentPopup() {
+    if (paymentPopupLocked) return;
+    paymentPopupLocked = true;
+    global.setTimeout(() => {
+      paymentPopupLocked = false;
+    }, PAYMENT_POPUP_LOCK_MS);
+
     closeSiteMenu();
     const width = 520;
     const height = 720;
