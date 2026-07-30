@@ -257,3 +257,520 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 @media(max-width:460px){
   .catalogFilters{grid-template-columns:1fr}
 }
+
+/* UX/UI v3 visual polish */
+:root{
+  --bg:#07111f;
+  --bg2:#10233f;
+  --card:#ffffff;
+  --text:#172033;
+  --muted:#667085;
+  --line:#d9e2ef;
+  --primary:#2563eb;
+  --primary2:#10233f;
+  --cyan:#38bdf8;
+  --good:#16a368;
+  --bad:#b42318;
+  --warn:#f59e0b;
+  --ai:#7c5ce5;
+  --soft:#edf4fb;
+  --soft2:#f7fafc;
+  --shadow:0 12px 30px rgba(16,35,63,.10);
+}
+body{
+  background:#f4f7fb;
+  color:var(--text);
+}
+header{
+  background:linear-gradient(135deg,#07111f 0%,#10233f 72%,#164e84 100%);
+  box-shadow:0 10px 28px rgba(7,17,31,.20);
+  padding:20px 18px 22px;
+}
+header.homeHeader{
+  padding-bottom:18px;
+}
+header.homeHeader .hero{
+  display:none;
+}
+.siteTopbar{
+  margin-bottom:0;
+}
+.brandMark{
+  border-radius:12px;
+  padding:5px 9px;
+  box-shadow:0 12px 26px rgba(7,17,31,.22);
+}
+.brandLogo{
+  width:220px;
+}
+.siteNav{
+  gap:9px;
+}
+.siteNav a,
+.siteNav button{
+  border-color:rgba(255,255,255,.22);
+  background:rgba(255,255,255,.08);
+  color:#f8fbff;
+  padding:9px 12px;
+}
+.siteNav a:hover,
+.siteNav button:hover{
+  background:rgba(255,255,255,.16);
+}
+.siteNav .coffeeLink,
+.coffeeCta{
+  background:var(--warn);
+  border-color:#f7c96d;
+  color:#10233f;
+  box-shadow:0 10px 24px rgba(245,158,11,.22);
+}
+.btn{
+  background:var(--primary);
+  border-radius:10px;
+  box-shadow:0 10px 22px rgba(37,99,235,.18);
+}
+.btn.secondary{
+  background:#ffffff;
+  color:var(--primary2);
+  border-color:#dbe8f6;
+}
+.btn.good{
+  background:var(--good);
+}
+.btn.warn{
+  background:var(--warn);
+  color:#10233f;
+}
+.btn.coffeeCta{
+  background:var(--warn);
+  color:#10233f;
+  box-shadow:0 10px 24px rgba(245,158,11,.22);
+}
+main{
+  padding-top:24px;
+}
+.publicHome{
+  gap:26px;
+}
+.landingHero{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(280px,360px);
+  gap:34px;
+  align-items:center;
+  min-height:420px;
+  overflow:hidden;
+  border:0;
+  border-radius:14px;
+  background:
+    linear-gradient(135deg,rgba(56,189,248,.16),transparent 42%),
+    linear-gradient(135deg,#07111f 0%,#10233f 68%,#164e84 100%);
+  color:#fff;
+  padding:44px 54px;
+  box-shadow:0 18px 46px rgba(16,35,63,.22);
+}
+.landingHero::before,
+.landingHero::after{
+  content:none;
+}
+.landingCopy{
+  max-width:720px;
+}
+.landingEyebrow{
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  border:1px solid rgba(56,189,248,.42);
+  border-radius:999px;
+  background:rgba(56,189,248,.10);
+  color:#bae6fd;
+  padding:7px 11px;
+  font-size:.78rem;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.landingCopy h2{
+  max-width:720px;
+  margin-top:16px;
+  color:#fff;
+  font-size:clamp(2.2rem,4.2vw,3.6rem);
+  line-height:1.04;
+}
+.landingCopy p{
+  max-width:650px;
+  color:#dbeafe;
+  font-size:1.06rem;
+}
+.landingCopy p::after{
+  content:none;
+}
+.landingActions{
+  margin-top:24px;
+  align-items:center;
+}
+.landingActions a,
+.landingActions button{
+  min-height:44px;
+  text-decoration:none;
+}
+.heroProgressPanel{
+  background:#ffffff;
+  color:var(--primary2);
+  border:1px solid rgba(255,255,255,.7);
+  border-radius:14px;
+  padding:24px;
+  box-shadow:0 18px 38px rgba(7,17,31,.22);
+}
+.heroProgressPanel>span{
+  display:block;
+  color:#64748b;
+  font-size:.78rem;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.heroProgressTop{
+  display:flex;
+  justify-content:space-between;
+  gap:18px;
+  align-items:flex-end;
+  margin-top:12px;
+}
+.heroProgressTop strong{
+  font-size:1.35rem;
+}
+.heroProgressTop b{
+  color:var(--primary);
+  font-size:2.3rem;
+  line-height:1;
+}
+.heroProgressBar{
+  height:12px;
+  margin:18px 0 14px;
+}
+.heroProgressPanel p{
+  color:#475467;
+  margin:0 0 18px;
+}
+.heroResume{
+  width:100%;
+}
+.homeSection,
+.contactSocialBand,
+.legalNotice{
+  border-radius:14px;
+  box-shadow:var(--shadow);
+}
+.sectionIntro h2{
+  color:var(--primary2);
+  font-size:1.55rem;
+}
+.catalogFilters{
+  gap:10px;
+}
+.catalogFilter{
+  background:#fff;
+  border-color:#d9e2ef;
+  color:#24364f;
+}
+.catalogFilter:hover{
+  border-color:var(--primary);
+  background:#f2f7ff;
+}
+.catalogFilter.active{
+  background:var(--primary);
+  border-color:var(--primary);
+  box-shadow:0 10px 22px rgba(37,99,235,.16);
+}
+.availableCoursesGrid{
+  gap:18px;
+}
+.availableCourseCard{
+  position:relative;
+  min-height:284px;
+  overflow:hidden;
+  border-radius:14px;
+  background:#fff;
+  padding:24px 22px 20px;
+  box-shadow:0 10px 26px rgba(16,35,63,.08);
+}
+.availableCourseCard::before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:6px;
+  background:var(--primary);
+}
+.availableCourseCard.route-ai-automation::before{
+  background:var(--ai);
+}
+.availableCourseCard.route-scrum-agility::before{
+  background:var(--good);
+}
+.availableCourseCard.route-project-management::before{
+  background:var(--warn);
+}
+.availableCourseCard:hover{
+  border-color:rgba(37,99,235,.45);
+  box-shadow:0 16px 34px rgba(16,35,63,.12);
+}
+.courseCardTop strong,
+.availableCourseCard h3,
+.upcomingCard h3,
+.studyPathGrid h3{
+  color:var(--primary2);
+}
+.statusDot{
+  background:#ecfdf3;
+  border-color:#a7f3d0;
+  color:#047857;
+}
+.courseCardProgress{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  margin-top:auto;
+}
+.courseCardProgress .progressbar{
+  height:11px;
+  margin:0;
+}
+.courseCardProgress span{
+  color:#344054;
+  font-weight:900;
+  font-size:.88rem;
+}
+.courseStatsLine{
+  margin-top:0;
+}
+.courseEnter{
+  margin-top:2px;
+  border-radius:10px;
+  background:var(--primary);
+}
+.upcomingCard{
+  border-radius:12px;
+  background:#fff;
+  border-top-color:var(--primary);
+}
+.upcomingCard.route-ai-automation{
+  border-top-color:var(--ai);
+}
+.upcomingCard.route-scrum-agility{
+  border-top-color:var(--good);
+}
+.upcomingCard.route-project-management{
+  border-top-color:var(--warn);
+}
+.routeExplore{
+  border-radius:10px;
+}
+.studyPathGrid article{
+  border-radius:12px;
+  background:#fff;
+}
+.contactSocialBand{
+  background:linear-gradient(135deg,#ffffff 0%,#fff8e6 100%);
+}
+.socialPanel{
+  border-radius:12px;
+}
+body.modalOpen{
+  overflow:hidden;
+}
+.coffeeModal{
+  position:fixed;
+  inset:0;
+  z-index:100;
+  display:grid;
+  place-items:center;
+  background:rgba(7,17,31,.68);
+  padding:24px;
+}
+.coffeeModal[hidden]{
+  display:none!important;
+}
+.coffeeDialog{
+  position:relative;
+  width:min(100%,760px);
+  border-radius:16px;
+  background:#fff;
+  color:var(--text);
+  padding:32px;
+  box-shadow:0 24px 70px rgba(7,17,31,.34);
+}
+.modalClose{
+  position:absolute;
+  top:14px;
+  right:14px;
+  width:38px;
+  height:38px;
+  border:1px solid #d9e2ef;
+  border-radius:50%;
+  background:#fff;
+  color:var(--primary2);
+  font-weight:950;
+  cursor:pointer;
+}
+.coffeeDialogHead{
+  display:flex;
+  gap:16px;
+  align-items:flex-start;
+  padding-right:42px;
+}
+.coffeeIcon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:52px;
+  height:52px;
+  border-radius:14px;
+  background:#fff8e6;
+  color:#7a4b00;
+  font-size:1.45rem;
+  flex:0 0 auto;
+}
+.coffeeDialog h2{
+  margin:0 0 8px;
+  color:var(--primary2);
+  font-size:1.55rem;
+}
+.coffeeDialog p{
+  margin:0;
+  color:#475467;
+}
+.coffeeOptions{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin:28px 0 16px;
+}
+.coffeeOption{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:6px;
+  min-height:122px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+  color:var(--primary2);
+  cursor:pointer;
+}
+.coffeeOption strong{
+  font-size:1.35rem;
+}
+.coffeeOption span{
+  color:#667085;
+  font-weight:800;
+}
+.coffeeOption small{
+  position:absolute;
+  top:10px;
+  right:10px;
+  border-radius:999px;
+  background:var(--warn);
+  color:#10233f;
+  padding:4px 7px;
+  font-size:.7rem;
+  font-weight:950;
+}
+.coffeeOption.active{
+  border-color:var(--warn);
+  background:#fff8e6;
+  box-shadow:0 0 0 3px rgba(245,158,11,.16);
+}
+.coffeeSecure{
+  display:grid;
+  gap:3px;
+  border:1px solid #dbe8f6;
+  border-radius:12px;
+  background:#f2f7ff;
+  color:#24364f;
+  padding:13px 14px;
+}
+.coffeeSecure span{
+  color:#667085;
+  font-size:.92rem;
+}
+.coffeeCheckout{
+  width:100%;
+  margin-top:18px;
+  background:var(--warn);
+  color:#10233f;
+}
+.coffeeFineprint{
+  max-width:640px;
+  margin:14px auto 0!important;
+  text-align:center;
+  font-size:.88rem;
+}
+
+@media(max-width:940px){
+  .siteNav{
+    top:calc(100% + 12px);
+    border-radius:14px;
+  }
+  .siteNav .coffeeLink{
+    background:var(--warn);
+    border-color:#f7c96d;
+    color:#10233f;
+  }
+}
+@media(max-width:900px){
+  .landingHero{
+    grid-template-columns:1fr;
+    min-height:0;
+    padding:34px;
+  }
+  .heroProgressPanel{
+    max-width:none;
+  }
+  .availableCoursesGrid{
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:760px){
+  header{
+    padding:16px 12px;
+  }
+  .brandLogo{
+    width:166px;
+  }
+  .landingHero{
+    padding:26px 18px;
+    border-radius:14px;
+  }
+  .landingCopy h2{
+    font-size:2rem;
+  }
+  .landingActions{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+  .landingActions .btn,
+  .landingActions button,
+  .contactSocialBand .btn{
+    width:100%;
+    justify-content:center;
+    text-align:center;
+  }
+  .heroProgressPanel,
+  .availableCourseCard,
+  .homeSection,
+  .contactSocialBand,
+  .legalNotice{
+    border-radius:12px;
+  }
+  .coffeeDialog{
+    padding:24px 18px;
+  }
+  .coffeeDialogHead{
+    padding-right:34px;
+  }
+  .coffeeOptions{
+    grid-template-columns:1fr;
+  }
+}

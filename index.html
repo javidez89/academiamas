@@ -28,8 +28,7 @@
       </button>
       <nav class="siteNav" id="siteMenu" aria-label="Menú principal">
         <a href="#inicio" data-home-anchor="inicio">Inicio</a>
-        <a href="#rutas-aprendizaje" data-home-anchor="rutas-aprendizaje">Rutas</a>
-        <a href="#cursos-disponibles" data-home-anchor="cursos-disponibles">Cursos gratis</a>
+        <a href="#cursos-disponibles" data-home-anchor="cursos-disponibles">Cursos ISTQB</a>
         <a href="#como-estudiar" data-home-anchor="como-estudiar">Cómo estudiar</a>
         <a href="#contactanos" data-home-anchor="contactanos">Contáctanos</a>
         <a href="#redes" data-home-anchor="redes">Redes</a>
@@ -50,6 +49,30 @@
   </header>
 
   <div id="appNotice" class="appNotice info" role="status" aria-live="polite" hidden></div>
+
+  <div class="coffeeModal" id="coffeeModal" role="dialog" aria-modal="true" aria-labelledby="coffeeModalTitle" hidden>
+    <div class="coffeeDialog">
+      <button class="modalClose" type="button" data-action="close-coffee-modal" aria-label="Cerrar">X</button>
+      <div class="coffeeDialogHead">
+        <span class="coffeeIcon" aria-hidden="true">☕</span>
+        <div>
+          <h2 id="coffeeModalTitle">Invítame un café</h2>
+          <p>Tu aporte ayuda a mantener cursos gratuitos, servidores y nuevas herramientas.</p>
+        </div>
+      </div>
+      <div class="coffeeOptions" role="group" aria-label="Opciones de aporte">
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 5"><strong>USD 5</strong><span>Un café</span></button>
+        <button class="coffeeOption active" type="button" data-action="select-coffee-tier" data-tier="USD 10"><small>Elegido</small><strong>USD 10</strong><span>Dos cafés</span></button>
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 15"><strong>USD 15</strong><span>Gran apoyo</span></button>
+      </div>
+      <div class="coffeeSecure">
+        <b>Cobro seguro mediante Wompi</b>
+        <span>Wompi procesa en COP; antes de pagar se muestra el valor exacto.</span>
+      </div>
+      <button class="btn coffeeCheckout" type="button" data-action="continue-wompi">Continuar con Wompi</button>
+      <p class="coffeeFineprint">Aporte voluntario y único. No compra ni desbloquea cursos. La confirmación depende del proceso aprobado por Wompi.</p>
+    </div>
+  </div>
 
   <main class="wrap">
     <div class="layout" id="mainLayout">

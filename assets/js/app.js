@@ -128,8 +128,10 @@
   function bindDom() {
     dom.siteMenu = $('siteMenu');
     dom.siteMenuToggle = document.querySelector('[data-action="toggle-site-menu"]');
+    dom.siteHeader = $('inicio');
     dom.app = $('app');
     dom.notice = $('appNotice');
+    dom.coffeeModal = $('coffeeModal');
     dom.mainLayout = $('mainLayout');
     dom.heroTitle = $('heroTitle');
     dom.heroSubtitle = $('heroSubtitle');
@@ -159,6 +161,7 @@
 
   function handleKeyboardActivation(event) {
     if (event.key === 'Escape') {
+      closeCoffeeModal();
       closeSiteMenu();
       return;
     }
@@ -174,7 +177,12 @@
     const paymentTrigger = event.target.closest('.coffeeLink, .coffeeCta');
     if (paymentTrigger) {
       event.preventDefault();
-      openPaymentPopup();
+      openCoffeeModal();
+      return;
+    }
+
+    if (event.target === dom.coffeeModal) {
+      closeCoffeeModal();
       return;
     }
 
@@ -205,6 +213,16 @@
           : 'all';
         render();
         global.setTimeout(() => $('cursos-disponibles')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
+        break;
+      case 'select-coffee-tier':
+        selectCoffeeTier(actionTarget);
+        break;
+      case 'continue-wompi':
+        closeCoffeeModal();
+        openPaymentPopup();
+        break;
+      case 'close-coffee-modal':
+        closeCoffeeModal();
         break;
       case 'toggle-site-menu':
         toggleSiteMenu();
@@ -300,6 +318,34 @@
     }, 0);
   }
 
+  function openCoffeeModal() {
+    closeSiteMenu();
+    if (!dom.coffeeModal) {
+      openPaymentPopup();
+      return;
+    }
+    dom.coffeeModal.hidden = false;
+    document.body.classList.add('modalOpen');
+    global.setTimeout(() => dom.coffeeModal.querySelector('.coffeeOption.active, .coffeeCheckout')?.focus(), 0);
+  }
+
+  function closeCoffeeModal() {
+    if (!dom.coffeeModal || dom.coffeeModal.hidden) return;
+    dom.coffeeModal.hidden = true;
+    document.body.classList.remove('modalOpen');
+  }
+
+  function selectCoffeeTier(target) {
+    if (!dom.coffeeModal || !target) return;
+    dom.coffeeModal.querySelectorAll('.coffeeOption').forEach((button) => {
+      const active = button === target;
+      button.classList.toggle('active', active);
+      const label = button.querySelector('small');
+      if (active && !label) button.insertAdjacentHTML('afterbegin', '<small>Elegido</small>');
+      if (!active) label?.remove();
+    });
+  }
+
   function openPaymentPopup() {
     closeSiteMenu();
     const width = 520;
@@ -382,6 +428,7 @@
     const freeCourses = allCourses.filter(([key]) => catalogEntry(key)?.access === 'free').length;
     const blueprint = course?.blueprint || {};
 
+    dom.siteHeader?.classList.toggle('homeHeader', isHome);
     dom.mainLayout.classList.toggle('homeLayout', isHome);
     dom.heroTitle.textContent = isHome ? (Config.title || 'QA & Testing Academia') : courseLabel();
     dom.heroSubtitle.textContent = isHome
@@ -431,10 +478,46 @@
     return item.meta?.code || item.meta?.shortName || String(key).toUpperCase();
   }
 
-  function progressPercent(key, item) {
+  function courseProgressDetails(key, item) {
     const keyForStorage = item.meta?.storageKey || `academy_${key}_progress`;
-    const attempts = Storage.getProgress(keyForStorage).attempts || [];
-    return attempts.length ? Math.max(...attempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
+    const progress = Storage.getProgress(keyForStorage);
+    const attempts = progress.attempts || [];
+    const best = attempts.length ? Math.max(...attempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
+    return { attempts, best, last: attempts.at(-1) || null };
+  }
+
+  function heroProgressCourse() {
+    const entries = Registry.entries();
+    const active = Storage.getActiveCourse();
+    const withProgress = entries
+      .map(([key, item]) => ({ key, item, details: courseProgressDetails(key, item) }))
+      .sort((left, right) => right.details.best - left.details.best);
+
+    return withProgress.find((entry) => entry.details.best > 0)
+      || withProgress.find((entry) => entry.key === active)
+      || withProgress[0]
+      || null;
+  }
+
+  function renderHeroProgressCard() {
+    const entry = heroProgressCourse();
+    if (!entry) return '';
+
+    const { key, item, details } = entry;
+    const publicVersion = coursePublicVersion(key, item);
+    const pctValue = Math.max(0, Math.min(100, number(details.best, 0)));
+    const lastText = details.last
+      ? `Último intento: ${formatDate(details.last.date)} · ${number(details.last.scorePct)}%`
+      : 'Empieza gratis y guarda tu progreso en este navegador.';
+    const actionText = details.attempts.length ? 'Retomar sesión' : 'Comenzar curso';
+
+    return `<aside class="heroProgressPanel" aria-label="Resumen de progreso">
+      <span>Tu progreso</span>
+      <div class="heroProgressTop"><strong>${h(publicVersion)}</strong><b>${pctValue}%</b></div>
+      <div class="progressbar heroProgressBar" aria-hidden="true"><div style="width:${pctValue}%"></div></div>
+      <p>${h(lastText)}</p>
+      <button class="btn heroResume" type="button" data-action="select-course" data-course="${h(key)}">${h(actionText)}</button>
+    </aside>`;
   }
 
   function chapterTitle(id) {
@@ -517,7 +600,7 @@
     if (!matchingCourses.length) {
       const route = learningRoute(state.catalogFilter);
       return `<div class="catalogEmpty">
-        <span aria-hidden="true">🧭</span>
+        <span aria-hidden="true">+</span>
         <h3>${h(route?.name || 'Nuevos cursos')}</h3>
         <p>Aún no hay cursos publicados en esta ruta. La categoría ya está preparada para incorporar contenido sin afectar los cursos actuales.</p>
       </div>`;
@@ -525,7 +608,6 @@
 
     return matchingCourses.map(([key, item]) => {
       const blueprint = item.blueprint || {};
-      const best = progressPercent(key, item);
       const pass = `${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions || 0}`;
       const publicVersion = coursePublicVersion(key, item);
       const catalog = catalogEntry(key);
@@ -533,7 +615,11 @@
         .map((areaKey) => learningRoute(areaKey)?.name)
         .filter(Boolean);
 
-      return `<article class="availableCourseCard" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}">
+      const routeKey = catalog.areas?.includes('ai-automation') ? 'ai-automation' : (catalog.areas || [])[0] || 'testing-istqb';
+      const progress = courseProgressDetails(key, item);
+      const best = Math.max(0, Math.min(100, number(progress.best, 0)));
+
+      return `<article class="availableCourseCard route-${h(routeKey)}" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}">
         <div class="courseCardTop">
           <span class="statusDot">${catalog.access === 'free' ? 'Gratis' : 'Premium'}</span>
           <strong>${h(publicVersion)}</strong>
@@ -543,6 +629,10 @@
         <div class="courseTaxonomy">
           ${areaNames.map((areaName) => `<span>${h(areaName)}</span>`).join('')}
           ${catalog.family ? `<span>${h(catalog.family)}</span>` : ''}
+        </div>
+        <div class="courseCardProgress">
+          <div class="progressbar" aria-hidden="true"><div style="width:${best}%"></div></div>
+          <span>${best}%</span>
         </div>
         <div class="courseStatsLine">
           <span>${item.chapters.length} capítulos</span>
@@ -575,17 +665,21 @@
   }
 
   function renderHome() {
+    const continueCourse = heroProgressCourse()?.key || activeCourseKey || 'ctfl';
+
     return `<div class="publicHome">
       <section class="landingHero" aria-labelledby="homeMainTitle">
         <div class="landingCopy">
-          <h2 id="homeMainTitle">Aprende, practica y prepárate para tu próximo reto profesional.</h2>
-          <p>Explora rutas en testing, inteligencia artificial, Scrum y gestión de proyectos. Accede a cursos gratuitos con teoría, práctica, simulacros y progreso independiente.</p>
+          <span class="landingEyebrow">QA &amp; Testing Academia · 2 cursos gratis</span>
+          <h2 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h2>
+          <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
           <div class="landingActions">
-            <a class="btn" href="#rutas-aprendizaje" data-home-anchor="rutas-aprendizaje">Explorar rutas</a>
-            <a class="btn secondary" href="#cursos-disponibles" data-home-anchor="cursos-disponibles">Ver cursos gratis</a>
+            <a class="btn" href="#cursos-disponibles" data-home-anchor="cursos-disponibles">Explorar cursos</a>
+            <button class="btn secondary" type="button" data-action="select-course" data-course="${h(continueCourse)}">Continuar estudiando</button>
             ${renderCoffeeButton()}
           </div>
         </div>
+        ${renderHeroProgressCard()}
       </section>
 
       <section class="homeSection" id="rutas-aprendizaje" aria-labelledby="routesTitle">

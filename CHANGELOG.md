@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Ajuste visual UX/UI v3 para la home pública: header compacto, hero oscuro, CTA de continuidad y tarjeta de progreso.
+- Catálogo visual con filtros, barras de progreso y tarjetas comparables para CTFL 4.0 y CT-AI 2.0.
+- Modal de **Invítame un café** con opciones USD 5/10/15 y continuación al checkout oficial de Wompi.
+
+### Validation
+
+- `node --check assets/js/app.js`.
+- Playwright validó home desktop/móvil, filtros de rutas, menú móvil, modal Wompi, CTFL en simulacro y CT-AI en práctica.
+- Sin cambios en `courses/` y sin PDFs incluidos en el repositorio.
+
 ## [v0.3.0] - 2026-07-30
 
 ### Added
