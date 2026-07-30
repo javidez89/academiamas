@@ -5,7 +5,33 @@
   const Registry = global.AcademyRegistry;
   const Storage = global.AcademyStorage;
   const Config = global.ACADEMY_CONFIG || {};
-  const KOFI_PAGE_URL = 'https://ko-fi.com/Q4S6243T7H';
+  const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
+  const LEARNING_ROUTES = Object.freeze([
+    Object.freeze({
+      key: 'testing-istqb',
+      name: 'Testing e ISTQB',
+      description: 'Fundamentos de testing, CTFL y especialidades ISTQB organizadas por nivel y enfoque.',
+      steps: Object.freeze(['Fundamentos de testing', 'CTFL', 'Especialidades ISTQB'])
+    }),
+    Object.freeze({
+      key: 'ai-automation',
+      name: 'IA y automatización',
+      description: 'Bases de inteligencia artificial, IA generativa y aplicaciones profesionales.',
+      steps: Object.freeze(['Fundamentos de IA', 'IA generativa', 'Aplicaciones profesionales'])
+    }),
+    Object.freeze({
+      key: 'scrum-agility',
+      name: 'Scrum y agilidad',
+      description: 'Aprendizaje progresivo para fundamentos, Scrum Master y Product Owner.',
+      steps: Object.freeze(['Fundamentos Scrum', 'Scrum Master', 'Product Owner'])
+    }),
+    Object.freeze({
+      key: 'project-management',
+      name: 'Gestión de proyectos',
+      description: 'Planificación, riesgos, enfoques ágiles e híbridos y evolución hacia PMO.',
+      steps: Object.freeze(['Fundamentos', 'Gestión ágil e híbrida', 'Riesgos y PMO'])
+    })
+  ]);
 
   const VIEW_RENDERERS = Object.freeze({
     home: renderHome,
@@ -41,7 +67,8 @@
       questionLocked: false,
       flashIndex: 0,
       flashShow: false,
-      flashFilter: 'all'
+      flashFilter: 'all',
+      catalogFilter: 'all'
     };
   }
 
@@ -144,10 +171,10 @@
   }
 
   function handleClick(event) {
-    const kofiTrigger = event.target.closest('.kofiButtonMount a.kofi-button, .coffeeLink, .coffeeCta');
-    if (kofiTrigger) {
+    const paymentTrigger = event.target.closest('.coffeeLink, .coffeeCta');
+    if (paymentTrigger) {
       event.preventDefault();
-      openKofiPopup();
+      openPaymentPopup();
       return;
     }
 
@@ -171,6 +198,13 @@
     switch (action) {
       case 'select-course':
         setCourse(actionTarget.dataset.course);
+        break;
+      case 'filter-courses':
+        state.catalogFilter = learningRoute(actionTarget.dataset.filter)
+          ? actionTarget.dataset.filter
+          : 'all';
+        render();
+        global.setTimeout(() => $('cursos-disponibles')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
         break;
       case 'toggle-site-menu':
         toggleSiteMenu();
@@ -262,21 +296,22 @@
     if (state.view !== 'home') setView('home');
     global.setTimeout(() => {
       const target = $(anchorId) || (anchorId === 'inicio' ? document.querySelector('header') : null);
-      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     }, 0);
   }
 
-  function openKofiPopup() {
+  function openPaymentPopup() {
     closeSiteMenu();
     const width = 520;
     const height = 720;
     const left = Math.max(0, Math.round((global.screen.width - width) / 2));
     const top = Math.max(0, Math.round((global.screen.height - height) / 2));
-    global.open(
-      KOFI_PAGE_URL,
-      'academiaqaKofi',
+    const popup = global.open(
+      WOMPI_PAYMENT_URL,
+      'academiaqaWompi',
       `popup=yes,width=${width},height=${height},left=${left},top=${top},noopener`
     );
+    if (!popup) global.location.href = WOMPI_PAYMENT_URL;
   }
 
   function handleChange(event) {
@@ -344,6 +379,7 @@
     const isHome = state.view === 'home';
     const allCourses = Registry.entries();
     const totalBank = allCourses.reduce((sum, [, item]) => sum + (item.questions?.length || 0), 0);
+    const freeCourses = allCourses.filter(([key]) => catalogEntry(key)?.access === 'free').length;
     const blueprint = course?.blueprint || {};
 
     dom.mainLayout.classList.toggle('homeLayout', isHome);
@@ -352,11 +388,11 @@
       ? (Config.description || 'Selecciona una certificación para iniciar.')
       : `Menú de estudio de ${courseLabel()}: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.`;
     dom.topChapters.textContent = isHome
-      ? `📚 ${allCourses.length} certificaciones disponibles`
+      ? `🧭 ${LEARNING_ROUTES.length} rutas de aprendizaje`
       : `📘 ${course.chapters.length} capítulos`;
     dom.topBank.textContent = String(isHome ? totalBank : questions.length);
     dom.topExam.textContent = isHome
-      ? '🚀 Inicio de certificaciones'
+      ? `🎓 ${freeCourses} cursos gratis disponibles`
       : `⏱️ Simulacro ${blueprint.minutes} min / aprueba ${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions}`;
     dom.navCaps.textContent = `${course?.chapters?.length || 0} caps`;
     dom.navExamCount.textContent = String(blueprint.totalQuestions || 0);
@@ -441,20 +477,73 @@
     return item.meta?.code || String(key).toUpperCase();
   }
 
+  function catalogEntry(key) {
+    const catalog = Array.isArray(global.ACADEMY_CATALOG) ? global.ACADEMY_CATALOG : [];
+    return catalog.find((item) => item?.key === key) || {};
+  }
+
+  function learningRoute(routeKey) {
+    return LEARNING_ROUTES.find((route) => route.key === routeKey);
+  }
+
+  function courseMatchesFilter(key, filter) {
+    if (filter === 'all') return true;
+    const areas = catalogEntry(key).areas;
+    return Array.isArray(areas) && areas.includes(filter);
+  }
+
+  function availableCourseCount(routeKey) {
+    return Registry.entries().filter(([key]) => courseMatchesFilter(key, routeKey)).length;
+  }
+
+  function renderCatalogFilters() {
+    const filters = [{ key: 'all', name: 'Todos', count: Registry.entries().length }]
+      .concat(LEARNING_ROUTES.map((route) => ({
+        key: route.key,
+        name: route.name,
+        count: availableCourseCount(route.key)
+      })));
+
+    return `<div class="catalogFilters" role="group" aria-label="Filtrar cursos por área">${filters.map((filter) => {
+      const active = state.catalogFilter === filter.key;
+      return `<button class="catalogFilter${active ? ' active' : ''}" type="button" data-action="filter-courses" data-filter="${h(filter.key)}" aria-controls="courseCatalog" aria-pressed="${active}">
+        ${h(filter.name)} <span>${filter.count}</span>
+      </button>`;
+    }).join('')}</div>`;
+  }
+
   function renderHomeCards() {
-    return Registry.entries().map(([key, item]) => {
+    const matchingCourses = Registry.entries().filter(([key]) => courseMatchesFilter(key, state.catalogFilter));
+    if (!matchingCourses.length) {
+      const route = learningRoute(state.catalogFilter);
+      return `<div class="catalogEmpty">
+        <span aria-hidden="true">🧭</span>
+        <h3>${h(route?.name || 'Nuevos cursos')}</h3>
+        <p>Aún no hay cursos publicados en esta ruta. La categoría ya está preparada para incorporar contenido sin afectar los cursos actuales.</p>
+      </div>`;
+    }
+
+    return matchingCourses.map(([key, item]) => {
       const blueprint = item.blueprint || {};
       const best = progressPercent(key, item);
       const pass = `${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions || 0}`;
       const publicVersion = coursePublicVersion(key, item);
+      const catalog = catalogEntry(key);
+      const areaNames = (catalog.areas || [])
+        .map((areaKey) => learningRoute(areaKey)?.name)
+        .filter(Boolean);
 
       return `<article class="availableCourseCard" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}">
         <div class="courseCardTop">
-          <span class="statusDot">Disponible</span>
+          <span class="statusDot">${catalog.access === 'free' ? 'Gratis' : 'Premium'}</span>
           <strong>${h(publicVersion)}</strong>
         </div>
         <h3>${h(item.meta?.name || key)}</h3>
         <p>${h(item.meta?.subtitle || 'Curso disponible para estudio independiente.')}</p>
+        <div class="courseTaxonomy">
+          ${areaNames.map((areaName) => `<span>${h(areaName)}</span>`).join('')}
+          ${catalog.family ? `<span>${h(catalog.family)}</span>` : ''}
+        </div>
         <div class="courseStatsLine">
           <span>${item.chapters.length} capítulos</span>
           <span>${item.objectives?.length || 0} LO</span>
@@ -469,51 +558,51 @@
   }
 
   function renderUpcomingCards() {
-    const upcoming = [
-      ['Ruta avanzada', 'Especializaciones ISTQB por rol, nivel y foco de práctica.'],
-      ['Pruebas ágiles', 'Preparación orientada a equipos iterativos y criterios de aceptación.'],
-      ['Automatización', 'Laboratorios y práctica para estrategia, diseño y mantenimiento de pruebas.']
-    ];
-
-    return upcoming.map(([title, description]) => `<article class="upcomingCard">
-      <span>Próximamente</span>
-      <h3>${h(title)}</h3>
-      <p>${h(description)}</p>
-    </article>`).join('');
+    return LEARNING_ROUTES.map((route) => {
+      const available = availableCourseCount(route.key);
+      return `<article class="upcomingCard route-${h(route.key)}">
+      <span>${available ? `${available} ${available === 1 ? 'curso disponible' : 'cursos disponibles'}` : 'Próximamente'}</span>
+      <h3>${h(route.name)}</h3>
+      <p>${h(route.description)}</p>
+      <ol class="routeSteps">${route.steps.map((step) => `<li>${h(step)}</li>`).join('')}</ol>
+      ${available ? `<button class="routeExplore" type="button" data-action="filter-courses" data-filter="${h(route.key)}" aria-controls="courseCatalog">Ver cursos de esta ruta</button>` : '<b class="routeSoon">Ruta preparada para crecer</b>'}
+    </article>`;
+    }).join('');
   }
 
-  function renderKofiButton() {
-    const fallback = '<button class="btn coffeeCta" type="button">Invítame un café</button>';
-    if (!global.kofiwidget2?.init || !global.kofiwidget2?.getHTML) return fallback;
-
-    try {
-      global.kofiwidget2.init('Invítame un café', '#d68f00', 'Q4S6243T7H');
-      return `<span class="kofiButtonMount">${global.kofiwidget2.getHTML()}</span>`;
-    } catch (error) {
-      console.warn('No fue posible renderizar el botón Ko-fi.', error);
-      return fallback;
-    }
+  function renderCoffeeButton() {
+    return '<button class="btn coffeeCta" type="button">Invítame un café</button>';
   }
 
   function renderHome() {
     return `<div class="publicHome">
       <section class="landingHero" aria-labelledby="homeMainTitle">
         <div class="landingCopy">
-          <h2 id="homeMainTitle">Prepárate, simula y alcanza tu próxima certificación QA.</h2>
-          <p>Eleva tus habilidades de testing. Accede gratis a material de estudio estructurado por objetivos de aprendizaje y simulacros de exámenes reales. Guarda tu progreso de forma segura y prepárate para certificar tu experiencia.</p>
+          <h2 id="homeMainTitle">Aprende, practica y prepárate para tu próximo reto profesional.</h2>
+          <p>Explora rutas en testing, inteligencia artificial, Scrum y gestión de proyectos. Accede a cursos gratuitos con teoría, práctica, simulacros y progreso independiente.</p>
           <div class="landingActions">
-            <a class="btn" href="#cursos-istqb" data-home-anchor="cursos-istqb">Ver rutas de estudio</a>
-            ${renderKofiButton()}
+            <a class="btn" href="#rutas-aprendizaje" data-home-anchor="rutas-aprendizaje">Explorar rutas</a>
+            <a class="btn secondary" href="#cursos-disponibles" data-home-anchor="cursos-disponibles">Ver cursos gratis</a>
+            ${renderCoffeeButton()}
           </div>
         </div>
       </section>
 
-      <section class="homeSection" id="cursos-istqb" aria-labelledby="coursesTitle">
+      <section class="homeSection" id="rutas-aprendizaje" aria-labelledby="routesTitle">
         <div class="sectionIntro">
-          <h2 id="coursesTitle">Disponibles ahora</h2>
-          <p>CTFL 4.0 y CT-AI 2.0 están habilitados para estudiar, practicar y simular desde el banco modular existente.</p>
+          <h2 id="routesTitle">Explora rutas de preparación y aprendizaje</h2>
+          <p>Estas secuencias son recomendaciones flexibles, no requisitos. Cada ruta puede crecer con nuevos cursos gratuitos o Premium.</p>
         </div>
-        <div class="availableCoursesGrid">${renderHomeCards()}</div>
+        <div class="upcomingGrid">${renderUpcomingCards()}</div>
+      </section>
+
+      <section class="homeSection" id="cursos-disponibles" aria-labelledby="coursesTitle">
+        <div class="sectionIntro">
+          <h2 id="coursesTitle">Cursos disponibles gratis</h2>
+          <p>CTFL 4.0 y CT-AI 2.0 continúan habilitados sin costo para estudiar, practicar y simular.</p>
+        </div>
+        ${renderCatalogFilters()}
+        <div class="availableCoursesGrid" id="courseCatalog" aria-live="polite">${renderHomeCards()}</div>
       </section>
 
       <section class="homeSection" id="como-estudiar" aria-labelledby="studyTitle">
@@ -521,26 +610,18 @@
           <h2 id="studyTitle">Ruta simple para avanzar</h2>
         </div>
         <div class="studyPathGrid">
-          <article><strong>1</strong><h3>Elige certificación</h3><p>Entra al curso disponible y mantén su avance separado.</p></article>
+          <article><strong>1</strong><h3>Elige una ruta</h3><p>Explora el área profesional y selecciona el curso que necesitas.</p></article>
           <article><strong>2</strong><h3>Lee por capítulos</h3><p>Repasa teoría, objetivos LO y puntos clave antes de practicar.</p></article>
           <article><strong>3</strong><h3>Practica por foco</h3><p>Filtra por capítulo, nivel K u objetivo de aprendizaje.</p></article>
           <article><strong>4</strong><h3>Simula y refuerza</h3><p>Usa el simulacro oficial aleatorio y revisa tus estadísticas.</p></article>
         </div>
       </section>
 
-      <section class="homeSection" aria-labelledby="soonTitle">
-        <div class="sectionIntro">
-          <h2 id="soonTitle">Sección escalable para nuevos cursos</h2>
-          <p>La home queda lista para añadir próximas certificaciones sin mezclar contenido académico con la presentación.</p>
-        </div>
-        <div class="upcomingGrid">${renderUpcomingCards()}</div>
-      </section>
-
       <section class="contactSocialBand" id="contactanos" aria-labelledby="contactTitle">
         <div>
           <h2 id="contactTitle">Colaboraciones, dudas y apoyo</h2>
-          <p>Este espacio queda preparado para recibir mensajes, correcciones, propuestas de nuevos cursos y apoyo voluntario al proyecto.</p>
-          ${renderKofiButton()}
+          <p>Este espacio queda preparado para recibir mensajes, correcciones, propuestas de nuevos cursos y apoyo voluntario al proyecto. Los aportes se procesan de forma segura mediante Wompi, en COP, sin almacenar datos de tarjetas.</p>
+          ${renderCoffeeButton()}
         </div>
         <div id="redes" class="socialPanel" aria-labelledby="socialTitle">
           <h3 id="socialTitle">Redes</h3>
@@ -553,7 +634,7 @@
       </section>
 
       <section class="legalNotice" aria-label="Aviso legal">
-        <b>Aviso legal:</b> AcademiaQA es una plataforma independiente de apoyo al estudio. No representa a ISTQB®, no emite certificaciones y no sustituye syllabus, glosarios, reglas, materiales ni exámenes oficiales.
+        <b>Aviso legal:</b> AcademiaQA es una plataforma independiente de preparación y aprendizaje. No emite certificaciones ni sustituye syllabus, glosarios, reglas, materiales o exámenes oficiales de las entidades certificadoras.
       </section>
     </div>`;
   }

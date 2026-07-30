@@ -109,15 +109,18 @@ details.auditDetails summary{cursor:pointer;font-weight:850;color:#143d70}
 .statusDot{display:inline-flex;width:max-content;max-width:100%;align-items:center;border-radius:999px;font-weight:900;font-size:.78rem;letter-spacing:.03em;text-transform:uppercase}
 .landingCopy h2{font-size:clamp(2.15rem,4.6vw,4.15rem);line-height:1.02;margin:0;color:#10243f;max-width:760px}
 .landingCopy p{font-size:1.1rem;max-width:760px;color:#344054;margin:18px 0 0}
-.landingCopy p::after{content:"Gratis · Progreso local · Simulacros";display:flex;width:max-content;max-width:100%;margin-top:16px;border:1px solid #bfe6cf;background:#eaf7ef;color:#0f5132;border-radius:999px;padding:7px 10px;font-size:.83rem;font-weight:900}
+.landingCopy p::after{content:"Cursos gratis · Rutas escalables · Simulacros";display:flex;width:max-content;max-width:100%;margin-top:16px;border:1px solid #bfe6cf;background:#eaf7ef;color:#0f5132;border-radius:999px;padding:7px 10px;font-size:.83rem;font-weight:900}
 .landingActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
 .landingActions a{text-decoration:none}
-.kofiButtonMount{display:inline-flex;align-items:center;line-height:1}
-.kofiButtonMount .btn-container{display:inline-flex!important;min-width:0!important}
-.kofiButtonMount a.kofi-button{border-radius:12px!important;line-height:36px!important;min-width:0!important;box-shadow:0 10px 22px rgba(184,110,0,.24)!important}
 .homeSection,.contactSocialBand,.legalNotice{background:#fff;border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:var(--shadow)}
 .sectionIntro{max-width:820px;margin-bottom:16px}
 .sectionIntro h2{font-size:1.7rem;color:#10243f;margin-top:8px}
+.catalogFilters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
+.catalogFilter{display:inline-flex;align-items:center;gap:7px;border:1px solid #d7e5f5;background:#f8fbff;color:#153b63;border-radius:999px;padding:8px 11px;font-weight:850;cursor:pointer}
+.catalogFilter span{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;border-radius:999px;background:#e4eef8;color:#143d70;font-size:.76rem}
+.catalogFilter:hover{border-color:#0f5faa;background:#edf6ff}
+.catalogFilter.active{background:#0f5faa;color:#fff;border-color:#0f5faa;box-shadow:0 8px 18px rgba(15,95,170,.18)}
+.catalogFilter.active span{background:rgba(255,255,255,.2);color:#fff}
 .availableCoursesGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .availableCourseCard{display:flex;flex-direction:column;gap:12px;min-height:320px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#fff,#f8fbff);padding:18px;cursor:pointer;transition:.16s ease}
 .availableCourseCard:hover{transform:translateY(-2px);border-color:#0f5faa;box-shadow:0 14px 28px rgba(15,95,170,.13)}
@@ -126,17 +129,31 @@ details.auditDetails summary{cursor:pointer;font-weight:850;color:#143d70}
 .statusDot{background:#eaf7ef;color:#0f5132;border:1px solid #bfe6cf;padding:5px 8px}
 .availableCourseCard h3{font-size:1.22rem;line-height:1.25;margin:0;color:#10243f}
 .availableCourseCard p{margin:0;color:#475467}
+.courseTaxonomy{display:flex;gap:6px;flex-wrap:wrap}
+.courseTaxonomy span{font-size:.75rem;border:1px solid #c9def1;background:#f5f9fd;color:#274b70;border-radius:999px;padding:4px 8px;font-weight:800}
 .courseStatsLine{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
 .courseStatsLine span{font-size:.78rem;border:1px solid #dbe8f6;background:#edf4fb;color:#153b63;border-radius:999px;padding:4px 8px;font-weight:850}
 .courseEnter{display:inline-flex;width:max-content;max-width:100%;align-items:center;justify-content:center;border-radius:12px;background:#0f5faa;color:#fff;font-weight:900;padding:10px 12px}
+.catalogEmpty{grid-column:1/-1;text-align:center;border:1px dashed #b9cce0;border-radius:18px;background:#f8fbff;padding:30px 18px;color:#475467}
+.catalogEmpty>span{font-size:2rem}.catalogEmpty h3{margin:8px 0;color:#10243f}.catalogEmpty p{max-width:680px;margin:0 auto}
 .studyPathGrid,.upcomingGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .studyPathGrid article,.upcomingCard{border:1px solid var(--line);border-radius:16px;background:#fbfdff;padding:16px;min-width:0}
 .studyPathGrid strong{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#1f7a4d;color:#fff;font-weight:950}
 .studyPathGrid h3,.upcomingCard h3{margin-top:12px;color:#10243f}
-.upcomingGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.upcomingGrid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.upcomingCard{display:flex;flex-direction:column;min-height:310px;border-top:4px solid #0f5faa}
+.upcomingCard.route-ai-automation{border-top-color:#7b61d1}
+.upcomingCard.route-scrum-agility{border-top-color:#1f8c61}
+.upcomingCard.route-project-management{border-top-color:#c47818}
 .upcomingCard span{display:inline-flex;border-radius:999px;background:#fff8e6;border:1px solid #ffd894;color:#7a4b00;padding:5px 8px;font-weight:900;font-size:.78rem}
+.upcomingCard p{color:#475467;margin-bottom:10px}
+.routeSteps{display:grid;gap:6px;margin:0 0 16px;padding-left:22px;color:#344054;font-size:.88rem}
+.routeSteps li::marker{color:#0f5faa;font-weight:900}
+.routeExplore{margin-top:auto;border:0;border-radius:11px;background:#edf4fb;color:#143d70;padding:9px 11px;font-weight:900;cursor:pointer;text-align:left}
+.routeExplore:hover{background:#dfeefa;color:#0f5faa}
+.routeSoon{display:block;margin-top:auto;color:#667085;font-size:.83rem}
 .contactSocialBand{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(280px,.95fr);gap:18px;align-items:center;background:linear-gradient(135deg,#ffffff,#fff8e6)}
-.contactSocialBand .btn,.contactSocialBand .kofiButtonMount{text-decoration:none;display:inline-flex;width:max-content;margin-top:8px}
+.contactSocialBand .btn{text-decoration:none;display:inline-flex;width:max-content;margin-top:8px}
 .socialPanel{border:1px solid #edd8ab;background:#fff;border-radius:18px;padding:18px}
 .socialPanel h3{margin-top:0}
 .socialLinks{display:flex;flex-wrap:wrap;gap:8px}
@@ -215,7 +232,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
   .landingHero,.contactSocialBand{grid-template-columns:1fr}
   .landingHero::before{width:70%;height:42%;right:-22%;bottom:-18%}
   .landingHero::after{right:8%;bottom:3%;font-size:5rem}
-  .studyPathGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .studyPathGrid,.upcomingGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:760px){
   .siteTopbar{align-items:flex-start}
@@ -229,9 +246,14 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
   .landingCopy p{font-size:.98rem}
   .landingCopy p::after{width:100%;justify-content:center;text-align:center}
   .landingActions{display:grid;grid-template-columns:1fr}
-  .landingActions .btn,.landingActions .kofiButtonMount,.landingActions .btn-container,.landingActions a.kofi-button,.contactSocialBand .btn,.contactSocialBand .kofiButtonMount,.contactSocialBand .btn-container,.contactSocialBand a.kofi-button{width:100%!important;text-align:center;justify-content:center}
+  .landingActions .btn,.contactSocialBand .btn{width:100%!important;text-align:center;justify-content:center}
   .availableCoursesGrid,.upcomingGrid,.studyPathGrid{grid-template-columns:1fr}
+  .catalogFilters{display:grid;grid-template-columns:1fr 1fr}
+  .catalogFilter{justify-content:space-between;text-align:left}
   .availableCourseCard{min-height:auto}
   .courseCardTop{align-items:flex-start}
   .courseEnter{width:100%}
+}
+@media(max-width:460px){
+  .catalogFilters{grid-template-columns:1fr}
 }

@@ -8,16 +8,15 @@ OK: courses/catalog.js
 OK: courses/ctfl/course-data.js
 OK: courses/ctai/course-data.js
 
-=== Eventos inline en index y motor ===
-OK: no encontrados
-
-=== Funciones peligrosas ===
-OK: no encontradas
-
-=== Registro de cursos ===
-registry [ 'ctfl', 'ctai' ]
-app has CTFL true
-app has CTAI true
-cards 2
-hero ISTQB Academia Multi-certificación
-bank 530
+=== Verificación funcional ===
+OK: Home pública AcademiaQA.
+OK: Rutas de aprendizaje visibles.
+OK: CTFL 4.0 y CT-AI 2.0 continúan gratis.
+OK: Filtros de catálogo por área.
+OK: Menú móvil.
+OK: Botón Invítame un café abre Wompi en popup.
+OK: CTFL inicia simulacro oficial.
+OK: CT-AI inicia práctica.
+OK: No hay eventos inline.
+OK: No se incluyen PDFs oficiales.
+OK: course-data.js de CTFL y CT-AI permanece intacto.

@@ -1,4 +1,4 @@
-# Academia Multi-certificación · Arquitectura modular segura
+# AcademiaQA · Arquitectura modular segura y escalable
 
 Esta versión conserva el diseño y las funciones principales del simulador, pero separa el motor, la seguridad, el almacenamiento, el estilo y los datos de cada curso.
 
@@ -43,13 +43,39 @@ También puede abrirse directamente como archivo local en navegadores que permit
 1. Copia `courses/_template/` como `courses/nuevo-curso/`.
 2. Renombra `course-data.example.js` a `course-data.js`.
 3. Cambia la clave de registro y completa `meta`, `chapters`, `objectives`, `questions`, `flashcards` y `blueprint`.
-4. Añade una entrada en `courses/catalog.js`:
+4. Añade una entrada en `courses/catalog.js` con su clasificación de navegación:
 
 ```js
-Object.freeze({ key: 'nuevo-curso', src: 'courses/nuevo-curso/course-data.js' })
+Object.freeze({
+  key: 'nuevo-curso',
+  src: 'courses/nuevo-curso/course-data.js',
+  access: 'free',
+  family: 'Scrum',
+  areas: Object.freeze(['scrum-agility']),
+  tags: Object.freeze(['Scrum', 'Fundamentos'])
+})
 ```
 
 5. Abre la academia. El registro valida capítulos, objetivos, IDs, opciones, respuestas y matriz antes de habilitar el curso.
+
+## Áreas de aprendizaje
+
+- `testing-istqb`: Testing, fundamentos y especialidades ISTQB.
+- `ai-automation`: Inteligencia artificial y automatización.
+- `scrum-agility`: Scrum, agilidad, Scrum Master y Product Owner.
+- `project-management`: Gestión de proyectos, riesgos, enfoques ágiles/híbridos y PMO.
+
+Un curso puede pertenecer a más de un área. Por ejemplo, CT-AI aparece en Testing e ISTQB y también en IA y automatización. La clasificación del catálogo solo controla navegación y presentación; no modifica el contenido académico.
+
+## Pagos y aportes
+
+El botón **Invítame un café** abre el checkout oficial de Wompi:
+
+```text
+https://checkout.wompi.co/l/VPOS_52PXST
+```
+
+La app no procesa tarjetas ni confirma compras por sí sola. Los aportes voluntarios son independientes de los cursos; cualquier curso premium futuro requiere backend, autenticación y verificación segura de pago antes de habilitar acceso.
 
 ## Contrato mínimo de un curso
 

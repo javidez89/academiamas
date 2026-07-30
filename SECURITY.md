@@ -20,7 +20,9 @@
 - `localStorage` no es una fuente confiable para permisos o resultados oficiales.
 - No existe autenticación ni autorización del lado del servidor.
 - Un curso premium no debe entregarse completo al navegador antes de validar la membresía.
+- El botón de Wompi solo redirige al checkout oficial; la app no guarda datos de tarjeta.
+- Un aporte voluntario no desbloquea cursos ni sustituye una confirmación segura de compra.
 
 ## Recomendación para una fase premium
 
-Usar un backend que aplique autenticación, permisos por curso, expiración de sesión, validación de pagos y entrega de preguntas desde una API. Las respuestas correctas deberían evaluarse en el servidor cuando el contenido deba protegerse.
+Usar un backend que aplique autenticación, permisos por curso, expiración de sesión, validación de pagos por webhook y entrega de preguntas desde una API. Las respuestas correctas deberían evaluarse en el servidor cuando el contenido deba protegerse.
