@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.3.2] - 2026-07-30
 
 ### Changed
 
@@ -10,7 +10,9 @@
 
 ### Validation
 
-- Pendiente de cierre de versión.
+- `node --check assets/js/app.js`.
+- Playwright validó home, opción externa CertiProf, TRM dinámica, fallback TRM, Wompi popup único, menú móvil, CTFL simulacro y CT-AI práctica.
+- Sin cambios en `courses/` y sin PDFs incluidos en el repositorio.
 
 ## [v0.3.1] - 2026-07-30
 
