@@ -4,4 +4,6 @@ Esta plataforma es una herramienta independiente de apoyo al estudio y de simula
 
 ISTQB® y los nombres de sus certificaciones son marcas de sus respectivos titulares. Los materiales de referencia mantienen sus avisos de propiedad intelectual y deben utilizarse conforme a las condiciones establecidas por sus autores y titulares.
 
+Scrum Guide 2020 es obra de Ken Schwaber y Jeff Sutherland. El curso Scrum Master incluido en esta plataforma es una adaptación educativa en español basada en la versión HTML disponible en https://scrumguides.org/scrum-guide.html y se atribuye bajo Creative Commons Attribution Share-Alike 4.0: https://creativecommons.org/licenses/by-sa/4.0/. No se incluye el PDF oficial.
+
 El repositorio no debe incluir credenciales, tokens, datos personales, secretos, llaves privadas ni contenido premium cuya autorización dependa únicamente del código del navegador.

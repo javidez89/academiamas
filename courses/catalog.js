@@ -16,5 +16,13 @@ window.ACADEMY_CATALOG = Object.freeze([
     family: 'ISTQB',
     areas: Object.freeze(['testing-istqb', 'ai-automation']),
     tags: Object.freeze(['Testing', 'ISTQB', 'Inteligencia artificial'])
+  }),
+  Object.freeze({
+    key: 'scrum-master',
+    src: 'courses/scrum-master/course-data.js',
+    access: 'free',
+    family: 'Scrum',
+    areas: Object.freeze(['scrum-agility']),
+    tags: Object.freeze(['Scrum', 'Scrum Master', 'Agilidad', 'Scrum Guide 2020'])
   })
 ]);

@@ -765,7 +765,7 @@
     return `<div class="publicHome">
       <section class="landingHero" aria-labelledby="homeMainTitle">
         <div class="landingCopy">
-          <span class="landingEyebrow">QA &amp; Testing Academia · 2 cursos gratis</span>
+          <span class="landingEyebrow">QA &amp; Testing Academia · 3 cursos gratis</span>
           <h2 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h2>
           <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
           <div class="landingActions">
@@ -809,7 +809,7 @@
       <section class="homeSection" id="cursos-disponibles" aria-labelledby="coursesTitle">
         <div class="sectionIntro">
           <h2 id="coursesTitle">Cursos disponibles gratis</h2>
-          <p>CTFL 4.0 y CT-AI 2.0 continúan habilitados sin costo para estudiar, practicar y simular.</p>
+          <p>CTFL 4.0, CT-AI 2.0 y Scrum Master continúan habilitados sin costo para estudiar, practicar y simular.</p>
         </div>
         ${renderCatalogFilters()}
         <div class="availableCoursesGrid" id="courseCatalog" aria-live="polite">${renderHomeCards()}</div>
@@ -823,7 +823,7 @@
           <article><strong>1</strong><h3>Elige una ruta</h3><p>Explora el área profesional y selecciona el curso que necesitas.</p></article>
           <article><strong>2</strong><h3>Lee por capítulos</h3><p>Repasa teoría, objetivos LO y puntos clave antes de practicar.</p></article>
           <article><strong>3</strong><h3>Practica por foco</h3><p>Filtra por capítulo, nivel K u objetivo de aprendizaje.</p></article>
-          <article><strong>4</strong><h3>Simula y refuerza</h3><p>Usa el simulacro oficial aleatorio y revisa tus estadísticas.</p></article>
+          <article><strong>4</strong><h3>Simula y refuerza</h3><p>Usa el simulacro aleatorio y revisa tus estadísticas.</p></article>
         </div>
       </section>
 
@@ -866,7 +866,7 @@
         <div class="courseAction" role="button" tabindex="0" data-view="study"><b>📚 Estudiar syllabus</b><span class="small">Capítulos y teoría</span></div>
         <div class="courseAction" role="button" tabindex="0" data-view="objectives"><b>🎯 Objetivos LO</b><span class="small">Mapa de aprendizaje</span></div>
         <div class="courseAction" role="button" tabindex="0" data-view="practice"><b>📝 Practicar</b><span class="small">Banco filtrado</span></div>
-        <div class="courseAction" role="button" tabindex="0" data-view="exam"><b>⏱️ Simulacro</b><span class="small">Modo examen oficial</span></div>
+        <div class="courseAction" role="button" tabindex="0" data-view="exam"><b>⏱️ Simulacro</b><span class="small">Modo examen</span></div>
       </div>
     </div>`;
   }
@@ -908,7 +908,7 @@
         <li>Distribución capítulos: ${h(JSON.stringify(bankAudit.byChapter || {}))}</li>
         <li>Problemas estructurales: <b>${bankAudit.structuralIssues?.length || 0}</b></li>
         <li>Correcciones aplicadas: ${h((bankAudit.correctedItems || []).join(', ') || 'Ninguna')}</li>
-        <li>Simulaciones oficiales: <b>${number(simulationAudit.runs)}</b> · estado ${h(simulationAudit.status || 'N/D')} · combinaciones observadas ${number(simulationAudit.uniqueExamCombinationsObserved)}</li>
+        <li>Simulaciones: <b>${number(simulationAudit.runs)}</b> · estado ${h(simulationAudit.status || 'N/D')} · combinaciones observadas ${number(simulationAudit.uniqueExamCombinationsObserved)}</li>
       </ul>
     </details>`;
   }
@@ -935,13 +935,13 @@
       <div class="okbox"><b>Ruta recomendada:</b> 1) selecciona certificación → 2) lee capítulo → 3) practica por LO → 4) entrena aplicación → 5) simulacro → 6) refuerza errores.</div>
       ${last ? `<p><b>Último intento:</b> ${number(last.correct)}/${number(last.total)} (${number(last.scorePct)}%) · ${h(formatDate(last.date))}</p>` : ''}
       <div class="grid2">
-        <div><h3>Distribución oficial simulacro</h3>${renderBlueprintTable()}</div>
+        <div><h3>Distribución del simulacro</h3>${renderBlueprintTable()}</div>
         <div><h3>Temas débiles</h3>${weak.length ? `<ul>${weak.map(([lo, item]) => `<li><b>${h(lo)}</b> · errores: ${number(item.bad)} · ${h(item.objective)}</li>`).join('')}</ul>` : '<p class="small">Aún no hay errores registrados.</p>'}</div>
       </div>
       <div class="btnrow">
         <button class="btn" type="button" data-view="study">Empezar a estudiar</button>
         <button class="btn secondary" type="button" data-view="practice">Practicar por tema</button>
-        <button class="btn good" type="button" data-view="exam">Simulacro oficial</button>
+        <button class="btn good" type="button" data-view="exam">Simulacro</button>
       </div>
     </div>`;
   }
@@ -996,7 +996,7 @@
       <div class="metric"><span>Preguntas del simulacro</span><strong>${totalRequired}</strong></div>
       <div class="metric"><span>Selección</span><strong>Aleatoria</strong></div>
     </div>
-    <h3>Disponibilidad por matriz oficial</h3>
+    <h3>Disponibilidad por matriz del simulacro</h3>
     <table class="table"><tr><th>Capítulo</th><th>K</th><th>Requiere</th><th>En banco</th><th>Estado</th></tr>${rows.join('')}</table>`;
   }
 
@@ -1039,7 +1039,7 @@
 
       return `<div class="chapterCard" role="button" tabindex="0" data-action="open-chapter" data-chapter="${number(chapter.id)}">
         <h3>Capítulo ${number(chapter.id)} · ${h(chapter.title)}</h3>
-        <p class="small">Tiempo oficial: ${number(chapter.minutes)} min · LO: ${objectiveCount} · Preguntas: ${questionCount} · Págs. syllabus: ${h(chapter.completeSyllabusPages || 'N/D')}</p>
+        <p class="small">Tiempo sugerido: ${number(chapter.minutes)} min · LO: ${objectiveCount} · Preguntas: ${questionCount} · Págs. syllabus: ${h(chapter.completeSyllabusPages || 'N/D')}</p>
         <div class="progressbar"><div style="width:${progressWidth}%"></div></div>
         <p>${h(chapter.summary)}</p>
       </div>`;
@@ -1332,11 +1332,11 @@
   function renderExam() {
     const blueprint = course.blueprint;
     const kText = Object.entries(blueprint.kDistribution || {}).filter(([, value]) => number(value) > 0).map(([key, value]) => `${key}=${value}`).join(', ');
-    return `<div class="card"><h2>Simulacro oficial ${h(courseLabel())}</h2>
+    return `<div class="card"><h2>Simulacro ${h(courseLabel())}</h2>
       <p>Genera ${number(blueprint.totalQuestions)} preguntas aleatorias desde el banco activo, respetando la matriz por capítulo y nivel K cuando hay suficientes preguntas.</p>
       ${renderBlueprintTable()}${renderExamBankStats()}
       <div class="note"><b>Banco activo:</b> ${questions.length} preguntas. <b>Regla:</b> se seleccionan ${number(blueprint.totalQuestions)} aleatorias (${h(kText)}). La aprobación usa puntos: ${number(blueprint.passingScore)}/${number(blueprint.totalPoints || blueprint.totalQuestions)}.</div>
-      <div class="btnrow"><button class="btn good" type="button" data-action="start-official-exam">Iniciar simulacro oficial aleatorio</button><button class="btn secondary" type="button" data-action="practice" data-count="${number(blueprint.totalQuestions)}" data-mode="exam">Simulacro aleatorio libre</button></div>
+      <div class="btnrow"><button class="btn good" type="button" data-action="start-official-exam">Iniciar simulacro aleatorio</button><button class="btn secondary" type="button" data-action="practice" data-count="${number(blueprint.totalQuestions)}" data-mode="exam">Simulacro aleatorio libre</button></div>
     </div><div id="sessionHost"></div>`;
   }
 

@@ -17,8 +17,15 @@ courses/
   catalog.js
   ctfl/course-data.js
   ctai/course-data.js
+  scrum-master/course-data.js
   _template/course-data.example.js
 ```
+
+## Cursos disponibles
+
+- CTFL 4.0: curso gratuito de fundamentos ISTQB.
+- CT-AI 2.0: curso gratuito de testing e inteligencia artificial.
+- Scrum Master: curso gratuito basado en la Scrum Guide 2020.
 
 ## Ejecutar
 
