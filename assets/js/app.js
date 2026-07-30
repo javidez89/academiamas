@@ -799,7 +799,7 @@
     return `<div class="publicHome">
       <section class="landingHero" aria-labelledby="homeMainTitle">
         <div class="landingCopy">
-          <span class="landingEyebrow">QA &amp; Testing Academia · 3 cursos gratis</span>
+          <span class="landingEyebrow">QA &amp; Testing Academia · 4 cursos gratis</span>
           <h2 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h2>
           <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
           <div class="landingActions">
@@ -843,7 +843,7 @@
       <section class="homeSection" id="cursos-disponibles" aria-labelledby="coursesTitle">
         <div class="sectionIntro">
           <h2 id="coursesTitle">Cursos disponibles gratis</h2>
-          <p>CTFL 4.0, CT-AI 2.0 y Scrum Master continúan habilitados sin costo para estudiar, practicar y simular.</p>
+          <p>CTFL 4.0, CT-AI 2.0, Scrum Master y Product Owner continúan habilitados sin costo para estudiar, practicar y simular.</p>
         </div>
         ${renderCatalogFilters()}
         <div class="availableCoursesGrid" id="courseCatalog" aria-live="polite">${renderHomeCards()}</div>

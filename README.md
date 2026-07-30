@@ -18,6 +18,7 @@ courses/
   ctfl/course-data.js
   ctai/course-data.js
   scrum-master/course-data.js
+  scrum-product-owner/course-data.js
   _template/course-data.example.js
 ```
 
@@ -26,6 +27,7 @@ courses/
 - CTFL 4.0: curso gratuito de fundamentos ISTQB.
 - CT-AI 2.0: curso gratuito de testing e inteligencia artificial.
 - Scrum Master: curso gratuito basado en la Scrum Guide 2020.
+- Scrum Product Owner Professional Certification: curso gratuito basado en guías Product Owner 2025/2026.
 
 ## Ejecutar
 
