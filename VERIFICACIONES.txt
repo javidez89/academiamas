@@ -16,6 +16,7 @@ OK: Filtros de catálogo por área.
 OK: Menú móvil.
 OK: Botón Invítame un café abre Wompi en popup.
 OK: Modal Invítame un café consulta TRM vigente y conserva fallback COP.
+OK: Home muestra opción externa visible para exámenes gratuitos CertiProf.
 OK: CTFL inicia simulacro oficial.
 OK: CT-AI inicia práctica.
 OK: No hay eventos inline.

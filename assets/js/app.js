@@ -777,6 +777,27 @@
         ${renderHeroProgressCard()}
       </section>
 
+      <section class="freeCertBand" aria-labelledby="freeCertTitle">
+        <div class="freeCertCopy">
+          <span class="freeCertKicker">Recurso externo</span>
+          <h2 id="freeCertTitle">Exámenes gratuitos con certificado</h2>
+          <p>Explora certificaciones gratuitas de nivel de entrada en CertiProf para reforzar tu perfil en Scrum, gestión de proyectos, ciberseguridad, Kanban, trabajo remoto, agilidad e IA.</p>
+          <div class="freeCertPills" aria-label="Áreas disponibles en CertiProf">
+            <span>Scrum</span>
+            <span>Project Management</span>
+            <span>Cybersecurity</span>
+            <span>Kanban</span>
+            <span>AI Governance</span>
+          </div>
+        </div>
+        <div class="freeCertPanel">
+          <span>CertiProf</span>
+          <strong>Certificaciones gratuitas</strong>
+          <p>AcademiaQA no administra estos exámenes. La disponibilidad, condiciones y emisión del certificado se confirman directamente en CertiProf.</p>
+          <a class="btn freeCertLink" href="https://certiprof.com/es/pages/free-new-entry-level-certification" target="_blank" rel="noopener noreferrer">Ver exámenes gratuitos</a>
+        </div>
+      </section>
+
       <section class="homeSection" id="rutas-aprendizaje" aria-labelledby="routesTitle">
         <div class="sectionIntro">
           <h2 id="routesTitle">Explora rutas de preparación y aprendizaje</h2>

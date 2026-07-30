@@ -6,6 +6,7 @@
 
 - El modal **Invítame un café** consulta la TRM vigente desde Datos Abiertos Colombia para mostrar el valor referencial en COP.
 - La conversión conserva fallback local si la consulta pública de TRM no está disponible.
+- La home incluye una opción visible hacia certificaciones gratuitas externas de CertiProf.
 
 ### Validation
 
