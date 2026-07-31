@@ -5,6 +5,7 @@
   const Registry = global.AcademyRegistry;
   const Storage = global.AcademyStorage;
   const Config = global.ACADEMY_CONFIG || {};
+  const ASSET_VERSION = String(Config.assetVersion || '2026-07-31-ct-genai');
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
   const TRM_API_URL = 'https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde DESC';
   const COFFEE_COP_PER_USD_FALLBACK = 3206.18;
@@ -23,7 +24,7 @@
       key: 'ai-automation',
       name: 'IA y automatización',
       description: 'Bases de inteligencia artificial, IA generativa y aplicaciones profesionales.',
-      steps: Object.freeze(['Fundamentos de IA', 'IA generativa', 'Aplicaciones profesionales'])
+      steps: Object.freeze(['Fundamentos de IA', 'CT-GenAI y LLM', 'Aplicaciones profesionales'])
     }),
     Object.freeze({
       key: 'scrum-agility',
@@ -82,8 +83,7 @@
     exam: renderExam,
     k3lab: renderK3Lab,
     flashcards: renderFlashcards,
-    analytics: renderAnalytics,
-    bank: renderBank
+    analytics: renderAnalytics
   });
 
   const dom = {};
@@ -151,12 +151,17 @@
   async function loadScript(src) {
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = src;
+      script.src = versionedAsset(src);
       script.async = false;
       script.addEventListener('load', resolve, { once: true });
       script.addEventListener('error', () => reject(new Error(`No se pudo cargar ${src}.`)), { once: true });
       document.head.appendChild(script);
     });
+  }
+
+  function versionedAsset(src) {
+    if (!ASSET_VERSION || /[?&]v=/.test(src)) return src;
+    return `${src}${src.includes('?') ? '&' : '?'}v=${encodeURIComponent(ASSET_VERSION)}`;
   }
 
   async function loadCourses() {
@@ -194,7 +199,6 @@
   function bindEvents() {
     document.addEventListener('click', handleClick);
     document.addEventListener('change', handleChange);
-    document.addEventListener('input', handleInput);
     document.addEventListener('keydown', handleKeyboardActivation);
     global.addEventListener('hashchange', handleHashRoute);
 
@@ -349,15 +353,6 @@
         render();
         break;
       }
-      case 'import-questions':
-        importQuestions();
-        break;
-      case 'export-questions':
-        downloadJson(`${activeCourseKey}_banco_preguntas.json`, questions);
-        break;
-      case 'export-progress':
-        downloadJson(`${activeCourseKey}_progreso.json`, getProgress());
-        break;
       default:
         console.warn(`Acción no reconocida: ${action}`);
     }
@@ -536,14 +531,7 @@
       state.flashIndex = 0;
       state.flashShow = false;
       render();
-      return;
     }
-
-    if (['bankChapter', 'bankK'].includes(event.target.id)) renderBankTable();
-  }
-
-  function handleInput(event) {
-    if (event.target.id === 'searchQ') renderBankTable();
   }
 
   function clearRuntimeTimers() {
@@ -649,7 +637,6 @@
 
     try {
       dom.app.innerHTML = renderer();
-      if (state.view === 'bank') global.setTimeout(renderBankTable, 0);
     } catch (error) {
       showFatalError(error);
     }
@@ -947,7 +934,7 @@
         <div class="sectionIntro">
           <span class="sectionKicker">AcademiaQA</span>
           <h2 id="coursesTitle">Cursos disponibles</h2>
-          <p>CTFL 4.0, CT-AI 2.0, Scrum Master, Product Owner, Project Management Essentials, Scrum Fundamentals y Cybersecurity Awareness continúan habilitados sin costo para estudiar, practicar y simular.</p>
+          <p>CTFL 4.0, CT-AI 2.0, CT-GenAI, Scrum Master, Product Owner, Project Management Essentials, Scrum Fundamentals y Cybersecurity Awareness continúan habilitados sin costo para estudiar, practicar y simular.</p>
         </div>
         ${renderCatalogFilters()}
         <div class="availableCoursesGrid" id="courseCatalog" aria-live="polite">${renderHomeCards()}</div>
@@ -1041,7 +1028,7 @@
           <article class="legalCard" id="terminos">
             <h3>Términos y condiciones</h3>
             <p>El contenido se ofrece para estudio personal. No garantiza aprobación de certificaciones, no emite certificados y no sustituye materiales, reglas o exámenes oficiales.</p>
-            <p>Los cursos, bancos y simulacros son herramientas educativas. Los exámenes externos, certificados, insignias y condiciones dependen de cada entidad certificadora.</p>
+            <p>Los cursos, preguntas y simulacros son herramientas educativas. Los exámenes externos, certificados, insignias y condiciones dependen de cada entidad certificadora.</p>
           </article>
           <article class="legalCard">
             <h3>Aviso independiente</h3>
@@ -1087,11 +1074,12 @@
 
   function renderHome() {
     const continueCourse = heroProgressCourse()?.key || activeCourseKey || 'ctfl';
+    const freeCourseCount = Registry.entries().filter(([key]) => catalogEntry(key)?.access === 'free').length;
 
     return `<div class="publicHome">
       <section class="landingHero" aria-labelledby="homeMainTitle">
         <div class="landingCopy">
-          <span class="landingEyebrow">QA &amp; Testing Academia · 7 cursos gratis</span>
+          <span class="landingEyebrow">QA &amp; Testing Academia · ${freeCourseCount} cursos gratis</span>
           <h2 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h2>
           <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
           <div class="landingActions">
@@ -1136,53 +1124,11 @@
       <div class="courseActions">
         <div class="courseAction" role="button" tabindex="0" data-view="study"><b>📚 Estudiar syllabus</b><span class="small">Capítulos y teoría</span></div>
         <div class="courseAction" role="button" tabindex="0" data-view="objectives"><b>🎯 Objetivos LO</b><span class="small">Mapa de aprendizaje</span></div>
-        <div class="courseAction" role="button" tabindex="0" data-view="practice"><b>📝 Practicar</b><span class="small">Banco filtrado</span></div>
+        <div class="courseAction" role="button" tabindex="0" data-view="practice"><b>📝 Practicar</b><span class="small">Por capítulo, LO y nivel</span></div>
         <div class="courseAction" role="button" tabindex="0" data-view="exam"><b>⏱️ Simulacro</b><span class="small">Modo examen</span></div>
         ${course.meta?.examUrl ? `<a class="courseAction courseExternalExam" href="${h(course.meta.examUrl)}" target="_blank" rel="noopener noreferrer"><b>CertiProf Open</b><span class="small">${h(course.meta.certificationNote || 'Examen externo disponible.')}</span></a>` : ''}
       </div>
     </div>`;
-  }
-
-  function renderQaSummary() {
-    const qa = course.qaValidation;
-    if (!qa) return '<div class="note"><b>Validación del contenido:</b> este curso no incluye un reporte QA integrado.</div>';
-
-    const bankAudit = qa.questionBankAudit || {};
-    const simulationAudit = qa.simulationAudit || {};
-    const status = String(qa.overallStatus || '').toUpperCase();
-    const passed = status.startsWith('OK');
-    const statusText = passed ? (status.includes('PRUEBAS') ? 'validada para pruebas' : 'validada') : 'requiere revisión';
-
-    return `<div class="${passed ? 'okbox' : 'badbox'}"><b>Auditoría QA:</b> ${h(statusText)} · Syllabus: ${h(qa.syllabusStatus || 'N/D')} · Banco: ${number(bankAudit.totalQuestions, questions.length)} preguntas · LO: ${number(bankAudit.loCovered, new Set(questions.map((question) => question.lo)).size)}/${number(bankAudit.loTotal, course.objectives.length)} · Simulacros probados: ${number(simulationAudit.runs, 0)} · Matriz: ${h(simulationAudit.status || 'N/D')}<br><span class="small">Incluye verificación de ubicación del temario, cobertura de objetivos, reglas del banco y simulaciones aleatorias.</span></div>`;
-  }
-
-  function renderQaDetails() {
-    const qa = course.qaValidation;
-    if (!qa) return '';
-
-    const rows = (qa.syllabusChapterAudit || []).map((audit) => `<tr>
-      <td>C${number(audit.chapter)}</td><td>${h(audit.pages)}</td><td>${number(audit.chars)}</td><td>${number(audit.losExpected)}</td>
-      <td>${audit.missingHeadings?.length ? `⚠️ ${audit.missingHeadings.length}` : '✅'}</td>
-      <td>${audit.wrongMajorChapterHeadings?.length ? '⚠️' : '✅'}</td><td><b>${h(audit.status)}</b></td>
-    </tr>`).join('');
-    const bankAudit = qa.questionBankAudit || {};
-    const simulationAudit = qa.simulationAudit || {};
-
-    return `<details class="auditDetails"><summary>Ver detalle de auditoría QA</summary>
-      <h3>Ubicación y cobertura del syllabus</h3>
-      <table class="table"><tr><th>Cap.</th><th>Págs.</th><th>Caracteres</th><th>LO</th><th>Secciones faltantes</th><th>Mezcla</th><th>Estado</th></tr>${rows}</table>
-      <h3>Banco y simulacro</h3>
-      <ul>
-        <li>Preguntas: <b>${number(bankAudit.totalQuestions, questions.length)}</b></li>
-        <li>LO cubiertos: <b>${number(bankAudit.loCovered)}/${number(bankAudit.loTotal)}</b></li>
-        <li>Mínimo preguntas por LO: <b>${number(bankAudit.minQuestionsPerLO)}</b></li>
-        <li>Distribución K: ${h(JSON.stringify(bankAudit.byK || {}))}</li>
-        <li>Distribución capítulos: ${h(JSON.stringify(bankAudit.byChapter || {}))}</li>
-        <li>Problemas estructurales: <b>${bankAudit.structuralIssues?.length || 0}</b></li>
-        <li>Correcciones aplicadas: ${h((bankAudit.correctedItems || []).join(', ') || 'Ninguna')}</li>
-        <li>Simulaciones: <b>${number(simulationAudit.runs)}</b> · estado ${h(simulationAudit.status || 'N/D')} · combinaciones observadas ${number(simulationAudit.uniqueExamCombinationsObserved)}</li>
-      </ul>
-    </details>`;
   }
 
   function renderDashboard() {
@@ -1199,11 +1145,10 @@
     return `${renderCourseIntro()}<div class="card">
       <h2>Panel de estudio · ${h(courseLabel())}</h2>
       <div class="grid3">
-        <div class="metric"><span>Banco activo</span><strong>${questions.length}</strong></div>
+        <div class="metric"><span>Preguntas activas</span><strong>${questions.length}</strong></div>
         <div class="metric"><span>Mejor simulacro</span><strong>${best}%</strong></div>
         <div class="metric"><span>Preguntas respondidas</span><strong>${totalDone}</strong></div>
       </div>
-      ${renderQaSummary()}${renderQaDetails()}
       <div class="okbox"><b>Ruta recomendada:</b> 1) selecciona certificación → 2) lee capítulo → 3) practica por LO → 4) entrena aplicación → 5) simulacro → 6) refuerza errores.</div>
       ${last ? `<p><b>Último intento:</b> ${number(last.correct)}/${number(last.total)} (${number(last.scorePct)}%) · ${h(formatDate(last.date))}</p>` : ''}
       <div class="grid2">
@@ -1260,16 +1205,16 @@
     });
 
     if (!rows.length) {
-      return `<div class="grid3"><div class="metric"><span>Banco total</span><strong>${questions.length}</strong></div><div class="metric"><span>Preguntas</span><strong>${number(course.blueprint.totalQuestions)}</strong></div><div class="metric"><span>Selección</span><strong>Aleatoria</strong></div></div>`;
+      return `<div class="grid3"><div class="metric"><span>Preguntas disponibles</span><strong>${questions.length}</strong></div><div class="metric"><span>Preguntas</span><strong>${number(course.blueprint.totalQuestions)}</strong></div><div class="metric"><span>Selección</span><strong>Aleatoria</strong></div></div>`;
     }
 
     return `<div class="grid3">
-      <div class="metric"><span>Banco total</span><strong>${questions.length}</strong></div>
+      <div class="metric"><span>Preguntas disponibles</span><strong>${questions.length}</strong></div>
       <div class="metric"><span>Preguntas del simulacro</span><strong>${totalRequired}</strong></div>
       <div class="metric"><span>Selección</span><strong>Aleatoria</strong></div>
     </div>
     <h3>Disponibilidad por matriz del simulacro</h3>
-    <table class="table"><tr><th>Capítulo</th><th>K</th><th>Requiere</th><th>En banco</th><th>Estado</th></tr>${rows.join('')}</table>`;
+    <table class="table"><tr><th>Capítulo</th><th>K</th><th>Requiere</th><th>Disponibles</th><th>Estado</th></tr>${rows.join('')}</table>`;
   }
 
   function buildOfficialSelection() {
@@ -1299,7 +1244,7 @@
       selected.push(...fill);
     }
 
-    if (warnings.length) notify(`El banco no cubre toda la matriz. Se completó con preguntas disponibles. ${warnings.join(' ')}`, 'warning', 10_000);
+    if (warnings.length) notify(`Las preguntas no cubren toda la matriz. Se completó con preguntas disponibles. ${warnings.join(' ')}`, 'warning', 10_000);
     return shuffle(selected).slice(0, totalQuestions);
   }
 
@@ -1326,7 +1271,7 @@
   }
 
   function renderObjectiveTheory(objective) {
-    return `<details class="auditDetails"><summary><b>${h(objective.lo)}</b> · ${h(objective.k)} · ${h(objective.text)}</summary>
+    return `<details class="contentDetails"><summary><b>${h(objective.lo)}</b> · ${h(objective.k)} · ${h(objective.text)}</summary>
       <p>${h(objective.theory || 'Teoría específica integrada en el capítulo.')}</p>
       ${objective.remember ? `<p><b>Recuerda:</b> ${h(objective.remember)}</p>` : ''}
       ${objective.trap ? `<p><b>Trampa típica:</b> ${h(objective.trap)}</p>` : ''}
@@ -1341,7 +1286,6 @@
     if (!chapter || !host) return;
 
     const objectives = course.objectives.filter((objective) => Number(objective.chapter) === Number(id));
-    const audit = (course.qaValidation?.syllabusChapterAudit || []).find((item) => Number(item.chapter) === Number(id));
     const rows = objectives.map((objective) => `<tr>
       <td><b>${h(objective.lo)}</b></td><td>${h(objective.k)}</td><td>${h(objective.text)}</td>
       <td>${questions.filter((question) => question.lo === objective.lo).length}</td>
@@ -1350,9 +1294,8 @@
 
     host.innerHTML = `<div class="card">
       <h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2><p>${h(chapter.summary)}</p>
-      <div class="${audit?.status === 'OK' ? 'okbox' : 'note'}"><b>Auditoría del capítulo:</b> ${h(audit?.status || 'N/D')} · páginas ${h(chapter.completeSyllabusPages || 'N/D')} · LO esperados ${number(audit?.losExpected, objectives.length)} · mezcla de capítulos: ${audit?.wrongMajorChapterHeadings?.length || 0}</div>
       <h3>Teoría del syllabus resumida</h3>${(chapter.theorySections || []).map(renderTheorySection).join('')}
-      <details open class="auditDetails"><summary>Texto completo evaluable · páginas ${h(chapter.completeSyllabusPages || 'N/D')}</summary><div class="prebox small">${h(chapter.completeSyllabusText || 'No hay texto ampliado cargado para este capítulo.')}</div></details>
+      <details open class="contentDetails"><summary>Texto completo evaluable · páginas ${h(chapter.completeSyllabusPages || 'N/D')}</summary><div class="prebox small">${h(chapter.completeSyllabusText || 'No hay texto ampliado cargado para este capítulo.')}</div></details>
       <h3>Términos clave</h3><div>${(chapter.terms || []).map((term) => `<span class="pill">${h(term)}</span>`).join('')}</div>
       <h3>Objetivos de aprendizaje con teoría</h3>${objectives.map(renderObjectiveTheory).join('')}
       <h3>Mapa LO y práctica</h3><table class="table"><tr><th>LO</th><th>K</th><th>Objetivo</th><th>Preguntas</th><th>Acción</th></tr>${rows}</table>
@@ -1605,9 +1548,9 @@
     const blueprint = course.blueprint;
     const kText = Object.entries(blueprint.kDistribution || {}).filter(([, value]) => number(value) > 0).map(([key, value]) => `${key}=${value}`).join(', ');
     return `<div class="card"><h2>Simulacro ${h(courseLabel())}</h2>
-      <p>Genera ${number(blueprint.totalQuestions)} preguntas aleatorias desde el banco activo, respetando la matriz por capítulo y nivel K cuando hay suficientes preguntas.</p>
+      <p>Genera ${number(blueprint.totalQuestions)} preguntas aleatorias desde las preguntas activas, respetando la matriz por capítulo y nivel K cuando hay suficientes preguntas.</p>
       ${renderBlueprintTable()}${renderExamBankStats()}
-      <div class="note"><b>Banco activo:</b> ${questions.length} preguntas. <b>Regla:</b> se seleccionan ${number(blueprint.totalQuestions)} aleatorias (${h(kText)}). La aprobación usa puntos: ${number(blueprint.passingScore)}/${number(blueprint.totalPoints || blueprint.totalQuestions)}.</div>
+      <div class="note"><b>Preguntas activas:</b> ${questions.length}. <b>Regla:</b> se seleccionan ${number(blueprint.totalQuestions)} aleatorias (${h(kText)}). La aprobación usa puntos: ${number(blueprint.passingScore)}/${number(blueprint.totalPoints || blueprint.totalQuestions)}.</div>
       <div class="btnrow"><button class="btn good" type="button" data-action="start-official-exam">Iniciar simulacro aleatorio</button><button class="btn secondary" type="button" data-action="practice" data-count="${number(blueprint.totalQuestions)}" data-mode="exam">Simulacro aleatorio libre</button></div>
     </div><div id="sessionHost"></div>`;
   }
@@ -1677,7 +1620,7 @@
     const flashcard = list[state.flashIndex];
     const chapterOptions = course.chapters.map((chapter) => `<option value="${number(chapter.id)}" ${String(state.flashFilter) === String(chapter.id) ? 'selected' : ''}>C${number(chapter.id)} · ${h(chapter.title)}</option>`).join('');
 
-    return `<div class="card"><h2>Flashcards de glosario, fórmulas y trampas</h2><p>Banco: ${course.flashcards.length} tarjetas. Filtra por capítulo o repasa de forma aleatoria.</p>
+    return `<div class="card"><h2>Flashcards de glosario, fórmulas y trampas</h2><p>Tarjetas: ${course.flashcards.length}. Filtra por capítulo o repasa de forma aleatoria.</p>
       <div class="grid3"><div><label for="flashFilter">Filtrar capítulo</label><select id="flashFilter"><option value="all" ${state.flashFilter === 'all' ? 'selected' : ''}>Todos</option>${chapterOptions}</select></div><div class="metric"><span>Tarjetas visibles</span><strong>${list.length}</strong></div><div class="metric"><span>Actual</span><strong>${state.flashIndex + 1}/${list.length}</strong></div></div>
       <div class="flash" role="button" tabindex="0" data-action="flash-toggle"><div class="front">${h(flashcard.front)}</div><div>${flashcard.kind ? `<span class="pill">${h(flashcard.kind)}</span>` : ''}<span class="pill">C${number(flashcard.chapter)}</span>${flashcard.lo ? `<span class="pill">${h(flashcard.lo)}</span>` : ''}</div>
         ${state.flashShow ? `<div class="back"><b>Significado / explicación:</b><br>${h(flashcard.meaning || flashcard.back)}${flashcard.back && flashcard.meaning && flashcard.back !== flashcard.meaning ? `<br><br>${h(flashcard.back)}` : ''}${flashcard.hint ? `<br><br><b>Pista:</b> ${h(flashcard.hint)}` : ''}</div>` : '<p class="small">Clic para ver significado y explicación</p>'}
@@ -1701,92 +1644,6 @@
   function weakness(item) {
     const total = number(item.ok) + number(item.bad);
     return total ? number(item.bad) / total : 0;
-  }
-
-  function renderBank() {
-    const kLevels = [...new Set(questions.map((question) => question.k))].sort();
-    const chapterOptions = course.chapters.map((chapter) => `<option value="${number(chapter.id)}">C${number(chapter.id)}</option>`).join('');
-    const kOptions = kLevels.map((key) => `<option value="${h(key)}">${h(key)}</option>`).join('');
-
-    return `<div class="card"><h2>Banco de preguntas / importar</h2>
-      <div class="grid3"><div class="metric"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="metric"><span>LO cubiertos</span><strong>${new Set(questions.map((question) => question.lo)).size}/${course.objectives.length}</strong></div><div class="metric"><span>K3</span><strong>${questions.filter((question) => question.k === 'K3').length}</strong></div></div>
-      ${renderQaSummary()}
-      <h3>Buscar preguntas</h3><div class="searchbox"><input id="searchQ" type="search" maxlength="300" placeholder="Buscar por texto, LO, tema..."><select id="bankChapter"><option value="all">Todos</option>${chapterOptions}</select><select id="bankK"><option value="all">Todos K</option>${kOptions}</select></div><div id="bankTable"></div>
-      <h3>Importar más preguntas JSON</h3><p class="small">La importación se valida antes de incorporarse y solo vive en esta sesión. Límite: ${Security.MAX_IMPORTED_QUESTIONS} preguntas y ${Security.MAX_IMPORT_CHARS.toLocaleString('es-CO')} caracteres.</p>
-      <textarea id="importJson" maxlength="${Security.MAX_IMPORT_CHARS}" placeholder='[{"chapter":1,"k":"K2","lo":"FL-1.1.2","topic":"...","stem":"...","options":["A","B","C","D"],"correct":[0],"explanation":"..."}]'></textarea>
-      <div class="btnrow"><button class="btn" type="button" data-action="import-questions">Importar</button><button class="btn secondary" type="button" data-action="export-questions">Exportar banco</button><button class="btn secondary" type="button" data-action="export-progress">Exportar progreso</button></div>
-    </div>`;
-  }
-
-  function renderBankTable() {
-    const host = $('bankTable');
-    if (!host) return;
-    const query = ($('searchQ')?.value || '').trim().toLowerCase();
-    const chapter = $('bankChapter')?.value || 'all';
-    const kLevel = $('bankK')?.value || 'all';
-    const list = questions.filter((question) => (
-      (chapter === 'all' || String(question.chapter) === chapter)
-      && (kLevel === 'all' || question.k === kLevel)
-      && (!query || [question.id, question.lo, question.topic, question.stem, question.objective].join(' ').toLowerCase().includes(query))
-    )).slice(0, 120);
-
-    host.innerHTML = `<p class="small">Mostrando ${list.length} preguntas.</p><table class="table"><tr><th>ID</th><th>Cap/K/LO</th><th>Pregunta</th><th>Tema</th></tr>${list.map((question) => `<tr><td>${h(question.id)}</td><td>C${number(question.chapter)} · ${h(question.k)}<br><b>${h(question.lo)}</b></td><td>${h(question.stem)}</td><td>${h(question.topic)}</td></tr>`).join('')}</table>`;
-  }
-
-  function importQuestions() {
-    const input = $('importJson');
-    if (!input) return;
-
-    try {
-      const parsed = Security.safeJsonParse(input.value);
-      if (!Array.isArray(parsed)) throw new TypeError('El JSON principal debe ser un array.');
-      if (parsed.length > Security.MAX_IMPORTED_QUESTIONS) throw new RangeError(`Solo se permiten ${Security.MAX_IMPORTED_QUESTIONS} preguntas por importación.`);
-
-      const chapterIds = new Set(course.chapters.map((chapter) => String(chapter.id)));
-      const learningObjectives = new Set(course.objectives.map((objective) => objective.lo));
-      const existingIds = new Set(questions.map((question) => question.id));
-      const importedIds = new Set();
-      const validQuestions = [];
-      const errors = [];
-
-      parsed.forEach((rawQuestion, index) => {
-        const candidate = { ...rawQuestion };
-        candidate.id = candidate.id || `IMP_${Date.now()}_${index}`;
-        candidate.objective = candidate.objective || course.objectives.find((objective) => objective.lo === candidate.lo)?.text || '';
-        const validation = Security.validateQuestion(candidate, { chapterIds, learningObjectives });
-        if (!validation.valid) {
-          errors.push(`Pregunta ${index + 1}: ${validation.errors.join(' ')}`);
-          return;
-        }
-        if (existingIds.has(validation.value.id) || importedIds.has(validation.value.id)) {
-          errors.push(`Pregunta ${index + 1}: id duplicado ${validation.value.id}.`);
-          return;
-        }
-        importedIds.add(validation.value.id);
-        validQuestions.push(validation.value);
-      });
-
-      if (errors.length) throw new Error(errors.slice(0, 12).join('\n'));
-      questions = [...questions, ...validQuestions];
-      input.value = '';
-      notify(`Se importaron ${validQuestions.length} preguntas válidas.`, 'success');
-      render();
-    } catch (error) {
-      notify(`Importación rechazada: ${error.message}`, 'error', 12_000);
-    }
-  }
-
-  function downloadJson(filename, value) {
-    const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = Security.sanitizeFilename(filename);
-    anchor.rel = 'noopener';
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    global.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   }
 
   function formatDate(value) {

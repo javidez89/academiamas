@@ -6,5 +6,6 @@ window.ACADEMY_CONFIG = Object.freeze({
   homeBadge: '🚀 Plataforma de aprendizaje profesional',
   description: 'Aprende, practica y prepárate para certificaciones y retos profesionales en testing, inteligencia artificial, Scrum y gestión de proyectos.',
   footerHome: '',
-  importLimit: 500
+  importLimit: 500,
+  assetVersion: '2026-07-31-ct-genai'
 });

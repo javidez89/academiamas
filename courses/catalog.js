@@ -18,6 +18,14 @@ window.ACADEMY_CATALOG = Object.freeze([
     tags: Object.freeze(['Testing', 'ISTQB', 'Inteligencia artificial'])
   }),
   Object.freeze({
+    key: 'ct-genai',
+    src: 'courses/ct-genai/course-data.js',
+    access: 'free',
+    family: 'ISTQB',
+    areas: Object.freeze(['testing-istqb', 'ai-automation']),
+    tags: Object.freeze(['Testing', 'ISTQB', 'IA generativa', 'LLM'])
+  }),
+  Object.freeze({
     key: 'scrum-master',
     src: 'courses/scrum-master/course-data.js',
     access: 'free',
