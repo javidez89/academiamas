@@ -31,9 +31,9 @@ courses/
 - CT-AI 2.0: curso gratuito de testing e inteligencia artificial.
 - Scrum Master: curso gratuito basado en la Scrum Guide 2020.
 - Scrum Product Owner Professional Certification: curso gratuito basado en guías Product Owner 2025/2026.
-- Project Management Essentials: curso gratuito basado en PM2 y enlace externo al examen abierto de CertiProf.
-- Scrum Fundamentals: curso gratuito basado en Scrum Guide 2020 y enlace externo al examen abierto de CertiProf.
-- Cybersecurity Awareness: curso gratuito de concientización y enlace externo al examen abierto de CertiProf.
+- Project Management Essentials: curso gratuito basado en el PDF adjunto `Project Management Essentials.pdf` y enlace externo al examen abierto de CertiProf.
+- Scrum Fundamentals: curso gratuito basado en el PDF adjunto `Scrum Fundamentals.pdf` y enlace externo al examen abierto de CertiProf.
+- Cybersecurity Awareness: curso gratuito basado en el PDF adjunto `Cybersecurity Awareness.pdf` y enlace externo al examen abierto de CertiProf.
 
 ## Ejecutar
 

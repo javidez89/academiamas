@@ -10,6 +10,8 @@
   const COFFEE_COP_PER_USD_FALLBACK = 3206.18;
   const COFFEE_TRM_FALLBACK_DATE = '2026-07-30';
   const PAYMENT_POPUP_LOCK_MS = 1_500;
+  const CONTACT_EMAIL = 'javidez89@gmail.com';
+  const LINKEDIN_URL = 'https://www.linkedin.com/in/javierchilatra89/';
   const LEARNING_ROUTES = Object.freeze([
     Object.freeze({
       key: 'testing-istqb',
@@ -54,7 +56,7 @@
     Object.freeze({
       courseKey: 'scrum-fundamentals',
       label: 'Scrum Fundamentals',
-      examUrl: 'https://open.certiprof.com/scrum-foundation-exam-pt',
+      examUrl: 'https://open.certiprof.com/scrum-foundation-exam',
       area: 'Scrum',
       summary: 'Scrum Guide 2020, empirismo, equipo, eventos, artefactos y compromisos.'
     }),
@@ -69,6 +71,10 @@
 
   const VIEW_RENDERERS = Object.freeze({
     home: renderHome,
+    courses: renderCoursesPage,
+    routes: renderRoutesPage,
+    contact: renderContactPage,
+    legal: renderLegalPage,
     dashboard: renderDashboard,
     study: renderStudy,
     objectives: renderObjectives,
@@ -107,7 +113,8 @@
       flashIndex: 0,
       flashShow: false,
       flashFilter: 'all',
-      catalogFilter: 'all'
+      catalogFilter: 'all',
+      homePanel: 'overview'
     };
   }
 
@@ -189,6 +196,7 @@
     document.addEventListener('change', handleChange);
     document.addEventListener('input', handleInput);
     document.addEventListener('keydown', handleKeyboardActivation);
+    global.addEventListener('hashchange', handleHashRoute);
 
     dom.resetProgress.addEventListener('click', () => {
       if (!course) return;
@@ -229,13 +237,26 @@
     const homeAnchor = event.target.closest('[data-home-anchor]');
     if (homeAnchor) {
       event.preventDefault();
+      if (homeAnchor.dataset.homePanel) {
+        state.homePanel = homeAnchor.dataset.homePanel;
+        if (state.view === 'home') render();
+      } else if ((homeAnchor.dataset.homeAnchor || 'inicio') === 'inicio') {
+        state.homePanel = 'overview';
+        if (state.view === 'home') render();
+      }
       goToHomeAnchor(homeAnchor.dataset.homeAnchor || 'inicio');
       return;
     }
 
     const viewButton = event.target.closest('[data-view]');
     if (viewButton) {
+      event.preventDefault();
+      closeSiteMenu();
+      const anchor = viewButton.dataset.viewAnchor;
       setView(viewButton.dataset.view);
+      const href = viewButton.getAttribute('href');
+      if (href?.startsWith('#')) global.history?.pushState?.(null, '', href);
+      if (anchor) scrollToAnchor(anchor);
       return;
     }
 
@@ -251,8 +272,12 @@
         state.catalogFilter = learningRoute(actionTarget.dataset.filter)
           ? actionTarget.dataset.filter
           : 'all';
-        render();
+        if (state.view !== 'courses') setView('courses');
+        else render();
         global.setTimeout(() => $('cursos-disponibles')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
+        break;
+      case 'send-contact-message':
+        sendContactMessage();
         break;
       case 'select-coffee-tier':
         selectCoffeeTier(actionTarget);
@@ -349,13 +374,33 @@
     toggleSiteMenu(false);
   }
 
+  function routeFromHash(hash = global.location.hash) {
+    const anchor = String(hash || '').replace(/^#/, '') || 'inicio';
+    if (['cursos', 'cursos-disponibles'].includes(anchor)) return { view: 'courses', anchor: 'cursos-disponibles' };
+    if (anchor === 'ruta-aprendizaje') return { view: 'routes', anchor: 'ruta-aprendizaje' };
+    if (['contactanos', 'redes'].includes(anchor)) return { view: 'contact', anchor: 'contactanos' };
+    if (['legal', 'privacidad', 'terminos'].includes(anchor)) return { view: 'legal', anchor };
+    if (['como-estudiar'].includes(anchor)) return { view: 'home', anchor };
+    return { view: 'home', anchor: 'inicio' };
+  }
+
+  function scrollToAnchor(anchor) {
+    global.setTimeout(() => {
+      const target = $(anchor) || (anchor === 'inicio' ? document.querySelector('header') : null);
+      target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }
+
   function goToHomeAnchor(anchorId) {
     closeSiteMenu();
     if (state.view !== 'home') setView('home');
-    global.setTimeout(() => {
-      const target = $(anchorId) || (anchorId === 'inicio' ? document.querySelector('header') : null);
-      target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-    }, 0);
+    scrollToAnchor(anchorId);
+  }
+
+  function handleHashRoute() {
+    const route = routeFromHash();
+    if (state.view !== route.view) setView(route.view);
+    scrollToAnchor(route.anchor);
   }
 
   function openCoffeeModal() {
@@ -530,6 +575,7 @@
     if (!VIEW_RENDERERS[view]) return;
     if (view !== state.view) clearRuntimeTimers();
     state.view = view;
+    if (view === 'home') state.homePanel = 'overview';
     state.session = ['practice', 'exam'].includes(view) ? state.session : [];
     document.querySelectorAll('.navbtn[data-view]').forEach((button) => {
       button.classList.toggle('active', button.dataset.view === view);
@@ -547,31 +593,45 @@
   }
 
   function updateCourseUi() {
-    const isHome = state.view === 'home';
+    const isPublicView = ['home', 'courses', 'routes', 'contact', 'legal'].includes(state.view);
     const allCourses = Registry.entries();
     const totalBank = allCourses.reduce((sum, [, item]) => sum + (item.questions?.length || 0), 0);
     const freeCourses = allCourses.filter(([key]) => catalogEntry(key)?.access === 'free').length;
     const blueprint = course?.blueprint || {};
+    const publicTitles = {
+      home: Config.title || 'QA & Testing Academia',
+      courses: 'Cursos',
+      routes: 'Ruta de aprendizaje',
+      contact: 'Contáctanos',
+      legal: 'Información legal'
+    };
+    const publicSubtitles = {
+      home: Config.description || 'Selecciona una certificación para iniciar.',
+      courses: 'Explora todos los cursos disponibles y entra a la ruta que quieres estudiar.',
+      routes: 'Rutas sugeridas para avanzar por testing, IA, Scrum, gestión y ciberseguridad.',
+      contact: 'Cuéntanos una idea, problema, error académico o propuesta de colaboración.',
+      legal: 'Política de privacidad, términos y condiciones de uso de AcademiaQA.'
+    };
 
-    dom.siteHeader?.classList.toggle('homeHeader', isHome);
-    dom.mainLayout.classList.toggle('homeLayout', isHome);
-    dom.heroTitle.textContent = isHome ? (Config.title || 'QA & Testing Academia') : courseLabel();
-    dom.heroSubtitle.textContent = isHome
-      ? (Config.description || 'Selecciona una certificación para iniciar.')
+    dom.siteHeader?.classList.toggle('homeHeader', isPublicView);
+    dom.mainLayout.classList.toggle('homeLayout', isPublicView);
+    dom.heroTitle.textContent = isPublicView ? publicTitles[state.view] : courseLabel();
+    dom.heroSubtitle.textContent = isPublicView
+      ? publicSubtitles[state.view]
       : `Menú de estudio de ${courseLabel()}: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.`;
-    dom.topChapters.textContent = isHome
+    dom.topChapters.textContent = isPublicView
       ? `🧭 ${LEARNING_ROUTES.length} rutas de aprendizaje`
       : `📘 ${course.chapters.length} capítulos`;
-    dom.topBank.textContent = String(isHome ? totalBank : questions.length);
-    dom.topExam.textContent = isHome
+    dom.topBank.textContent = String(isPublicView ? totalBank : questions.length);
+    dom.topExam.textContent = isPublicView
       ? `🎓 ${freeCourses} cursos gratis disponibles`
       : `⏱️ Simulacro ${blueprint.minutes} min / aprueba ${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions}`;
     dom.navCaps.textContent = `${course?.chapters?.length || 0} caps`;
     dom.navExamCount.textContent = String(blueprint.totalQuestions || 0);
-    dom.footerText.textContent = isHome
+    dom.footerText.textContent = isPublicView
       ? ''
       : `Hecho para estudio personal · ${courseLabel()} · progreso independiente por certificación.`;
-    dom.footerText.hidden = isHome;
+    dom.footerText.hidden = isPublicView;
 
     const hasK3 = questions.some((question) => question.k === 'K3');
     const hasFlashcards = Array.isArray(course.flashcards) && course.flashcards.length > 0;
@@ -829,7 +889,7 @@
         <b>Examen CertiProf</b>
       </div>
       <div class="freeCertExamActions">
-        <button class="btn secondary" type="button" data-action="select-course" data-course="${h(exam.courseKey)}">Estudiar ruta</button>
+        <button class="btn secondary" type="button" data-action="select-course" data-course="${h(exam.courseKey)}">Entrar al curso</button>
         <a class="btn freeCertLink" href="${h(exam.examUrl)}" target="_blank" rel="noopener noreferrer">Ir al examen</a>
       </div>
     </article>`).join('');
@@ -839,7 +899,7 @@
     return `<section class="freeCertBand" aria-labelledby="freeCertTitle">
       <div class="freeCertCopy">
         <span class="freeCertKicker">CertiProf Open</span>
-        <h2 id="freeCertTitle">Cursos gratis con examen externo</h2>
+        <h2 id="freeCertTitle">Cursos gratis con examen gratuito</h2>
         <p>Estas tres rutas quedan destacadas como preparacion gratuita en AcademiaQA, con acceso directo al examen abierto de CertiProf. La disponibilidad y emision del certificado se confirman en CertiProf.</p>
       </div>
       <div class="freeCertCards">${renderFreeCertCards()}</div>
@@ -848,6 +908,181 @@
 
   function renderCoffeeButton() {
     return '<button class="btn coffeeCta" type="button">Invítame un café</button>';
+  }
+
+  function renderDonationSpotlight() {
+    return `<section class="donationSpotlight" aria-labelledby="donationTitle">
+      <div class="donationImagePanel">
+        <img src="assets/img/academiaqa-support.png" width="1983" height="793" alt="Comunidad QA aprendiendo y apoyando el proyecto AcademiaQA">
+      </div>
+      <div class="donationCopy">
+        <span class="sectionKicker">Apoya el proyecto</span>
+        <h2 id="donationTitle">Ayuda a mantener AcademiaQA gratis.</h2>
+        <p>Cada aporte impulsa nuevos cursos, simulacros, mejoras móviles y material abierto para la comunidad QA.</p>
+        <div class="donationActions">
+          ${renderCoffeeButton()}
+          <button class="btn secondary" type="button" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</button>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function renderStudyPathSection() {
+    return `<section class="homeSection studyStepsSection" id="como-estudiar" aria-labelledby="studyTitle">
+      <div class="sectionIntro">
+        <h2 id="studyTitle">Ruta simple para avanzar</h2>
+      </div>
+      <div class="studyPathGrid">
+        <article><strong>1</strong><h3>Elige una ruta</h3><p>Explora el área profesional y selecciona el curso que necesitas.</p></article>
+        <article><strong>2</strong><h3>Lee por capítulos</h3><p>Repasa teoría, objetivos LO y puntos clave antes de practicar.</p></article>
+        <article><strong>3</strong><h3>Practica por foco</h3><p>Filtra por capítulo, nivel K u objetivo de aprendizaje.</p></article>
+        <article><strong>4</strong><h3>Simula y refuerza</h3><p>Usa el simulacro aleatorio y revisa tus estadísticas.</p></article>
+      </div>
+    </section>`;
+  }
+
+  function renderCoursesPage() {
+    return `<div class="publicHome publicPage">
+      <section class="homeSection" id="cursos-disponibles" aria-labelledby="coursesTitle">
+        <div class="sectionIntro">
+          <span class="sectionKicker">AcademiaQA</span>
+          <h2 id="coursesTitle">Cursos disponibles</h2>
+          <p>CTFL 4.0, CT-AI 2.0, Scrum Master, Product Owner, Project Management Essentials, Scrum Fundamentals y Cybersecurity Awareness continúan habilitados sin costo para estudiar, practicar y simular.</p>
+        </div>
+        ${renderCatalogFilters()}
+        <div class="availableCoursesGrid" id="courseCatalog" aria-live="polite">${renderHomeCards()}</div>
+      </section>
+    </div>`;
+  }
+
+  function renderRoutesPage() {
+    return `<div class="publicHome publicPage routePage" id="ruta-aprendizaje">
+      <section class="homeSection" aria-labelledby="routesTitle">
+        <div class="sectionIntro">
+          <span class="sectionKicker">AcademiaQA</span>
+          <h2 id="routesTitle">Ruta de aprendizaje</h2>
+          <p>Estas secuencias son recomendaciones flexibles para avanzar por áreas. Cada ruta puede crecer con nuevos cursos gratuitos o Premium sin afectar tu progreso actual.</p>
+        </div>
+        <div class="upcomingGrid">${renderUpcomingCards()}</div>
+      </section>
+    </div>`;
+  }
+
+  function renderContactPage() {
+    const courseOptions = Registry.entries()
+      .map(([key, item]) => `<option value="${h(item.meta?.name || key)}">${h(coursePublicVersion(key, item))} · ${h(item.meta?.name || key)}</option>`)
+      .join('');
+
+    return `<div class="publicHome publicPage contactPage">
+      <section class="contactHero" id="contactanos" aria-labelledby="contactTitle">
+        <div>
+          <span class="sectionKicker">Contacto</span>
+          <h2 id="contactTitle">Contáctanos</h2>
+          <p>Cuéntanos una idea, problema, error académico o propuesta de colaboración.</p>
+        </div>
+      </section>
+
+      <section class="contactFormShell" aria-label="Formulario de contacto">
+        <div class="contactFormGrid">
+          <form class="contactForm" id="contactForm">
+            <label for="contactCategory">Categoría</label>
+            <select id="contactCategory">
+              <option>Bug o problema técnico</option>
+              <option>Error académico o contenido</option>
+              <option>Propuesta de nuevo curso</option>
+              <option>Colaboración</option>
+              <option>Otro</option>
+            </select>
+
+            <label for="contactCourse">Curso relacionado</label>
+            <select id="contactCourse">
+              <option>General AcademiaQA</option>
+              ${courseOptions}
+            </select>
+
+            <label for="contactSubject">Asunto</label>
+            <input id="contactSubject" type="text" maxlength="140" placeholder="Ej. No se conserva el filtro de práctica">
+
+            <label for="contactMessage">Mensaje</label>
+            <textarea id="contactMessage" maxlength="1800" placeholder="Describe el contexto, pasos para reproducirlo o propuesta..."></textarea>
+
+            <div class="contactSubmitRow">
+              <button class="btn contactSubmit" type="button" data-action="send-contact-message">Enviar mensaje</button>
+              <span>Se abrirá tu correo con el mensaje listo para enviar a ${CONTACT_EMAIL}.</span>
+            </div>
+          </form>
+
+          <aside class="contactSide" aria-labelledby="socialTitle">
+            <h3 id="socialTitle">Canal oficial</h3>
+            <p>Para contacto directo, LinkedIn queda como canal principal.</p>
+            <div class="socialLogoLinks">
+              <a class="socialLogoLink linkedin" href="${LINKEDIN_URL}" target="_blank" rel="noopener noreferrer" aria-label="Abrir LinkedIn de Javier Chilatra">${brandIcon('linkedin')}<span>LinkedIn</span></a>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  function renderLegalPage() {
+    return `<div class="publicHome publicPage legalPage" id="legal">
+      <section class="homeSection" aria-labelledby="legalTitle">
+        <div class="sectionIntro">
+          <span class="sectionKicker">Información legal</span>
+          <h2 id="legalTitle">Política de privacidad y términos de uso</h2>
+          <p>AcademiaQA es una plataforma independiente de preparación y aprendizaje. Esta información resume cómo funciona el sitio estático y qué responsabilidades aplican al usarlo.</p>
+        </div>
+        <div class="legalGrid">
+          <article class="legalCard" id="privacidad">
+            <h3>Política de privacidad</h3>
+            <p>AcademiaQA no solicita cuentas, contraseñas ni datos de tarjeta. El progreso se guarda localmente en tu navegador mediante almacenamiento local y puede borrarse desde las opciones del curso.</p>
+            <p>El botón de aportes abre Wompi como servicio externo. Los enlaces a exámenes y canales externos abren sitios de terceros con sus propias políticas.</p>
+          </article>
+          <article class="legalCard" id="terminos">
+            <h3>Términos y condiciones</h3>
+            <p>El contenido se ofrece para estudio personal. No garantiza aprobación de certificaciones, no emite certificados y no sustituye materiales, reglas o exámenes oficiales.</p>
+            <p>Los cursos, bancos y simulacros son herramientas educativas. Los exámenes externos, certificados, insignias y condiciones dependen de cada entidad certificadora.</p>
+          </article>
+          <article class="legalCard">
+            <h3>Aviso independiente</h3>
+            <p>AcademiaQA no representa a ISTQB, CertiProf, Scrum.org, Scrum Inc., la Comisión Europea ni otras entidades mencionadas. Las marcas pertenecen a sus titulares.</p>
+          </article>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  function brandIcon(name) {
+    const icons = {
+      linkedin: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.45 20.45h-3.56v-5.58c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.44-2.14 2.94v5.68H9.34V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.32 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12Zm1.78 13.02H3.54V9H7.1v11.45ZM22.23 0H1.76C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.76 24h20.47c.97 0 1.77-.77 1.77-1.72V1.72C24 .77 23.2 0 22.23 0Z"/></svg>'
+    };
+    return `<span class="brandSocialIcon">${icons[name] || ''}</span>`;
+  }
+
+  function contactMessageText() {
+    const category = $('contactCategory')?.value || 'General';
+    const relatedCourse = $('contactCourse')?.value || 'General AcademiaQA';
+    const subject = ($('contactSubject')?.value || '').trim() || 'Mensaje AcademiaQA';
+    const message = ($('contactMessage')?.value || '').trim() || 'Hola, quiero contactar sobre AcademiaQA.';
+    return [
+      `Categoría: ${category}`,
+      `Curso relacionado: ${relatedCourse}`,
+      `Asunto: ${subject}`,
+      '',
+      message,
+      '',
+      `Página: ${global.location.href}`,
+      `Navegador: ${global.navigator?.userAgent || 'N/D'}`
+    ].join('\n');
+  }
+
+  function sendContactMessage() {
+    const text = contactMessageText();
+    const subject = ($('contactSubject')?.value || '').trim() || 'Mensaje AcademiaQA';
+    const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+
+    notify(`Se abrirá tu correo para enviar el mensaje a ${CONTACT_EMAIL}.`, 'info');
+    global.location.href = mailto;
   }
 
   function renderHome() {
@@ -860,7 +1095,7 @@
           <h2 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h2>
           <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
           <div class="landingActions">
-            <a class="btn" href="#cursos-disponibles" data-home-anchor="cursos-disponibles">Explorar cursos</a>
+            <a class="btn" href="#ruta-aprendizaje" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
             <button class="btn secondary" type="button" data-action="select-course" data-course="${h(continueCourse)}">Continuar estudiando</button>
             ${renderCoffeeButton()}
           </div>
@@ -868,55 +1103,19 @@
         ${renderHeroProgressCard()}
       </section>
 
+      ${renderStudyPathSection()}
+
+      ${renderDonationSpotlight()}
+
       ${renderFreeCertBand()}
-
-      <section class="homeSection" id="rutas-aprendizaje" aria-labelledby="routesTitle">
-        <div class="sectionIntro">
-          <h2 id="routesTitle">Explora rutas de preparación y aprendizaje</h2>
-          <p>Estas secuencias son recomendaciones flexibles, no requisitos. Cada ruta puede crecer con nuevos cursos gratuitos o Premium.</p>
-        </div>
-        <div class="upcomingGrid">${renderUpcomingCards()}</div>
-      </section>
-
-      <section class="homeSection" id="cursos-disponibles" aria-labelledby="coursesTitle">
-        <div class="sectionIntro">
-          <h2 id="coursesTitle">Cursos disponibles gratis</h2>
-          <p>CTFL 4.0, CT-AI 2.0, Scrum Master, Product Owner, Project Management Essentials, Scrum Fundamentals y Cybersecurity Awareness continúan habilitados sin costo para estudiar, practicar y simular.</p>
-        </div>
-        ${renderCatalogFilters()}
-        <div class="availableCoursesGrid" id="courseCatalog" aria-live="polite">${renderHomeCards()}</div>
-      </section>
-
-      <section class="homeSection" id="como-estudiar" aria-labelledby="studyTitle">
-        <div class="sectionIntro">
-          <h2 id="studyTitle">Ruta simple para avanzar</h2>
-        </div>
-        <div class="studyPathGrid">
-          <article><strong>1</strong><h3>Elige una ruta</h3><p>Explora el área profesional y selecciona el curso que necesitas.</p></article>
-          <article><strong>2</strong><h3>Lee por capítulos</h3><p>Repasa teoría, objetivos LO y puntos clave antes de practicar.</p></article>
-          <article><strong>3</strong><h3>Practica por foco</h3><p>Filtra por capítulo, nivel K u objetivo de aprendizaje.</p></article>
-          <article><strong>4</strong><h3>Simula y refuerza</h3><p>Usa el simulacro aleatorio y revisa tus estadísticas.</p></article>
-        </div>
-      </section>
-
-      <section class="contactSocialBand" id="contactanos" aria-labelledby="contactTitle">
-        <div>
-          <h2 id="contactTitle">Colaboraciones, dudas y apoyo</h2>
-          <p>Este espacio queda preparado para recibir mensajes, correcciones, propuestas de nuevos cursos y apoyo voluntario al proyecto. Los aportes se procesan de forma segura mediante Wompi, en COP, sin almacenar datos de tarjetas.</p>
-          ${renderCoffeeButton()}
-        </div>
-        <div id="redes" class="socialPanel" aria-labelledby="socialTitle">
-          <h3 id="socialTitle">Redes</h3>
-          <div class="socialLinks">
-            <span>LinkedIn</span>
-            <span>GitHub</span>
-            <span>YouTube</span>
-          </div>
-        </div>
-      </section>
 
       <section class="legalNotice" aria-label="Aviso legal">
         <b>Aviso legal:</b> AcademiaQA es una plataforma independiente de preparación y aprendizaje. No emite certificaciones ni sustituye syllabus, glosarios, reglas, materiales o exámenes oficiales de las entidades certificadoras.
+        <div class="legalQuickLinks">
+          <button class="btn secondary" type="button" data-view="legal" data-view-anchor="privacidad">Política de privacidad</button>
+          <button class="btn secondary" type="button" data-view="legal" data-view-anchor="terminos">Términos y condiciones</button>
+          <button class="btn" type="button" data-view="contact" data-view-anchor="contactanos">Contáctanos</button>
+        </div>
       </section>
     </div>`;
   }
@@ -1603,7 +1802,9 @@
       await loadCourses();
       const requestedKey = Storage.getActiveCourse();
       const initialKey = Registry.has(requestedKey) ? requestedKey : Registry.keys()[0];
-      setCourse(initialKey, { view: 'home' });
+      const initialRoute = routeFromHash();
+      setCourse(initialKey, { view: initialRoute.view });
+      scrollToAnchor(initialRoute.anchor);
       if (!Storage.available()) notify('El navegador no permite guardar progreso local. La academia seguirá funcionando sin persistencia.', 'warning', 10_000);
     } catch (error) {
       showFatalError(error);
