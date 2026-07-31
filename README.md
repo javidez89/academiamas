@@ -19,6 +19,9 @@ courses/
   ctai/course-data.js
   scrum-master/course-data.js
   scrum-product-owner/course-data.js
+  project-management-essentials/course-data.js
+  scrum-fundamentals/course-data.js
+  cybersecurity-awareness/course-data.js
   _template/course-data.example.js
 ```
 
@@ -28,6 +31,9 @@ courses/
 - CT-AI 2.0: curso gratuito de testing e inteligencia artificial.
 - Scrum Master: curso gratuito basado en la Scrum Guide 2020.
 - Scrum Product Owner Professional Certification: curso gratuito basado en guías Product Owner 2025/2026.
+- Project Management Essentials: curso gratuito basado en PM2 y enlace externo al examen abierto de CertiProf.
+- Scrum Fundamentals: curso gratuito basado en Scrum Guide 2020 y enlace externo al examen abierto de CertiProf.
+- Cybersecurity Awareness: curso gratuito de concientización y enlace externo al examen abierto de CertiProf.
 
 ## Ejecutar
 
@@ -73,6 +79,7 @@ Object.freeze({
 - `ai-automation`: Inteligencia artificial y automatización.
 - `scrum-agility`: Scrum, agilidad, Scrum Master y Product Owner.
 - `project-management`: Gestión de proyectos, riesgos, enfoques ágiles/híbridos y PMO.
+- `cybersecurity`: Ciberseguridad, concientización, controles, incidentes y cumplimiento.
 
 Un curso puede pertenecer a más de un área. Por ejemplo, CT-AI aparece en Testing e ISTQB y también en IA y automatización. La clasificación del catálogo solo controla navegación y presentación; no modifica el contenido académico.
 

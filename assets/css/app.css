@@ -473,7 +473,7 @@ main{
 }
 .freeCertBand{
   display:grid;
-  grid-template-columns:minmax(0,1.1fr) minmax(280px,.7fr);
+  grid-template-columns:minmax(0,1fr);
   gap:24px;
   align-items:center;
   border:1px solid #cfe0ef;
@@ -520,6 +520,68 @@ main{
   font-size:.8rem;
   font-weight:900;
 }
+.freeCertCards{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+.freeCertExamCard{
+  display:flex;
+  flex-direction:column;
+  min-height:260px;
+  border:1px solid #dbe8f6;
+  border-radius:12px;
+  background:#fff;
+  padding:16px;
+  box-shadow:0 12px 28px rgba(16,35,63,.08);
+}
+.freeCertExamCard>span{
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  border:1px solid #bfe6cf;
+  border-radius:999px;
+  background:#eaf7ef;
+  color:#0f5132;
+  padding:5px 8px;
+  font-size:.74rem;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.freeCertExamCard h3{
+  color:var(--primary2);
+  font-size:1.04rem;
+  line-height:1.25;
+  margin:12px 0 8px;
+}
+.freeCertExamCard p{
+  color:#475467;
+  margin:0;
+  font-size:.92rem;
+}
+.freeCertExamMeta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin:14px 0;
+}
+.freeCertExamMeta b{
+  border:1px solid #dbe8f6;
+  border-radius:999px;
+  background:#f8fbff;
+  color:#153b63;
+  padding:5px 8px;
+  font-size:.75rem;
+}
+.freeCertExamActions{
+  display:grid;
+  gap:8px;
+  margin-top:auto;
+}
+.freeCertExamActions .btn{
+  width:100%;
+  text-align:center;
+}
 .freeCertPanel{
   border:1px solid #b9d7f6;
   border-radius:14px;
@@ -550,6 +612,9 @@ main{
   justify-content:center;
   text-decoration:none;
   width:100%;
+}
+.courseExternalExam{
+  text-decoration:none;
 }
 .homeSection,
 .contactSocialBand,
@@ -608,6 +673,9 @@ main{
 .availableCourseCard.route-project-management::before{
   background:var(--warn);
 }
+.availableCourseCard.route-cybersecurity::before{
+  background:#0f766e;
+}
 .availableCourseCard:hover{
   border-color:rgba(37,99,235,.45);
   box-shadow:0 16px 34px rgba(16,35,63,.12);
@@ -660,6 +728,9 @@ main{
 }
 .upcomingCard.route-project-management{
   border-top-color:var(--warn);
+}
+.upcomingCard.route-cybersecurity{
+  border-top-color:#0f766e;
 }
 .routeExplore{
   border-radius:10px;
@@ -840,6 +911,9 @@ body.modalOpen{
     max-width:none;
   }
   .freeCertBand{
+    grid-template-columns:1fr;
+  }
+  .freeCertCards{
     grid-template-columns:1fr;
   }
   .availableCoursesGrid{

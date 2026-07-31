@@ -32,5 +32,29 @@ window.ACADEMY_CATALOG = Object.freeze([
     family: 'Scrum',
     areas: Object.freeze(['scrum-agility']),
     tags: Object.freeze(['Scrum', 'Product Owner', 'SPOPC', 'Agilidad', 'Producto'])
+  }),
+  Object.freeze({
+    key: 'project-management-essentials',
+    src: 'courses/project-management-essentials/course-data.js',
+    access: 'free',
+    family: 'CertiProf',
+    areas: Object.freeze(['project-management']),
+    tags: Object.freeze(['Project Management', 'PM2', 'CertiProf', 'Gratis'])
+  }),
+  Object.freeze({
+    key: 'scrum-fundamentals',
+    src: 'courses/scrum-fundamentals/course-data.js',
+    access: 'free',
+    family: 'CertiProf',
+    areas: Object.freeze(['scrum-agility']),
+    tags: Object.freeze(['Scrum', 'Fundamentos', 'Scrum Guide 2020', 'CertiProf', 'Gratis'])
+  }),
+  Object.freeze({
+    key: 'cybersecurity-awareness',
+    src: 'courses/cybersecurity-awareness/course-data.js',
+    access: 'free',
+    family: 'CertiProf',
+    areas: Object.freeze(['cybersecurity']),
+    tags: Object.freeze(['Cybersecurity', 'Concientizacion', 'CAPC', 'CertiProf', 'Gratis'])
   })
 ]);

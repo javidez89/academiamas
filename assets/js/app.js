@@ -34,6 +34,36 @@
       name: 'Gestión de proyectos',
       description: 'Planificación, riesgos, enfoques ágiles e híbridos y evolución hacia PMO.',
       steps: Object.freeze(['Fundamentos', 'Gestión ágil e híbrida', 'Riesgos y PMO'])
+    }),
+    Object.freeze({
+      key: 'cybersecurity',
+      name: 'Ciberseguridad',
+      description: 'Concientizacion, amenazas, controles, identidad, incidentes, politicas y cumplimiento.',
+      steps: Object.freeze(['Awareness', 'Controles basicos', 'Incidentes y cumplimiento'])
+    })
+  ]);
+
+  const CERTIPROF_FREE_EXAMS = Object.freeze([
+    Object.freeze({
+      courseKey: 'project-management-essentials',
+      label: 'Project Management Essentials',
+      examUrl: 'https://open.certiprof.com/project-management-essentials-exam-sp',
+      area: 'Project Management',
+      summary: 'Fundamentos PM2, roles, fases, riesgos, cambios, calidad y cierre.'
+    }),
+    Object.freeze({
+      courseKey: 'scrum-fundamentals',
+      label: 'Scrum Fundamentals',
+      examUrl: 'https://open.certiprof.com/scrum-foundation-exam-pt',
+      area: 'Scrum',
+      summary: 'Scrum Guide 2020, empirismo, equipo, eventos, artefactos y compromisos.'
+    }),
+    Object.freeze({
+      courseKey: 'cybersecurity-awareness',
+      label: 'Cybersecurity Awareness',
+      examUrl: 'https://open.certiprof.com/cybersecurity-awareness-exam-sp',
+      area: 'Cybersecurity',
+      summary: 'CIA, amenazas, controles, IAM, respuesta a incidentes y cumplimiento.'
     })
   ]);
 
@@ -789,6 +819,33 @@
     }).join('');
   }
 
+  function renderFreeCertCards() {
+    return CERTIPROF_FREE_EXAMS.map((exam) => `<article class="freeCertExamCard">
+      <span>${h(exam.area)}</span>
+      <h3>${h(exam.label)}</h3>
+      <p>${h(exam.summary)}</p>
+      <div class="freeCertExamMeta">
+        <b>Curso gratis</b>
+        <b>Examen CertiProf</b>
+      </div>
+      <div class="freeCertExamActions">
+        <button class="btn secondary" type="button" data-action="select-course" data-course="${h(exam.courseKey)}">Estudiar ruta</button>
+        <a class="btn freeCertLink" href="${h(exam.examUrl)}" target="_blank" rel="noopener noreferrer">Ir al examen</a>
+      </div>
+    </article>`).join('');
+  }
+
+  function renderFreeCertBand() {
+    return `<section class="freeCertBand" aria-labelledby="freeCertTitle">
+      <div class="freeCertCopy">
+        <span class="freeCertKicker">CertiProf Open</span>
+        <h2 id="freeCertTitle">Cursos gratis con examen externo</h2>
+        <p>Estas tres rutas quedan destacadas como preparacion gratuita en AcademiaQA, con acceso directo al examen abierto de CertiProf. La disponibilidad y emision del certificado se confirman en CertiProf.</p>
+      </div>
+      <div class="freeCertCards">${renderFreeCertCards()}</div>
+    </section>`;
+  }
+
   function renderCoffeeButton() {
     return '<button class="btn coffeeCta" type="button">Invítame un café</button>';
   }
@@ -799,7 +856,7 @@
     return `<div class="publicHome">
       <section class="landingHero" aria-labelledby="homeMainTitle">
         <div class="landingCopy">
-          <span class="landingEyebrow">QA &amp; Testing Academia · 4 cursos gratis</span>
+          <span class="landingEyebrow">QA &amp; Testing Academia · 7 cursos gratis</span>
           <h2 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h2>
           <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
           <div class="landingActions">
@@ -811,26 +868,7 @@
         ${renderHeroProgressCard()}
       </section>
 
-      <section class="freeCertBand" aria-labelledby="freeCertTitle">
-        <div class="freeCertCopy">
-          <span class="freeCertKicker">Recurso externo</span>
-          <h2 id="freeCertTitle">Exámenes gratuitos con certificado</h2>
-          <p>Explora certificaciones gratuitas de nivel de entrada en CertiProf para reforzar tu perfil en Scrum, gestión de proyectos, ciberseguridad, Kanban, trabajo remoto, agilidad e IA.</p>
-          <div class="freeCertPills" aria-label="Áreas disponibles en CertiProf">
-            <span>Scrum</span>
-            <span>Project Management</span>
-            <span>Cybersecurity</span>
-            <span>Kanban</span>
-            <span>AI Governance</span>
-          </div>
-        </div>
-        <div class="freeCertPanel">
-          <span>CertiProf</span>
-          <strong>Certificaciones gratuitas</strong>
-          <p>AcademiaQA no administra estos exámenes. La disponibilidad, condiciones y emisión del certificado se confirman directamente en CertiProf.</p>
-          <a class="btn freeCertLink" href="https://certiprof.com/es/pages/free-new-entry-level-certification" target="_blank" rel="noopener noreferrer">Ver exámenes gratuitos</a>
-        </div>
-      </section>
+      ${renderFreeCertBand()}
 
       <section class="homeSection" id="rutas-aprendizaje" aria-labelledby="routesTitle">
         <div class="sectionIntro">
@@ -843,7 +881,7 @@
       <section class="homeSection" id="cursos-disponibles" aria-labelledby="coursesTitle">
         <div class="sectionIntro">
           <h2 id="coursesTitle">Cursos disponibles gratis</h2>
-          <p>CTFL 4.0, CT-AI 2.0, Scrum Master y Product Owner continúan habilitados sin costo para estudiar, practicar y simular.</p>
+          <p>CTFL 4.0, CT-AI 2.0, Scrum Master, Product Owner, Project Management Essentials, Scrum Fundamentals y Cybersecurity Awareness continúan habilitados sin costo para estudiar, practicar y simular.</p>
         </div>
         ${renderCatalogFilters()}
         <div class="availableCoursesGrid" id="courseCatalog" aria-live="polite">${renderHomeCards()}</div>
@@ -901,6 +939,7 @@
         <div class="courseAction" role="button" tabindex="0" data-view="objectives"><b>🎯 Objetivos LO</b><span class="small">Mapa de aprendizaje</span></div>
         <div class="courseAction" role="button" tabindex="0" data-view="practice"><b>📝 Practicar</b><span class="small">Banco filtrado</span></div>
         <div class="courseAction" role="button" tabindex="0" data-view="exam"><b>⏱️ Simulacro</b><span class="small">Modo examen</span></div>
+        ${course.meta?.examUrl ? `<a class="courseAction courseExternalExam" href="${h(course.meta.examUrl)}" target="_blank" rel="noopener noreferrer"><b>CertiProf Open</b><span class="small">${h(course.meta.certificationNote || 'Examen externo disponible.')}</span></a>` : ''}
       </div>
     </div>`;
   }
