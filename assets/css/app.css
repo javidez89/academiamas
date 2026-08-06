@@ -1101,9 +1101,337 @@ body.modalOpen{
   }
 }
 
+.newCoursesSlider{
+  overflow:hidden;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:22px;
+  box-shadow:var(--shadow);
+}
+.sliderHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:16px;
+}
+.sliderControls{
+  display:flex;
+  gap:8px;
+}
+.sliderControls button{
+  width:40px;
+  height:40px;
+  border:1px solid #d9e2ef;
+  border-radius:50%;
+  background:#f8fbff;
+  color:var(--primary2);
+  font-size:1.4rem;
+  font-weight:950;
+  cursor:pointer;
+}
+.sliderControls button:hover{
+  background:#edf4fb;
+  border-color:var(--primary);
+}
+.courseSlide{
+  display:grid;
+  grid-template-columns:minmax(320px,.92fr) minmax(0,1fr);
+  gap:24px;
+  align-items:stretch;
+}
+.courseSlide[hidden]{
+  display:none!important;
+}
+.courseSlideMedia{
+  position:relative;
+  overflow:hidden;
+  min-height:330px;
+  border-radius:12px;
+  background:#f2f7ff;
+}
+.courseSlideMedia::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(90deg,rgba(16,35,63,.06),rgba(16,35,63,.34));
+  pointer-events:none;
+}
+.courseSlideMedia img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+}
+.courseSlide:nth-child(2) .courseSlideMedia img{
+  object-position:58% center;
+}
+.courseSlide:nth-child(3) .courseSlideMedia img{
+  object-position:68% center;
+}
+.courseSlideCopy{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:flex-start;
+  gap:12px;
+  min-width:0;
+}
+.courseSlideCopy>span{
+  display:inline-flex;
+  border:1px solid #bfe6cf;
+  background:#ecfdf3;
+  color:#047857;
+  border-radius:999px;
+  padding:6px 9px;
+  font-size:.78rem;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.courseSlideCopy h2{
+  margin:0;
+  color:var(--primary2);
+  font-size:clamp(1.65rem,3vw,2.6rem);
+  line-height:1.08;
+}
+.courseSlideCopy p{
+  margin:0;
+  color:#475467;
+  max-width:680px;
+}
+.courseSlideMeta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+}
+.courseSlideMeta b{
+  border:1px solid #dbe8f6;
+  background:#f5f9fd;
+  color:#274b70;
+  border-radius:999px;
+  padding:5px 8px;
+  font-size:.78rem;
+}
+.sliderDots{
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  margin-top:16px;
+}
+.sliderDots button{
+  width:10px;
+  height:10px;
+  border:0;
+  border-radius:999px;
+  background:#cad7e8;
+  cursor:pointer;
+}
+.sliderDots button.active{
+  width:30px;
+  background:var(--primary);
+}
+.homeRouteTiles{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:16px;
+}
+.homeRouteTile{
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  min-height:255px;
+  border:1px solid rgba(217,226,239,.9);
+  border-radius:12px;
+  background:#10233f;
+  cursor:pointer;
+  box-shadow:0 12px 26px rgba(16,35,63,.10);
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.homeRouteTile:hover,
+.homeRouteTile:focus-visible{
+  transform:translateY(-3px);
+  border-color:rgba(37,99,235,.45);
+  box-shadow:0 18px 36px rgba(16,35,63,.18);
+  outline:none;
+}
+.homeRouteTile img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+  opacity:.86;
+  transform:scale(1.02);
+  transition:transform .22s ease, opacity .22s ease;
+}
+.homeRouteTile:hover img,
+.homeRouteTile:focus-visible img{
+  opacity:.98;
+  transform:scale(1.08);
+}
+.homeRouteTile::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+  background:linear-gradient(180deg,rgba(7,17,31,.04),rgba(7,17,31,.84));
+}
+.homeRouteTile::after{
+  content:"";
+  position:absolute;
+  inset:auto 0 0;
+  z-index:1;
+  height:7px;
+  background:var(--primary);
+}
+.homeRouteTile.route-ai-automation::after{
+  background:var(--ai);
+}
+.homeRouteTile.route-scrum-agility::after{
+  background:var(--good);
+}
+.homeRouteTile.route-project-management::after{
+  background:var(--warn);
+}
+.homeRouteTile.route-cybersecurity::after{
+  background:#0f766e;
+}
+.homeRouteTileCopy{
+  position:absolute;
+  inset:auto 0 0;
+  z-index:2;
+  display:grid;
+  gap:10px;
+  padding:20px;
+  color:#fff;
+}
+.homeRouteTileCopy h3{
+  margin:0;
+  color:#fff;
+  font-size:1.24rem;
+  line-height:1.18;
+  text-shadow:0 2px 10px rgba(0,0,0,.28);
+}
+.homeRouteTileCopy span{
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(255,255,255,.34);
+  border-radius:999px;
+  background:rgba(255,255,255,.16);
+  color:#fff;
+  padding:6px 10px;
+  font-size:.78rem;
+  font-weight:950;
+  backdrop-filter:blur(6px);
+}
+.courseSlide.route-ai-automation .courseSlideCopy>span{
+  border-color:rgba(124,92,229,.35);
+  background:#f2efff;
+  color:#5b45bd;
+}
+.courseSlide.route-scrum-agility .courseSlideCopy>span{
+  border-color:rgba(22,163,104,.32);
+  background:#ecfdf3;
+  color:#047857;
+}
+.courseSlide.route-project-management .courseSlideCopy>span{
+  border-color:rgba(245,158,11,.38);
+  background:#fff8e6;
+  color:#7a4b00;
+}
+.courseSlide.route-cybersecurity .courseSlideCopy>span{
+  border-color:rgba(15,118,110,.34);
+  background:#ecfeff;
+  color:#0f766e;
+}
+.chapterProgressMeta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin:10px 0;
+}
+.chapterProgressMeta b,
+.chapterProgressMeta span{
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  padding:5px 8px;
+  font-size:.78rem;
+  font-weight:900;
+}
+.chapterProgressMeta b{
+  background:#edf4fb;
+  color:var(--primary2);
+  border:1px solid #c9def1;
+}
+.chapterProgressMeta span{
+  background:#f8fafc;
+  color:#475467;
+  border:1px solid #e4e7ec;
+}
+.chapterProgressGrid{
+  margin:14px 0;
+}
+.practiceContext{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  border:1px solid #c9def1;
+  border-radius:12px;
+  background:#f2f7ff;
+  color:#24364f;
+  padding:12px 14px;
+  margin-bottom:14px;
+}
+.practiceContext span{
+  color:#5d6b82;
+  font-size:.9rem;
+}
+
+@media(max-width:980px){
+  .homeRouteTiles{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
 @media(max-width:760px){
   .coffeeModal{
     align-items:flex-start;
     padding:12px;
+  }
+  .newCoursesSlider{
+    padding:16px;
+    border-radius:12px;
+  }
+  .sliderHead{
+    align-items:flex-start;
+  }
+  .courseSlide{
+    grid-template-columns:1fr;
+    gap:16px;
+  }
+  .courseSlideMedia{
+    min-height:210px;
+  }
+  .courseSlideCopy h2{
+    font-size:1.55rem;
+  }
+  .courseSlideCopy .btn{
+    width:100%;
+    justify-content:center;
+  }
+  .homeRouteTiles{
+    grid-template-columns:1fr;
+  }
+  .homeRouteTile{
+    min-height:210px;
   }
 }
