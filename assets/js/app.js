@@ -5,7 +5,7 @@
   const Registry = global.AcademyRegistry;
   const Storage = global.AcademyStorage;
   const Config = global.ACADEMY_CONFIG || {};
-  const ASSET_VERSION = String(Config.assetVersion || '2026-08-05-route-images-all');
+  const ASSET_VERSION = String(Config.assetVersion || '2026-08-05-mobile-responsive-study');
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
   const TRM_API_URL = 'https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde DESC';
   const COFFEE_COP_PER_USD_FALLBACK = 3206.18;
@@ -78,35 +78,87 @@
   ]);
   const DEFAULT_ROUTE_TILE_IMAGE = Object.freeze({
     src: 'assets/img/academiaqa-support.png',
+    webp: 'assets/img/academiaqa-support-640.webp 640w, assets/img/academiaqa-support-1200.webp 1200w, assets/img/academiaqa-support-1983.webp 1983w',
+    avif: 'assets/img/academiaqa-support-640.avif 640w, assets/img/academiaqa-support-1200.avif 1200w, assets/img/academiaqa-support-1983.avif 1983w',
     width: 1983,
     height: 793
   });
   const ROUTE_TILE_IMAGES = Object.freeze({
     'testing-istqb': Object.freeze({
       src: 'assets/img/routes/testing-istqb.jpg',
+      webp: 'assets/img/routes/testing-istqb-640.webp 640w, assets/img/routes/testing-istqb-1200.webp 1200w',
+      avif: 'assets/img/routes/testing-istqb-640.avif 640w, assets/img/routes/testing-istqb-1200.avif 1200w',
       width: 1200,
       height: 894
     }),
     'ai-automation': Object.freeze({
       src: 'assets/img/routes/ai-automation.jpg',
+      webp: 'assets/img/routes/ai-automation-640.webp 640w, assets/img/routes/ai-automation-1200.webp 1200w',
+      avif: 'assets/img/routes/ai-automation-640.avif 640w, assets/img/routes/ai-automation-1200.avif 1200w',
       width: 1200,
       height: 851
     }),
     'scrum-agility': Object.freeze({
       src: 'assets/img/routes/scrum-agility.jpg',
+      webp: 'assets/img/routes/scrum-agility-640.webp 640w, assets/img/routes/scrum-agility-1200.webp 1200w',
+      avif: 'assets/img/routes/scrum-agility-640.avif 640w, assets/img/routes/scrum-agility-1200.avif 1200w',
       width: 1200,
       height: 859
     }),
     cybersecurity: Object.freeze({
       src: 'assets/img/routes/cybersecurity.jpg',
+      webp: 'assets/img/routes/cybersecurity-640.webp 640w, assets/img/routes/cybersecurity-1200.webp 1200w',
+      avif: 'assets/img/routes/cybersecurity-640.avif 640w, assets/img/routes/cybersecurity-1200.avif 1200w',
       width: 1200,
       height: 861
     }),
     'project-management': Object.freeze({
       src: 'assets/img/routes/project-management.jpg',
+      webp: 'assets/img/routes/project-management-640.webp 640w, assets/img/routes/project-management-1200.webp 1200w',
+      avif: 'assets/img/routes/project-management-640.avif 640w, assets/img/routes/project-management-1200.avif 1200w',
       width: 1200,
       height: 894
     })
+  });
+  const NEW_COURSES_IMAGE = Object.freeze({
+    src: 'assets/img/home/new-course.jpg',
+    webp: 'assets/img/home/new-course-640.webp 640w, assets/img/home/new-course-1200.webp 1200w',
+    avif: 'assets/img/home/new-course-640.avif 640w, assets/img/home/new-course-1200.avif 1200w',
+    width: 1200,
+    height: 907,
+    alt: 'Nuevo curso de capacitación profesional avanzada en AcademiaQA'
+  });
+  const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal']);
+  const COURSE_VIEW_ALIASES = Object.freeze({
+    panel: 'dashboard',
+    dashboard: 'dashboard',
+    curso: 'dashboard',
+    syllabus: 'study',
+    estudiar: 'study',
+    study: 'study',
+    objetivos: 'objectives',
+    lo: 'objectives',
+    objectives: 'objectives',
+    practica: 'practice',
+    practice: 'practice',
+    simulacro: 'exam',
+    examen: 'exam',
+    exam: 'exam',
+    k3: 'k3lab',
+    k3lab: 'k3lab',
+    flashcards: 'flashcards',
+    estadisticas: 'analytics',
+    analytics: 'analytics'
+  });
+  const COURSE_VIEW_SEGMENTS = Object.freeze({
+    dashboard: 'panel',
+    study: 'syllabus',
+    objectives: 'objetivos',
+    practice: 'practica',
+    exam: 'simulacro',
+    k3lab: 'k3',
+    flashcards: 'flashcards',
+    analytics: 'estadisticas'
   });
 
   const VIEW_RENDERERS = Object.freeze({
@@ -137,6 +189,7 @@
   let coffeeTrmSource = 'fallback';
   let coffeeTrmRequest = null;
   let homeSliderTimer = null;
+  const loadingCourseScripts = new Map();
 
   function createState(view = 'home') {
     return {
@@ -164,8 +217,25 @@
     return document.getElementById(id);
   }
 
+  function polishText(value) {
+    const replacements = {
+      preparacion: 'preparación',
+      adopcion: 'adopción',
+      capitulos: 'capítulos',
+      proteccion: 'protección',
+      politicas: 'políticas'
+    };
+
+    return String(value ?? '').replace(/\b(preparacion|adopcion|capitulos|proteccion|politicas)\b/gi, (match) => {
+      const replacement = replacements[match.toLowerCase()] || match;
+      return match[0] === match[0]?.toUpperCase()
+        ? replacement.charAt(0).toUpperCase() + replacement.slice(1)
+        : replacement;
+    });
+  }
+
   function h(value) {
-    return Security.escapeHtml(value);
+    return Security.escapeHtml(polishText(value));
   }
 
   function number(value, fallback = 0) {
@@ -212,10 +282,24 @@
 
     for (const item of catalog) {
       if (!item || typeof item.src !== 'string') throw new Error('El catálogo contiene una entrada inválida.');
-      await loadScript(item.src);
     }
 
-    if (!Registry.keys().length) throw new Error('No se registró ningún curso válido.');
+  }
+
+  async function ensureCourseLoaded(key) {
+    const normalizedKey = String(key || '').trim().toLowerCase();
+    if (Registry.has(normalizedKey)) return Registry.get(normalizedKey);
+
+    const entry = catalogEntry(normalizedKey);
+    if (!entry?.src) throw new Error(`El curso "${normalizedKey}" no está registrado en el catálogo.`);
+
+    if (!loadingCourseScripts.has(normalizedKey)) {
+      loadingCourseScripts.set(normalizedKey, loadScript(entry.src).finally(() => loadingCourseScripts.delete(normalizedKey)));
+    }
+
+    await loadingCourseScripts.get(normalizedKey);
+    if (!Registry.has(normalizedKey)) throw new Error(`No se pudo registrar el curso "${normalizedKey}".`);
+    return Registry.get(normalizedKey);
   }
 
   function bindDom() {
@@ -267,7 +351,7 @@
     target.click();
   }
 
-  function handleClick(event) {
+  async function handleClick(event) {
     const paymentTrigger = event.target.closest('.coffeeLink, .coffeeCta');
     if (paymentTrigger) {
       event.preventDefault();
@@ -299,7 +383,7 @@
       event.preventDefault();
       closeSiteMenu();
       const anchor = viewButton.dataset.viewAnchor;
-      setView(viewButton.dataset.view);
+      await showView(viewButton.dataset.view);
       const href = viewButton.getAttribute('href');
       if (href?.startsWith('#')) global.history?.pushState?.(null, '', href);
       if (anchor) scrollToAnchor(anchor);
@@ -312,7 +396,7 @@
     const action = actionTarget.dataset.action;
     switch (action) {
       case 'select-course':
-        setCourse(actionTarget.dataset.course);
+        await setCourse(actionTarget.dataset.course);
         break;
       case 'filter-courses':
         state.catalogFilter = learningRoute(actionTarget.dataset.filter)
@@ -322,7 +406,7 @@
           render();
           global.setTimeout(() => $('home-cursos-disponibles')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
         } else {
-          if (state.view !== 'courses') setView('courses');
+          if (state.view !== 'courses') await showView('courses');
           else render();
           global.setTimeout(() => $('cursos-disponibles')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
         }
@@ -425,8 +509,30 @@
     toggleSiteMenu(false);
   }
 
+  function firstCatalogKey() {
+    return catalogEntries()[0]?.key || '';
+  }
+
+  function normalizeCourseView(view) {
+    return COURSE_VIEW_ALIASES[String(view || '').trim().toLowerCase()] || 'dashboard';
+  }
+
+  function courseHash(key, view = 'dashboard') {
+    const segment = COURSE_VIEW_SEGMENTS[view] || 'panel';
+    return `#curso/${encodeURIComponent(key)}/${segment}`;
+  }
+
   function routeFromHash(hash = global.location.hash) {
     const anchor = String(hash || '').replace(/^#/, '') || 'inicio';
+    const [root, courseKey, view] = anchor.split('/');
+    if (root === 'curso' && courseKey) {
+      return {
+        view: normalizeCourseView(view),
+        anchor: '',
+        course: decodeURIComponent(courseKey).trim().toLowerCase()
+      };
+    }
+
     if (['cursos', 'cursos-disponibles'].includes(anchor)) return { view: 'courses', anchor: 'cursos-disponibles' };
     if (anchor === 'ruta-aprendizaje') return { view: 'routes', anchor: 'ruta-aprendizaje' };
     if (['contactanos', 'redes'].includes(anchor)) return { view: 'contact', anchor: 'contactanos' };
@@ -448,8 +554,13 @@
     scrollToAnchor(anchorId);
   }
 
-  function handleHashRoute() {
+  async function handleHashRoute() {
     const route = routeFromHash();
+    if (route.course) {
+      await setCourse(route.course, { view: route.view, updateHash: false });
+      return;
+    }
+
     if (state.view !== route.view) setView(route.view);
     scrollToAnchor(route.anchor);
   }
@@ -598,34 +709,65 @@
     state.pendingAdvance = null;
   }
 
-  function setCourse(key, options = {}) {
+  async function setCourse(key, options = {}) {
     const normalizedKey = String(key || '').trim().toLowerCase();
-    if (!Registry.has(normalizedKey)) {
-      notify('La certificación seleccionada no existe o no pasó la validación.', 'error');
+    if (!catalogEntry(normalizedKey)?.src) {
+      notify('La certificación seleccionada no existe en el catálogo.', 'error');
       return;
     }
 
     clearRuntimeTimers();
+    try {
+      course = await ensureCourseLoaded(normalizedKey);
+    } catch (error) {
+      console.error(error);
+      notify('No fue posible cargar el curso seleccionado.', 'error');
+      return;
+    }
+
     activeCourseKey = normalizedKey;
-    course = Registry.get(normalizedKey);
     questions = [...course.questions];
     progressStorageKey = course.meta?.storageKey || `academy_${normalizedKey}_progress`;
     state = createState(options.view || 'dashboard');
     Storage.setActiveCourse(normalizedKey);
     updateCourseUi();
     render();
+    if (options.updateHash !== false && !PUBLIC_VIEWS.has(state.view)) {
+      global.history?.pushState?.(null, '', courseHash(normalizedKey, state.view));
+    }
   }
 
-  function setView(view) {
+  async function showView(view, options = {}) {
     if (!VIEW_RENDERERS[view]) return;
+    if (!PUBLIC_VIEWS.has(view) && !course) {
+      await setCourse(activeCourseKey || Storage.getActiveCourse() || firstCatalogKey(), { view, updateHash: options.updateHash });
+      return;
+    }
+
+    setView(view, options);
+  }
+
+  function setView(view, options = {}) {
+    if (!VIEW_RENDERERS[view]) return;
+    if (!PUBLIC_VIEWS.has(view) && !course) return;
     if (view !== state.view) clearRuntimeTimers();
     state.view = view;
     if (view === 'home') state.homePanel = 'overview';
     state.session = ['practice', 'exam'].includes(view) ? state.session : [];
-    document.querySelectorAll('.navbtn[data-view]').forEach((button) => {
-      button.classList.toggle('active', button.dataset.view === view);
-    });
+    syncNavigationState();
     render();
+    if (options.updateHash !== false && course && !PUBLIC_VIEWS.has(view)) {
+      global.history?.pushState?.(null, '', courseHash(activeCourseKey, view));
+    }
+  }
+
+  function syncNavigationState() {
+    document.querySelectorAll('.navbtn[data-view], .siteNav [data-view]').forEach((item) => {
+      const active = item.dataset.view === state.view;
+      item.classList.toggle('active', active);
+      if (active) item.setAttribute('aria-current', 'page');
+      else item.removeAttribute('aria-current');
+    });
   }
 
   function getProgress() {
@@ -638,9 +780,9 @@
   }
 
   function updateCourseUi() {
-    const isPublicView = ['home', 'courses', 'routes', 'contact', 'legal'].includes(state.view);
-    const allCourses = Registry.entries();
-    const totalBank = allCourses.reduce((sum, [, item]) => sum + (item.questions?.length || 0), 0);
+    const isPublicView = PUBLIC_VIEWS.has(state.view);
+    const allCourses = publicCourseEntries();
+    const totalBank = allCourses.reduce((sum, [, item]) => sum + courseQuestionCount(item), 0);
     const freeCourses = allCourses.filter(([key]) => catalogEntry(key)?.access === 'free').length;
     const blueprint = course?.blueprint || {};
     const publicTitles = {
@@ -678,17 +820,18 @@
       : `Hecho para estudio personal · ${courseLabel()} · progreso independiente por certificación.`;
     dom.footerText.hidden = isPublicView;
 
-    const hasK3 = questions.some((question) => question.k === 'K3');
-    const hasFlashcards = Array.isArray(course.flashcards) && course.flashcards.length > 0;
-    const hasObjectives = Array.isArray(course.objectives) && course.objectives.length > 0;
+    const hasK3 = course ? questions.some((question) => question.k === 'K3') : false;
+    const hasFlashcards = course ? Array.isArray(course.flashcards) && course.flashcards.length > 0 : false;
+    const hasObjectives = course ? Array.isArray(course.objectives) && course.objectives.length > 0 : false;
 
-    document.querySelector('[data-view="k3lab"]').hidden = !hasK3;
-    document.querySelector('[data-view="flashcards"]').hidden = !hasFlashcards;
-    document.querySelector('[data-view="objectives"]').hidden = !hasObjectives;
+    document.querySelector('[data-view="k3lab"]')?.toggleAttribute('hidden', !hasK3);
+    document.querySelector('[data-view="flashcards"]')?.toggleAttribute('hidden', !hasFlashcards);
+    document.querySelector('[data-view="objectives"]')?.toggleAttribute('hidden', !hasObjectives);
+    syncNavigationState();
   }
 
   function render() {
-    if (!course) return;
+    if (!course && !PUBLIC_VIEWS.has(state.view)) return;
     updateCourseUi();
     const renderer = VIEW_RENDERERS[state.view] || VIEW_RENDERERS.home;
 
@@ -710,7 +853,7 @@
   }
 
   function courseProgressDetails(key, item) {
-    const keyForStorage = item.meta?.storageKey || `academy_${key}_progress`;
+    const keyForStorage = courseMeta(item).storageKey || `academy_${key}_progress`;
     const progress = Storage.getProgress(keyForStorage);
     const attempts = progress.attempts || [];
     const best = attempts.length ? Math.max(...attempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
@@ -735,14 +878,23 @@
     return ROUTE_TILE_IMAGES[routeKey] || DEFAULT_ROUTE_TILE_IMAGE;
   }
 
+  function renderResponsiveImage(image, alt = '', sizes = '100vw') {
+    const sourceTags = [
+      image.avif ? `<source type="image/avif" srcset="${h(image.avif)}" sizes="${h(sizes)}">` : '',
+      image.webp ? `<source type="image/webp" srcset="${h(image.webp)}" sizes="${h(sizes)}">` : ''
+    ].join('');
+
+    return `<picture>${sourceTags}<img src="${h(image.src)}" width="${number(image.width)}" height="${number(image.height)}" alt="${h(alt)}" loading="lazy" decoding="async"></picture>`;
+  }
+
   function courseFeaturedTime(key, item, index = 0) {
     const catalog = catalogEntry(key);
-    const featured = Date.parse(catalog.featuredAt || item.generatedAt || item.meta?.updatedAt || '');
+    const featured = Date.parse(catalog.featuredAt || item.generatedAt || courseMeta(item).updatedAt || '');
     return Number.isFinite(featured) ? featured : index;
   }
 
   function latestCourseEntries(limit = 3) {
-    return Registry.entries()
+    return publicCourseEntries()
       .map(([key, item], index) => ({ key, item, index, time: courseFeaturedTime(key, item, index) }))
       .sort((left, right) => right.time - left.time || right.index - left.index)
       .slice(0, limit);
@@ -787,7 +939,7 @@
   }
 
   function heroProgressSummary() {
-    const entries = Registry.entries();
+    const entries = publicCourseEntries();
     const active = Storage.getActiveCourse();
     const courses = entries.map(([key, item]) => ({ key, item, details: courseProgressDetails(key, item) }));
     const totalCourses = courses.length;
@@ -880,12 +1032,48 @@
   function coursePublicVersion(key, item) {
     if (key === 'ctfl') return 'CTFL 4.0';
     if (key === 'ctai') return 'CT-AI 2.0';
-    return item.meta?.code || String(key).toUpperCase();
+    return courseMeta(item).code || String(key).toUpperCase();
+  }
+
+  function catalogEntries() {
+    return Array.isArray(global.ACADEMY_CATALOG) ? global.ACADEMY_CATALOG : [];
   }
 
   function catalogEntry(key) {
-    const catalog = Array.isArray(global.ACADEMY_CATALOG) ? global.ACADEMY_CATALOG : [];
-    return catalog.find((item) => item?.key === key) || {};
+    return catalogEntries().find((item) => item?.key === key) || {};
+  }
+
+  function catalogCourseSummary(entry = {}) {
+    return {
+      meta: entry.meta || {},
+      blueprint: entry.blueprint || {},
+      counts: entry.counts || {},
+      generatedAt: entry.generatedAt || entry.featuredAt || ''
+    };
+  }
+
+  function publicCourseEntries() {
+    return catalogEntries().map((entry) => [entry.key, Registry.get(entry.key) || catalogCourseSummary(entry)]);
+  }
+
+  function courseMeta(item = {}) {
+    return item.meta || {};
+  }
+
+  function courseBlueprint(item = {}) {
+    return item.blueprint || {};
+  }
+
+  function courseChapterCount(item = {}) {
+    return Array.isArray(item.chapters) ? item.chapters.length : number(item.counts?.chapters, 0);
+  }
+
+  function courseObjectiveCount(item = {}) {
+    return Array.isArray(item.objectives) ? item.objectives.length : number(item.counts?.objectives, 0);
+  }
+
+  function courseQuestionCount(item = {}) {
+    return Array.isArray(item.questions) ? item.questions.length : number(item.counts?.questions, 0);
   }
 
   function learningRoute(routeKey) {
@@ -899,12 +1087,12 @@
   }
 
   function availableCourseCount(routeKey) {
-    return Registry.entries().filter(([key]) => courseMatchesFilter(key, routeKey)).length;
+    return catalogEntries().filter((entry) => courseMatchesFilter(entry.key, routeKey)).length;
   }
 
   function renderCatalogFilters(scope = 'courses') {
     const controls = scope === 'home' ? 'homeCourseCatalog' : 'courseCatalog';
-    const filters = [{ key: 'all', name: 'Todos', count: Registry.entries().length }]
+    const filters = [{ key: 'all', name: 'Todos', count: catalogEntries().length }]
       .concat(LEARNING_ROUTES.map((route) => ({
         key: route.key,
         name: route.name,
@@ -913,14 +1101,14 @@
 
     return `<div class="catalogFilters" role="group" aria-label="Filtrar cursos por área">${filters.map((filter) => {
       const active = state.catalogFilter === filter.key;
-      return `<button class="catalogFilter${active ? ' active' : ''}" type="button" data-action="filter-courses" data-filter="${h(filter.key)}" data-filter-scope="${h(scope)}" aria-controls="${h(controls)}" aria-pressed="${active}">
+      return `<button class="catalogFilter${active ? ' active' : ''}" type="button" data-action="filter-courses" data-filter="${h(filter.key)}" data-filter-scope="${h(scope)}" aria-controls="${h(controls)}" aria-pressed="${active}"${active ? ' aria-current="true"' : ''}>
         ${h(filter.name)} <span>${filter.count}</span>
       </button>`;
     }).join('')}</div>`;
   }
 
   function renderHomeCards() {
-    const matchingCourses = Registry.entries().filter(([key]) => courseMatchesFilter(key, state.catalogFilter));
+    const matchingCourses = publicCourseEntries().filter(([key]) => courseMatchesFilter(key, state.catalogFilter));
     if (!matchingCourses.length) {
       const route = learningRoute(state.catalogFilter);
       return `<div class="catalogEmpty">
@@ -931,7 +1119,8 @@
     }
 
     return matchingCourses.map(([key, item]) => {
-      const blueprint = item.blueprint || {};
+      const meta = courseMeta(item);
+      const blueprint = courseBlueprint(item);
       const pass = `${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions || 0}`;
       const publicVersion = coursePublicVersion(key, item);
       const catalog = catalogEntry(key);
@@ -940,13 +1129,13 @@
       const progress = courseProgressDetails(key, item);
       const best = Math.max(0, Math.min(100, number(progress.best, 0)));
 
-      return `<article class="availableCourseCard route-${h(routeKey)}" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}">
+      return `<article class="availableCourseCard route-${h(routeKey)}" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}" aria-label="Entrar al curso ${h(meta.name || key)}">
         <div class="courseCardTop">
           <span class="statusDot">${catalog.access === 'free' ? 'Gratis' : 'Premium'}</span>
           <strong>${h(publicVersion)}</strong>
         </div>
-        <h3>${h(item.meta?.name || key)}</h3>
-        <p>${h(item.meta?.subtitle || 'Curso disponible para estudio independiente.')}</p>
+        <h3>${h(meta.name || key)}</h3>
+        <p>${h(meta.subtitle || 'Curso disponible para estudio independiente.')}</p>
         <div class="courseTaxonomy">
           ${areaNames.map((areaName) => `<span>${h(areaName)}</span>`).join('')}
           ${catalog.family ? `<span>${h(catalog.family)}</span>` : ''}
@@ -956,9 +1145,9 @@
           <span>${best}%</span>
         </div>
         <div class="courseStatsLine">
-          <span>${item.chapters.length} capítulos</span>
-          <span>${item.objectives?.length || 0} LO</span>
-          <span>${item.questions?.length || 0} preguntas</span>
+          <span>${courseChapterCount(item)} capítulos</span>
+          <span>${courseObjectiveCount(item)} LO</span>
+          <span>${courseQuestionCount(item)} preguntas</span>
           <span>Simulacro ${blueprint.totalQuestions || 0}</span>
           <span>Aprueba ${h(pass)}</span>
           <span>Mejor ${best}%</span>
@@ -1026,26 +1215,28 @@
           const active = index === state.homeSlide;
           const routeKey = courseRouteKey(key);
           const areas = courseAreaNames(key);
-          return `<article class="courseSlide route-${h(routeKey)}${active ? ' active' : ''}" ${active ? '' : 'hidden'} aria-hidden="${active ? 'false' : 'true'}">
+          const meta = courseMeta(item);
+          const slideId = `newCourseSlide-${h(key)}`;
+          return `<article class="courseSlide route-${h(routeKey)}${active ? ' active' : ''}" id="${slideId}" role="tabpanel" ${active ? '' : 'hidden'} aria-hidden="${active ? 'false' : 'true'}">
             <div class="courseSlideMedia">
-              <img src="assets/img/academiaqa-support.png" width="1983" height="793" alt="Imagen destacada de ${h(item.meta?.name || key)}">
+              ${renderResponsiveImage(NEW_COURSES_IMAGE, NEW_COURSES_IMAGE.alt, '(max-width: 760px) 100vw, 560px')}
             </div>
             <div class="courseSlideCopy">
               <span>${h(coursePublicVersion(key, item))}</span>
-              <h2${active ? ' id="newCoursesTitle"' : ''}>${h(item.meta?.name || key)}</h2>
-              <p>${h(item.meta?.subtitle || 'Curso gratis disponible para estudiar, practicar y simular.')}</p>
+              <h2${active ? ' id="newCoursesTitle"' : ''}>${h(meta.name || key)}</h2>
+              <p>${h(meta.subtitle || 'Curso gratis disponible para estudiar, practicar y simular.')}</p>
               <div class="courseSlideMeta">
                 ${areas.map((areaName) => `<b>${h(areaName)}</b>`).join('')}
-                <b>${item.chapters.length} capítulos</b>
-                <b>${item.objectives?.length || 0} LO</b>
+                <b>${courseChapterCount(item)} capítulos</b>
+                <b>${courseObjectiveCount(item)} LO</b>
               </div>
-              <button class="btn" type="button" data-action="select-course" data-course="${h(key)}">Entrar al curso</button>
+              <button class="btn" type="button" data-action="select-course" data-course="${h(key)}" aria-label="Entrar al curso ${h(meta.name || key)}">Entrar al curso</button>
             </div>
           </article>`;
         }).join('')}
       </div>
       <div class="sliderDots" role="tablist" aria-label="Cursos nuevos destacados">
-        ${slides.map(({ key, item }, index) => `<button type="button" data-action="home-slide-go" data-slide="${index}" class="${index === state.homeSlide ? 'active' : ''}" aria-label="Ver ${h(coursePublicVersion(key, item))}" aria-selected="${index === state.homeSlide}"></button>`).join('')}
+        ${slides.map(({ key, item }, index) => `<button type="button" role="tab" data-action="home-slide-go" data-slide="${index}" class="${index === state.homeSlide ? 'active' : ''}" aria-label="Mostrar curso destacado: ${h(coursePublicVersion(key, item))}" aria-controls="newCourseSlide-${h(key)}" aria-selected="${index === state.homeSlide}"${index === state.homeSlide ? ' aria-current="true"' : ''}></button>`).join('')}
       </div>
     </section>`;
   }
@@ -1057,7 +1248,7 @@
       if (!route) return '';
       const image = routeTileImage(route.key);
       return `<article class="homeRouteTile route-${h(route.key)}" role="button" tabindex="0" data-action="filter-courses" data-filter="${h(route.key)}" aria-controls="courseCatalog" aria-label="Ver cursos de ${h(route.name)}">
-        <img src="${h(image.src)}" width="${number(image.width)}" height="${number(image.height)}" alt="">
+        ${renderResponsiveImage(image, '', '(max-width: 760px) 100vw, 260px')}
         <div class="homeRouteTileCopy">
           <h3>${h(route.name)}</h3>
           <span>Ver cursos</span>
@@ -1081,7 +1272,7 @@
   function renderDonationSpotlight() {
     return `<section class="donationSpotlight" aria-labelledby="donationTitle">
       <div class="donationImagePanel">
-        <img src="assets/img/academiaqa-support.png" width="1983" height="793" alt="Comunidad QA aprendiendo y apoyando el proyecto AcademiaQA">
+        ${renderResponsiveImage(DEFAULT_ROUTE_TILE_IMAGE, 'Comunidad QA aprendiendo y apoyando el proyecto AcademiaQA', '(max-width: 900px) 100vw, 680px')}
       </div>
       <div class="donationCopy">
         <span class="sectionKicker">Apoya el proyecto</span>
@@ -1137,7 +1328,7 @@
   }
 
   function renderContactPage() {
-    const courseOptions = Registry.entries()
+    const courseOptions = publicCourseEntries()
       .map(([key, item]) => `<option value="${h(item.meta?.name || key)}">${h(coursePublicVersion(key, item))} · ${h(item.meta?.name || key)}</option>`)
       .join('');
 
@@ -1255,7 +1446,7 @@
 
   function renderHome() {
     const continueCourse = heroProgressCourse()?.key || activeCourseKey || 'ctfl';
-    const freeCourseCount = Registry.entries().filter(([key]) => catalogEntry(key)?.access === 'free').length;
+    const freeCourseCount = publicCourseEntries().filter(([key]) => catalogEntry(key)?.access === 'free').length;
 
     return `<div class="publicHome">
       <section class="landingHero" aria-labelledby="homeMainTitle">
@@ -1354,14 +1545,14 @@
     const kDistribution = Object.entries(blueprint.kDistribution || {}).map(([key, value]) => `${key}:${value}`).join(' · ');
     const chapterDistribution = Object.entries(blueprint.chapterDistribution || {}).map(([key, value]) => `C${key}:${value}`).join(' · ');
 
-    return `<table class="table">
+    return `<table class="table responsiveTable blueprintTable">
       <tr><th>Elemento</th><th>Valor</th></tr>
-      <tr><td>Preguntas</td><td>${number(blueprint.totalQuestions)}</td></tr>
-      <tr><td>Puntos</td><td>${number(totalPoints)}</td></tr>
-      <tr><td>Aprobación</td><td>${number(blueprint.passingScore)}/${number(totalPoints)}</td></tr>
-      <tr><td>Tiempo</td><td>${number(blueprint.minutes)} min · +25%: ${number(blueprint.extraTime25, Math.ceil(number(blueprint.minutes) * 1.25))} min</td></tr>
-      <tr><td>Distribución K</td><td>${h(kDistribution)}</td></tr>
-      <tr><td>Capítulos</td><td>${h(chapterDistribution)}</td></tr>
+      <tr><td data-label="Elemento">Preguntas</td><td data-label="Valor">${number(blueprint.totalQuestions)}</td></tr>
+      <tr><td data-label="Elemento">Puntos</td><td data-label="Valor">${number(totalPoints)}</td></tr>
+      <tr><td data-label="Elemento">Aprobación</td><td data-label="Valor">${number(blueprint.passingScore)}/${number(totalPoints)}</td></tr>
+      <tr><td data-label="Elemento">Tiempo</td><td data-label="Valor">${number(blueprint.minutes)} min · +25%: ${number(blueprint.extraTime25, Math.ceil(number(blueprint.minutes) * 1.25))} min</td></tr>
+      <tr><td data-label="Elemento">Distribución K</td><td data-label="Valor">${h(kDistribution)}</td></tr>
+      <tr><td data-label="Elemento">Capítulos</td><td data-label="Valor">${h(chapterDistribution)}</td></tr>
     </table>`;
   }
 
@@ -1485,10 +1676,10 @@
     const rows = objectives.map((objective) => {
       const loProgress = objectiveProgress(objective.lo);
       return `<tr>
-      <td><b>${h(objective.lo)}</b></td><td>${h(objective.k)}</td><td>${h(objective.text)}</td>
-      <td>${questions.filter((question) => question.lo === objective.lo).length}</td>
-      <td>${loProgress.total ? `${loProgress.total} resp. · ${loProgress.accuracy}%` : 'Sin práctica'}</td>
-      <td><button class="btn secondary" type="button" data-action="practice" data-chapter="${number(id)}" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
+      <td data-label="LO"><b>${h(objective.lo)}</b></td><td data-label="K">${h(objective.k)}</td><td data-label="Objetivo">${h(objective.text)}</td>
+      <td data-label="Preguntas">${questions.filter((question) => question.lo === objective.lo).length}</td>
+      <td data-label="Avance">${loProgress.total ? `${loProgress.total} resp. · ${loProgress.accuracy}%` : 'Sin práctica'}</td>
+      <td data-label="Acción"><button class="btn secondary" type="button" data-action="practice" data-chapter="${number(id)}" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
     </tr>`;
     }).join('');
 
@@ -1503,7 +1694,7 @@
       <details open class="contentDetails"><summary>Texto completo evaluable · páginas ${h(chapter.completeSyllabusPages || 'N/D')}</summary><div class="prebox small">${h(chapter.completeSyllabusText || 'No hay texto ampliado cargado para este capítulo.')}</div></details>
       <h3>Términos clave</h3><div>${(chapter.terms || []).map((term) => `<span class="pill">${h(term)}</span>`).join('')}</div>
       <h3>Objetivos de aprendizaje con teoría</h3>${objectives.map(renderObjectiveTheory).join('')}
-      <h3>Mapa LO y práctica</h3><table class="table"><tr><th>LO</th><th>K</th><th>Objetivo</th><th>Preguntas</th><th>Avance</th><th>Acción</th></tr>${rows}</table>
+      <h3>Mapa LO y práctica</h3><table class="table responsiveTable loPracticeTable"><tr><th>LO</th><th>K</th><th>Objetivo</th><th>Preguntas</th><th>Avance</th><th>Acción</th></tr>${rows}</table>
       <h3>Trampas frecuentes</h3><ul>${(chapter.pitfalls || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
       <h3>Ejemplos aplicados</h3><ul>${(chapter.examples || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
       <div class="btnrow"><button class="btn" type="button" data-action="practice" data-chapter="${number(id)}" data-count="20" data-mode="study">Practicar capítulo</button><button class="btn secondary" type="button" data-view="objectives">Ver mapa LO</button></div>
@@ -1513,17 +1704,17 @@
 
   function renderObjectives() {
     const rows = course.objectives.map((objective) => `<tr>
-      <td><b>${h(objective.lo)}</b></td><td>C${number(objective.chapter)}</td><td>${h(objective.k)}</td>
-      <td><b>${h(objective.text)}</b><br><span class="small">${h(objective.theory || '')}</span>
+      <td data-label="LO"><b>${h(objective.lo)}</b></td><td data-label="Capítulo">C${number(objective.chapter)}</td><td data-label="K">${h(objective.k)}</td>
+      <td data-label="Teoría"><b>${h(objective.text)}</b><br><span class="small">${h(objective.theory || '')}</span>
         ${objective.remember ? `<br><span class="small"><b>Recuerda:</b> ${h(objective.remember)}</span>` : ''}
         ${objective.trap ? `<br><span class="small"><b>Trampa:</b> ${h(objective.trap)}</span>` : ''}
         ${objective.syllabusExtract ? `<details><summary class="small"><b>Extracto del syllabus</b></summary><div class="prebox small">${h(objective.syllabusExtract)}</div></details>` : ''}
       </td>
-      <td>${questions.filter((question) => question.lo === objective.lo).length}</td>
-      <td><button class="btn secondary" type="button" data-action="practice" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
+      <td data-label="Preguntas">${questions.filter((question) => question.lo === objective.lo).length}</td>
+      <td data-label="Acción"><button class="btn secondary" type="button" data-action="practice" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
     </tr>`).join('');
 
-    return `<div class="card"><h2>Mapa completo de objetivos de aprendizaje</h2><p>Esta vista combina teoría, extracto del temario y práctica por objetivo.</p><table class="table"><tr><th>LO</th><th>Cap.</th><th>K</th><th>Teoría del objetivo</th><th>Preguntas</th><th></th></tr>${rows}</table></div>`;
+    return `<div class="card"><h2>Mapa completo de objetivos de aprendizaje</h2><p>Esta vista combina teoría, extracto del temario y práctica por objetivo.</p><table class="table responsiveTable objectivesTable"><tr><th>LO</th><th>Cap.</th><th>K</th><th>Teoría del objetivo</th><th>Preguntas</th><th></th></tr>${rows}</table></div>`;
   }
 
   function selectedAttr(value, current) {
@@ -1568,13 +1759,13 @@
 
     return `<div class="card"><h2>Práctica personalizada</h2>
       ${practiceFilterSummary(filter, available)}
-      <div class="grid3">
+      <div class="grid3 practiceFormGrid">
         <div><label for="fChapter">Capítulo</label><select id="fChapter"><option value="all"${selectedAttr('all', filter.chapter)}>Todos</option>${chapterOptions}</select></div>
         <div><label for="fK">Nivel K</label><select id="fK"><option value="all"${selectedAttr('all', filter.k)}>Todos</option>${kOptions}</select></div>
         <div><label for="fCount">Cantidad</label><select id="fCount">${countSelectOptions}</select></div>
       </div>
-      <label for="fLo">Objetivo de aprendizaje</label><select id="fLo"><option value="all"${selectedAttr('all', filter.lo)}>Todos los LO</option>${objectiveOptions}</select>
-      <div class="btnrow"><button class="btn" type="button" data-action="practice-filters" data-mode="study">Modo estudio</button><button class="btn secondary" type="button" data-action="practice-filters" data-mode="exam">Modo quiz al final</button></div>
+      <div class="practiceLoControl"><label for="fLo">Objetivo de aprendizaje</label><select id="fLo"><option value="all"${selectedAttr('all', filter.lo)}>Todos los LO</option>${objectiveOptions}</select></div>
+      <div class="btnrow practiceActionRow"><button class="btn" type="button" data-action="practice-filters" data-mode="study">Modo estudio</button><button class="btn secondary" type="button" data-action="practice-filters" data-mode="exam">Modo quiz al final</button></div>
     </div><div id="sessionHost"></div>`;
   }
 
@@ -1792,9 +1983,9 @@
     return `<div class="card"><h2>Simulacro ${h(courseLabel())}</h2>
       <p>Genera ${number(blueprint.totalQuestions)} preguntas aleatorias desde las preguntas activas, respetando la matriz por capítulo y nivel K cuando hay suficientes preguntas.</p>
       ${renderBlueprintTable()}
-      <div class="grid3"><div class="metric"><span>Preguntas disponibles</span><strong>${questions.length}</strong></div><div class="metric"><span>Preguntas</span><strong>${number(blueprint.totalQuestions)}</strong></div><div class="metric"><span>Selección</span><strong>Aleatoria</strong></div></div>
+      <div class="grid3 examMetricsGrid"><div class="metric"><span>Preguntas disponibles</span><strong>${questions.length}</strong></div><div class="metric"><span>Preguntas</span><strong>${number(blueprint.totalQuestions)}</strong></div><div class="metric"><span>Selección</span><strong>Aleatoria</strong></div></div>
       <div class="note"><b>Preguntas activas:</b> ${questions.length}. <b>Regla:</b> se seleccionan ${number(blueprint.totalQuestions)} aleatorias (${h(kText)}). La aprobación usa puntos: ${number(blueprint.passingScore)}/${number(blueprint.totalPoints || blueprint.totalQuestions)}.</div>
-      <div class="btnrow"><button class="btn good" type="button" data-action="start-official-exam">Iniciar simulacro aleatorio</button><button class="btn secondary" type="button" data-action="practice" data-count="${number(blueprint.totalQuestions)}" data-mode="exam">Simulacro aleatorio libre</button></div>
+      <div class="btnrow examActionRow"><button class="btn good" type="button" data-action="start-official-exam">Iniciar simulacro aleatorio</button><button class="btn secondary" type="button" data-action="practice" data-count="${number(blueprint.totalQuestions)}" data-mode="exam">Simulacro aleatorio libre</button></div>
     </div><div id="sessionHost"></div>`;
   }
 
@@ -1900,10 +2091,18 @@
 
     try {
       await loadCourses();
-      const requestedKey = Storage.getActiveCourse();
-      const initialKey = Registry.has(requestedKey) ? requestedKey : Registry.keys()[0];
       const initialRoute = routeFromHash();
-      setCourse(initialKey, { view: initialRoute.view });
+      const requestedKey = initialRoute.course || Storage.getActiveCourse();
+      const initialKey = catalogEntry(requestedKey)?.src ? requestedKey : firstCatalogKey();
+      activeCourseKey = initialKey;
+
+      if (initialRoute.course || !PUBLIC_VIEWS.has(initialRoute.view)) {
+        await setCourse(initialKey, { view: initialRoute.view, updateHash: false });
+      } else {
+        state = createState(initialRoute.view);
+        render();
+      }
+
       scrollToAnchor(initialRoute.anchor);
       if (!Storage.available()) notify('El navegador no permite guardar progreso local. La academia seguirá funcionando sin persistencia.', 'warning', 10_000);
     } catch (error) {
