@@ -186,7 +186,9 @@ details.contentDetails summary{cursor:pointer;font-weight:850;color:#143d70}
 .brandSocialIcon svg{width:24px;height:24px;fill:currentColor;display:block}
 .donationSpotlight{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:24px;align-items:center;overflow:hidden;border:1px solid #ffd894;border-radius:18px;background:linear-gradient(135deg,#fff7e6 0%,#ffffff 46%,#eef7ff 100%);padding:24px;box-shadow:0 16px 38px rgba(16,35,63,.12)}
 .donationImagePanel{display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid #f3d38d;border-radius:16px;background:#fff;min-height:260px;box-shadow:0 14px 30px rgba(184,110,0,.12)}
-.donationImagePanel img{display:block;width:100%;height:100%;min-height:260px;object-fit:cover;object-position:center}
+.donationImagePanel picture,
+.donationImagePanel img{display:block;width:100%;height:100%;min-height:260px}
+.donationImagePanel img{object-fit:cover;object-position:center}
 .donationCopy h2{margin:10px 0 10px;color:var(--primary2);font-size:clamp(1.7rem,3.1vw,2.6rem);line-height:1.08}
 .donationCopy p{margin:0;color:#4f5f73;font-size:1.02rem}
 .donationActions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
@@ -247,6 +249,85 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
   main{padding-left:8px;padding-right:8px}.sidebar,.card,.academyHeroCard,.courseHero,.homeRoute{padding-left:12px;padding-right:12px}.navbtn{gap:8px}.pill{font-size:.74rem;padding:5px 7px}
 }
 
+@media(max-width:760px){
+  .card:has(.responsiveTable){
+    overflow-x:visible;
+  }
+  .responsiveTable{
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+    border-collapse:separate;
+    border-spacing:0;
+    white-space:normal!important;
+  }
+  .responsiveTable tr:first-child{
+    display:none;
+  }
+  .responsiveTable tr{
+    display:block;
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:#fff;
+    padding:10px 12px;
+    margin:12px 0;
+    box-shadow:0 8px 18px rgba(16,35,63,.06);
+  }
+  .responsiveTable td{
+    display:grid;
+    grid-template-columns:minmax(88px,34%) minmax(0,1fr);
+    align-items:start;
+    gap:10px;
+    border:0!important;
+    padding:8px 0!important;
+    text-align:left!important;
+    min-width:0!important;
+    white-space:normal!important;
+  }
+  .responsiveTable td::before{
+    content:attr(data-label);
+    color:#667085;
+    font-size:.78rem;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+  }
+  .responsiveTable td>*{
+    min-width:0;
+  }
+  .responsiveTable td .btn{
+    width:100%;
+    min-width:0;
+    white-space:normal;
+  }
+  .objectivesTable td[data-label="Teoría"],
+  .loPracticeTable td[data-label="Objetivo"]{
+    grid-template-columns:1fr;
+  }
+  .objectivesTable td[data-label="Teoría"]::before,
+  .loPracticeTable td[data-label="Objetivo"]::before{
+    margin-bottom:2px;
+  }
+  .blueprintTable tr{
+    padding:12px 14px;
+  }
+  .blueprintTable td{
+    display:block;
+    padding:2px 0!important;
+  }
+  .blueprintTable td::before{
+    content:none;
+  }
+  .blueprintTable td:first-child{
+    color:#143d70;
+    font-weight:950;
+  }
+  .blueprintTable td:nth-child(2){
+    color:#24364f;
+  }
+}
+
 /* Seguridad/accesibilidad añadida en la arquitectura modular */
 [hidden]{display:none!important}
 [role=button]:focus-visible,.btn:focus-visible,.navbtn:focus-visible,.opt:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #67b7e8;outline-offset:2px}
@@ -289,6 +370,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
   .contactSubmitRow{grid-template-columns:1fr}
   .contactSide{position:static}
   .donationImagePanel,
+  .donationImagePanel picture,
   .donationImagePanel img{min-height:180px}
   .catalogFilters{display:grid;grid-template-columns:1fr 1fr}
   .catalogFilter{justify-content:space-between;text-align:left}
@@ -1158,10 +1240,13 @@ body.modalOpen{
   background:linear-gradient(90deg,rgba(16,35,63,.06),rgba(16,35,63,.34));
   pointer-events:none;
 }
+.courseSlideMedia picture,
 .courseSlideMedia img{
   display:block;
   width:100%;
   height:100%;
+}
+.courseSlideMedia img{
   object-fit:cover;
   object-position:center;
 }
@@ -1256,11 +1341,15 @@ body.modalOpen{
   box-shadow:0 18px 36px rgba(16,35,63,.18);
   outline:none;
 }
+.homeRouteTile picture,
 .homeRouteTile img{
   position:absolute;
   inset:0;
+  display:block;
   width:100%;
   height:100%;
+}
+.homeRouteTile img{
   object-fit:cover;
   object-position:center;
   opacity:.86;
@@ -1395,6 +1484,113 @@ body.modalOpen{
   color:#5d6b82;
   font-size:.9rem;
 }
+.practiceFormGrid>div,
+.practiceLoControl{
+  min-width:0;
+}
+.practiceLoControl select,
+.practiceFormGrid select{
+  max-width:100%;
+  text-overflow:ellipsis;
+}
+.practiceActionRow .btn,
+.examActionRow .btn{
+  min-width:min(100%, 220px);
+}
+.examMetricsGrid .metric{
+  min-width:0;
+}
+.examFocusMode{
+  background:#07111f;
+}
+.examFocusMode header,
+.examFocusMode .sidebar,
+.examFocusMode .footer{
+  display:none!important;
+}
+.examFocusMode main.wrap{
+  width:100%;
+  max-width:100%;
+  min-height:100svh;
+  display:grid;
+  align-items:center;
+  padding:clamp(10px,2vw,24px);
+}
+.examFocusMode #mainLayout{
+  display:block;
+  width:min(1120px,100%);
+  margin:0 auto;
+}
+.examFocusMode #app{
+  width:100%;
+  min-width:0;
+}
+.examFocusMode .appNotice{
+  position:fixed;
+  top:10px;
+  left:50%;
+  z-index:70;
+  width:min(680px,calc(100% - 20px));
+  margin:0;
+  transform:translateX(-50%);
+}
+.examFocusShell{
+  width:min(1120px,100%);
+  margin:0 auto;
+}
+.examTimer{
+  position:sticky;
+  top:10px;
+  z-index:30;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  width:min(1120px,100%);
+  margin:0 auto 12px;
+  border:1px solid rgba(125,211,252,.34);
+  border-radius:18px;
+  background:linear-gradient(135deg,#0f172a,#123b67);
+  color:#fff;
+  padding:14px 18px;
+  box-shadow:0 18px 42px rgba(0,0,0,.28);
+  overflow:visible;
+}
+.examTimer span{
+  min-width:0;
+  color:#bfdbfe;
+  font-size:.86rem;
+  font-weight:900;
+  overflow-wrap:anywhere;
+}
+.examTimer strong{
+  color:#fff;
+  font-size:clamp(1.05rem,2.4vw,1.45rem);
+  line-height:1.1;
+  text-align:right;
+}
+.examQuestionCard{
+  margin:0 auto;
+  border:0;
+  border-radius:20px;
+  box-shadow:0 24px 58px rgba(0,0,0,.28);
+  overflow:visible;
+}
+.examQuestionCard .qhead{
+  align-items:center;
+  padding-bottom:12px;
+  border-bottom:1px solid #e7edf5;
+}
+.examQuestionCard .questionBox{
+  border:0;
+  background:#f8fbff;
+}
+.examQuestionCard .sessionActionRow{
+  justify-content:flex-end;
+}
+.examQuestionCard .sessionActionRow .btn{
+  min-width:150px;
+}
 
 @media(max-width:980px){
   .homeRouteTiles{
@@ -1413,6 +1609,50 @@ body.modalOpen{
   }
   .sliderHead{
     align-items:flex-start;
+  }
+  .practiceContext{
+    display:grid;
+    grid-template-columns:1fr;
+    align-items:start;
+  }
+  .practiceActionRow,
+  .examActionRow{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+  .examFocusMode main.wrap{
+    min-height:100svh;
+    align-items:start;
+    padding:8px;
+  }
+  .examTimer{
+    top:0;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:6px;
+    border-radius:14px;
+    padding:12px;
+  }
+  .examTimer strong{
+    text-align:left;
+  }
+  .examQuestionCard{
+    border-radius:16px;
+    padding:14px;
+  }
+  .examQuestionCard .qhead,
+  .examQuestionCard .sessionActionRow{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+  .examQuestionCard .sessionActionRow .btn{
+    width:100%;
+    min-width:0;
+  }
+  .practiceActionRow .btn,
+  .examActionRow .btn{
+    width:100%;
+    min-width:0;
   }
   .courseSlide{
     grid-template-columns:1fr;
