@@ -1,0 +1,58 @@
+name: Production Smoke
+
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  verify-production:
+    name: Verify academiaqaoficial.com
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'github-pages')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias reproducibles
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Esperar propagación de GitHub Pages
+        run: |
+          for attempt in {1..18}; do
+            if curl --fail --silent https://academiaqaoficial.com/sitemap.xml > /dev/null; then
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
+
+      - name: Smoke SEO de producción
+        env:
+          ACADEMIAQA_URL: https://academiaqaoficial.com/
+        run: npm run test:seo
+
+      - name: Smoke funcional de producción
+        env:
+          ACADEMIAQA_URL: https://academiaqaoficial.com/
+        run: npm run test:e2e

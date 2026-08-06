@@ -92,6 +92,7 @@ details.contentDetails summary{cursor:pointer;font-weight:850;color:#143d70}
 .courseAction{border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff;cursor:pointer}.courseAction:hover{border-color:#0f5faa;background:#f8fbff}.courseAction b{display:block;color:#0f3158;margin-bottom:4px}
 
 .footer{text-align:center;color:#667085;margin:24px 0}
+.footer.homeFooter{text-align:left;font-size:.85rem;font-weight:800;color:#475467;padding-left:2px}
 
 .siteTopbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:26px}
 .brandMark{display:inline-flex;align-items:center;color:#fff;text-decoration:none;min-width:0;background:#fff;border:1px solid rgba(255,255,255,.5);border-radius:14px;padding:6px 10px;box-shadow:0 10px 24px rgba(0,0,0,.18)}

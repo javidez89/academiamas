@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.4.0] - 2026-08-06
+
+### Added
+
+- Gobierno de ramas, releases, Conventional Commits, SemVer, calidad continua y rollback.
+- Quality Gate para sintaxis, versión, persistencia, catálogo, SEO y flujos E2E.
+- Smoke posterior al despliegue contra `academiaqaoficial.com`.
+- Versión visible en la parte inferior izquierda del home.
+
+### Validation
+
+- La versión se valida entre `VERSION`, `package.json`, `assets/js/config.js` y este changelog.
+- Los cambios no modifican cursos, preguntas, simulacros, progreso, pagos ni contenido académico.
+
 ## [v0.3.2] - 2026-07-30
 
 ### Changed

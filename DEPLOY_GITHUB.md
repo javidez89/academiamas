@@ -4,7 +4,7 @@
 
 - Repositorio: `javidez89/academiamas`
 - Rama prevista: `main`
-- Página esperada: `https://javidez89.github.io/academiamas/`
+- Página oficial: `https://academiaqaoficial.com/`
 
 ## Publicar desde la rama `main`
 
@@ -37,3 +37,7 @@ No subas una carpeta contenedora adicional. GitHub Pages debe encontrar `index.h
 ## Actualizaciones futuras
 
 Para publicar una nueva versión, reemplaza únicamente los archivos modificados, valida el front y crea un commit claro. GitHub Pages volverá a desplegar automáticamente después del push.
+
+## Gobierno CI/CD
+
+Toda actualización debe entrar a `main` mediante pull request y superar los checks obligatorios de GitHub Actions. La estrategia de ramas, versionamiento, pruebas, despliegue y rollback está definida en [`docs/CI_CD_GOVERNANCE.md`](docs/CI_CD_GOVERNANCE.md).
