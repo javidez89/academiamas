@@ -1500,6 +1500,97 @@ body.modalOpen{
 .examMetricsGrid .metric{
   min-width:0;
 }
+.examFocusMode{
+  background:#07111f;
+}
+.examFocusMode header,
+.examFocusMode .sidebar,
+.examFocusMode .footer{
+  display:none!important;
+}
+.examFocusMode main.wrap{
+  width:100%;
+  max-width:100%;
+  min-height:100svh;
+  display:grid;
+  align-items:center;
+  padding:clamp(10px,2vw,24px);
+}
+.examFocusMode #mainLayout{
+  display:block;
+  width:min(1120px,100%);
+  margin:0 auto;
+}
+.examFocusMode #app{
+  width:100%;
+  min-width:0;
+}
+.examFocusMode .appNotice{
+  position:fixed;
+  top:10px;
+  left:50%;
+  z-index:70;
+  width:min(680px,calc(100% - 20px));
+  margin:0;
+  transform:translateX(-50%);
+}
+.examFocusShell{
+  width:min(1120px,100%);
+  margin:0 auto;
+}
+.examTimer{
+  position:sticky;
+  top:10px;
+  z-index:30;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  width:min(1120px,100%);
+  margin:0 auto 12px;
+  border:1px solid rgba(125,211,252,.34);
+  border-radius:18px;
+  background:linear-gradient(135deg,#0f172a,#123b67);
+  color:#fff;
+  padding:14px 18px;
+  box-shadow:0 18px 42px rgba(0,0,0,.28);
+  overflow:visible;
+}
+.examTimer span{
+  min-width:0;
+  color:#bfdbfe;
+  font-size:.86rem;
+  font-weight:900;
+  overflow-wrap:anywhere;
+}
+.examTimer strong{
+  color:#fff;
+  font-size:clamp(1.05rem,2.4vw,1.45rem);
+  line-height:1.1;
+  text-align:right;
+}
+.examQuestionCard{
+  margin:0 auto;
+  border:0;
+  border-radius:20px;
+  box-shadow:0 24px 58px rgba(0,0,0,.28);
+  overflow:visible;
+}
+.examQuestionCard .qhead{
+  align-items:center;
+  padding-bottom:12px;
+  border-bottom:1px solid #e7edf5;
+}
+.examQuestionCard .questionBox{
+  border:0;
+  background:#f8fbff;
+}
+.examQuestionCard .sessionActionRow{
+  justify-content:flex-end;
+}
+.examQuestionCard .sessionActionRow .btn{
+  min-width:150px;
+}
 
 @media(max-width:980px){
   .homeRouteTiles{
@@ -1528,6 +1619,35 @@ body.modalOpen{
   .examActionRow{
     display:grid;
     grid-template-columns:1fr;
+  }
+  .examFocusMode main.wrap{
+    min-height:100svh;
+    align-items:start;
+    padding:8px;
+  }
+  .examTimer{
+    top:0;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:6px;
+    border-radius:14px;
+    padding:12px;
+  }
+  .examTimer strong{
+    text-align:left;
+  }
+  .examQuestionCard{
+    border-radius:16px;
+    padding:14px;
+  }
+  .examQuestionCard .qhead,
+  .examQuestionCard .sessionActionRow{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+  .examQuestionCard .sessionActionRow .btn{
+    width:100%;
+    min-width:0;
   }
   .practiceActionRow .btn,
   .examActionRow .btn{

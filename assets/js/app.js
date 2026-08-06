@@ -202,6 +202,7 @@
       startTime: null,
       timer: null,
       pendingAdvance: null,
+      examFocus: false,
       questionLocked: false,
       flashIndex: 0,
       flashShow: false,
@@ -707,6 +708,12 @@
     if (state.pendingAdvance) global.clearTimeout(state.pendingAdvance);
     state.timer = null;
     state.pendingAdvance = null;
+    setExamFocus(false);
+  }
+
+  function setExamFocus(active) {
+    state.examFocus = Boolean(active);
+    document.body.classList.toggle('examFocusMode', state.examFocus);
   }
 
   async function setCourse(key, options = {}) {
@@ -1822,8 +1829,9 @@
 
     const marked = getProgress().marked.includes(question.id);
     const options = state.orders[question.id].map((option) => `<div class="opt ${answered.includes(option.originalIndex) ? 'selected' : ''}" role="button" tabindex="0" data-action="select-option" data-option-index="${option.originalIndex}"><b>${String.fromCharCode(65 + option.originalIndex)}.</b><span>${h(option.text)}</span></div>`).join('');
+    const sessionCardClass = `card sessionCard${state.examFocus ? ' examQuestionCard' : ''}`;
 
-    host.innerHTML = `<div class="card">
+    host.innerHTML = `<div class="${sessionCardClass}">
       <div class="qhead"><div><span class="pill">${h(question.id)}</span><span class="pill">C${number(question.chapter)}</span><span class="pill">${h(question.k)}</span><span class="pill">${h(question.lo)}</span><span class="pill">${number(question.points, 1)} pts</span></div><div><b>${state.current + 1}/${state.session.length}</b></div></div>
       <div class="progressbar"><div style="width:${pct(state.current, state.session.length)}%"></div></div>
       <div class="questionBox">
@@ -1831,7 +1839,7 @@
         <p class="small">Tema: ${h(question.topic)} · ${question.multi ? 'Puede tener varias respuestas.' : 'Una respuesta correcta.'}${question.source ? ` · Fuente: ${h(question.source)}` : ''}</p>
         <div id="options">${options}</div><div id="feedback" aria-live="polite"></div>
       </div>
-      <div class="btnrow">
+      <div class="btnrow sessionActionRow">
         <button class="btn secondary" type="button" data-action="previous-question">Anterior</button>
         <button class="btn" type="button" data-action="check-or-next">${state.mode === 'study' ? 'Comprobar / siguiente' : 'Guardar / siguiente'}</button>
         <button class="btn secondary" type="button" data-action="toggle-marked">${marked ? 'Quitar repaso' : 'Marcar repaso'}</button>
@@ -1980,6 +1988,10 @@
   function renderExam() {
     const blueprint = course.blueprint;
     const kText = Object.entries(blueprint.kDistribution || {}).filter(([, value]) => number(value) > 0).map(([key, value]) => `${key}=${value}`).join(', ');
+    if (state.examFocus && state.session.length) {
+      return `<div class="examFocusShell" role="region" aria-label="Simulacro en curso"><div id="sessionHost"></div></div>`;
+    }
+
     return `<div class="card"><h2>Simulacro ${h(courseLabel())}</h2>
       <p>Genera ${number(blueprint.totalQuestions)} preguntas aleatorias desde las preguntas activas, respetando la matriz por capítulo y nivel K cuando hay suficientes preguntas.</p>
       ${renderBlueprintTable()}
@@ -2003,7 +2015,9 @@
     state.startTime = Date.now();
     state.questionLocked = false;
     state.view = 'exam';
+    setExamFocus(true);
     dom.app.innerHTML = renderExam();
+    global.scrollTo({ top: 0, behavior: 'smooth' });
     renderSession();
     startCountdown(number(course.blueprint.minutes) * 60);
   }
@@ -2011,7 +2025,9 @@
   function startCountdown(seconds) {
     const box = document.createElement('div');
     box.id = 'timerBox';
-    box.className = 'card';
+    box.className = 'card examTimer';
+    box.setAttribute('role', 'timer');
+    box.setAttribute('aria-live', 'polite');
     dom.app.prepend(box);
 
     const tick = () => {
@@ -2019,8 +2035,9 @@
       const left = Math.max(0, seconds - elapsed);
       const minutes = Math.floor(left / 60);
       const remainingSeconds = left % 60;
-      box.textContent = `⏱️ Tiempo restante: ${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
-      box.style.fontWeight = '850';
+      const label = `Tiempo restante: ${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+      box.setAttribute('aria-label', `${courseLabel()}. ${label}`);
+      box.innerHTML = `<span>${h(courseLabel())}</span><strong>${label}</strong>`;
       if (left <= 0) finishSession();
     };
 
