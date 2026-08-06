@@ -6,6 +6,7 @@
   const Storage = global.AcademyStorage;
   const Config = global.ACADEMY_CONFIG || {};
   const ASSET_VERSION = String(Config.assetVersion || '2026-08-05-mobile-responsive-study');
+  const APP_VERSION = String(Config.version || '0.0.0');
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
   const TRM_API_URL = 'https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde DESC';
   const COFFEE_COP_PER_USD_FALLBACK = 3206.18;
@@ -908,10 +909,12 @@
       : `⏱️ Simulacro ${blueprint.minutes} min / aprueba ${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions}`;
     dom.navCaps.textContent = `${course?.chapters?.length || 0} caps`;
     dom.navExamCount.textContent = String(blueprint.totalQuestions || 0);
+    const isHomeView = state.view === 'home';
+    dom.footerText.classList.toggle('homeFooter', isHomeView);
     dom.footerText.textContent = isPublicView
-      ? ''
+      ? (isHomeView ? `AcademiaQA · v${APP_VERSION}` : '')
       : `Hecho para estudio personal · ${courseLabel()} · progreso independiente por certificación.`;
-    dom.footerText.hidden = isPublicView;
+    dom.footerText.hidden = isPublicView && !isHomeView;
 
     const hasK3 = course ? questions.some((question) => question.k === 'K3') : false;
     const hasFlashcards = course ? Array.isArray(course.flashcards) && course.flashcards.length > 0 : false;

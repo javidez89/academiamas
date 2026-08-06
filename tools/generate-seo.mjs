@@ -4,8 +4,6 @@ import vm from 'node:vm';
 
 const ROOT = process.cwd();
 const DOMAIN = 'https://academiaqaoficial.com';
-const GENERATED_AT = new Date().toISOString().slice(0, 10);
-
 const cleanDomain = DOMAIN.replace(/\/$/, '');
 const rootPath = (...parts) => path.join(ROOT, ...parts);
 
@@ -437,7 +435,6 @@ async function writeSitemap(pages) {
     if (loc.includes('#') || loc.includes('github.io')) throw new Error(`URL invalida en sitemap: ${loc}`);
     return `  <url>
     <loc>${x(loc)}</loc>
-    <lastmod>${GENERATED_AT}</lastmod>
   </url>`;
   }).join('\n');
 

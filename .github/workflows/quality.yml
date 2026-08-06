@@ -1,0 +1,121 @@
+name: Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  commit-policy:
+    name: Conventional Commits
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validar mensajes del PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/check-commits.mjs "$BASE_SHA" "$HEAD_SHA"
+
+  static-unit:
+    name: Static and unit gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias reproducibles
+        run: npm ci
+
+      - name: Validar sintaxis y versión
+        run: npm run check
+
+      - name: Probar persistencia y estadísticas
+        run: npm run test:unit
+
+      - name: Regenerar SEO
+        run: npm run generate:seo
+
+      - name: Verificar artefactos SEO versionados
+        run: >-
+          git diff --exit-code --
+          robots.txt sitemap.xml cursos ruta-aprendizaje contactanos legal curso
+
+  browser-gates:
+    name: Browser integration gates
+    needs: static-unit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias reproducibles
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Regenerar SEO
+        run: npm run generate:seo
+
+      - name: Iniciar servidor estático
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 > /tmp/academiaqa-http.log 2>&1 &
+          echo $! > /tmp/academiaqa-http.pid
+
+      - name: Esperar disponibilidad
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/academiaqa-http.log
+          exit 1
+
+      - name: Validar todos los cursos
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:integration
+
+      - name: Validar SEO y rutas
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:seo
+
+      - name: Validar flujo funcional crítico
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:e2e

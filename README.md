@@ -1,5 +1,7 @@
 # AcademiaQA · Arquitectura modular segura y escalable
 
+Versión actual: `v0.4.0`. Consulta [`docs/CI_CD_GOVERNANCE.md`](docs/CI_CD_GOVERNANCE.md) para el flujo de ramas, controles de calidad, releases y rollback.
+
 Esta versión conserva el diseño y las funciones principales del simulador, pero separa el motor, la seguridad, el almacenamiento, el estilo y los datos de cada curso.
 
 ## Estructura
