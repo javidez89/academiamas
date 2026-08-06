@@ -129,6 +129,13 @@
     alt: 'Nuevo curso de capacitación profesional avanzada en AcademiaQA'
   });
   const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal']);
+  const PUBLIC_VIEW_PATHS = Object.freeze({
+    home: '/',
+    courses: '/cursos/',
+    routes: '/ruta-aprendizaje/',
+    contact: '/contactanos/',
+    legal: '/legal/'
+  });
   const COURSE_VIEW_ALIASES = Object.freeze({
     panel: 'dashboard',
     dashboard: 'dashboard',
@@ -264,7 +271,7 @@
   async function loadScript(src) {
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = versionedAsset(src);
+      script.src = versionedAsset(rootRelativeAsset(src));
       script.async = false;
       script.addEventListener('load', resolve, { once: true });
       script.addEventListener('error', () => reject(new Error(`No se pudo cargar ${src}.`)), { once: true });
@@ -275,6 +282,22 @@
   function versionedAsset(src) {
     if (!ASSET_VERSION || /[?&]v=/.test(src)) return src;
     return `${src}${src.includes('?') ? '&' : '?'}v=${encodeURIComponent(ASSET_VERSION)}`;
+  }
+
+  function rootRelativeAsset(src) {
+    const value = String(src || '');
+    if (!value || /^(?:[a-z]+:)?\/\//i.test(value) || value.startsWith('/') || value.startsWith('data:')) return value;
+    return `/${value.replace(/^\.?\//, '')}`;
+  }
+
+  function rootRelativeSrcset(srcset) {
+    return String(srcset || '')
+      .split(',')
+      .map((part) => {
+        const [url, ...descriptor] = part.trim().split(/\s+/);
+        return [rootRelativeAsset(url), ...descriptor].join(' ').trim();
+      })
+      .join(', ');
   }
 
   async function loadCourses() {
@@ -327,7 +350,8 @@
     document.addEventListener('click', handleClick);
     document.addEventListener('change', handleChange);
     document.addEventListener('keydown', handleKeyboardActivation);
-    global.addEventListener('hashchange', handleHashRoute);
+    global.addEventListener('hashchange', handleLocationRoute);
+    global.addEventListener('popstate', handleLocationRoute);
 
     dom.resetProgress.addEventListener('click', () => {
       if (!course) return;
@@ -385,14 +409,13 @@
       closeSiteMenu();
       const anchor = viewButton.dataset.viewAnchor;
       await showView(viewButton.dataset.view);
-      const href = viewButton.getAttribute('href');
-      if (href?.startsWith('#')) global.history?.pushState?.(null, '', href);
       if (anchor) scrollToAnchor(anchor);
       return;
     }
 
     const actionTarget = event.target.closest('[data-action]');
     if (!actionTarget) return;
+    if (isInternalHref(actionTarget.getAttribute('href'))) event.preventDefault();
 
     const action = actionTarget.dataset.action;
     switch (action) {
@@ -523,6 +546,39 @@
     return `#curso/${encodeURIComponent(key)}/${segment}`;
   }
 
+  function publicPath(view = 'home') {
+    return PUBLIC_VIEW_PATHS[view] || PUBLIC_VIEW_PATHS.home;
+  }
+
+  function coursePath(key, view = 'dashboard') {
+    const segment = COURSE_VIEW_SEGMENTS[view] || 'panel';
+    const base = `/curso/${encodeURIComponent(key)}/`;
+    return view === 'dashboard' ? base : `${base}${segment}/`;
+  }
+
+  function routePathForView(view = state.view) {
+    if (PUBLIC_VIEWS.has(view)) return publicPath(view);
+    return course ? coursePath(activeCourseKey, view) : publicPath('home');
+  }
+
+  function isInternalHref(href) {
+    if (!href || href.startsWith('#') || href.startsWith('mailto:')) return false;
+    try {
+      const url = new URL(href, global.location.href);
+      return url.origin === global.location.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  function pushRoute(path) {
+    if (!path || !global.history?.pushState) return;
+    const next = new URL(path, global.location.href);
+    const current = `${global.location.pathname}${global.location.search}${global.location.hash}`;
+    const target = `${next.pathname}${next.search}${next.hash}`;
+    if (target !== current) global.history.pushState(null, '', target);
+  }
+
   function routeFromHash(hash = global.location.hash) {
     const anchor = String(hash || '').replace(/^#/, '') || 'inicio';
     const [root, courseKey, view] = anchor.split('/');
@@ -542,6 +598,36 @@
     return { view: 'home', anchor: 'inicio' };
   }
 
+  function routeFromPath(pathname = global.location.pathname) {
+    const normalized = decodeURIComponent(String(pathname || '/'))
+      .replace(/\/index\.html$/i, '/')
+      .replace(/\/+$/, '/');
+    const parts = normalized.split('/').filter(Boolean);
+    if (!parts.length) return { view: 'home', anchor: 'inicio' };
+
+    if (parts.length === 1) {
+      if (parts[0] === 'cursos') return { view: 'courses', anchor: 'cursos-disponibles' };
+      if (parts[0] === 'ruta-aprendizaje') return { view: 'routes', anchor: 'ruta-aprendizaje' };
+      if (parts[0] === 'contactanos') return { view: 'contact', anchor: 'contactanos' };
+      if (parts[0] === 'legal') return { view: 'legal', anchor: 'legal' };
+    }
+
+    if (parts[0] === 'curso' && parts[1]) {
+      return {
+        view: normalizeCourseView(parts[2] || 'panel'),
+        anchor: '',
+        course: parts[1].trim().toLowerCase()
+      };
+    }
+
+    return { view: 'home', anchor: 'inicio' };
+  }
+
+  function routeFromLocation() {
+    const hash = String(global.location.hash || '');
+    return hash && hash !== '#' ? routeFromHash(hash) : routeFromPath();
+  }
+
   function scrollToAnchor(anchor) {
     global.setTimeout(() => {
       const target = $(anchor) || (anchor === 'inicio' ? document.querySelector('header') : null);
@@ -555,8 +641,8 @@
     scrollToAnchor(anchorId);
   }
 
-  async function handleHashRoute() {
-    const route = routeFromHash();
+  async function handleLocationRoute() {
+    const route = routeFromLocation();
     if (route.course) {
       await setCourse(route.course, { view: route.view, updateHash: false });
       return;
@@ -740,7 +826,7 @@
     updateCourseUi();
     render();
     if (options.updateHash !== false && !PUBLIC_VIEWS.has(state.view)) {
-      global.history?.pushState?.(null, '', courseHash(normalizedKey, state.view));
+      pushRoute(coursePath(normalizedKey, state.view));
     }
   }
 
@@ -763,8 +849,8 @@
     state.session = ['practice', 'exam'].includes(view) ? state.session : [];
     syncNavigationState();
     render();
-    if (options.updateHash !== false && course && !PUBLIC_VIEWS.has(view)) {
-      global.history?.pushState?.(null, '', courseHash(activeCourseKey, view));
+    if (options.updateHash !== false) {
+      pushRoute(routePathForView(view));
     }
   }
 
@@ -887,11 +973,11 @@
 
   function renderResponsiveImage(image, alt = '', sizes = '100vw') {
     const sourceTags = [
-      image.avif ? `<source type="image/avif" srcset="${h(image.avif)}" sizes="${h(sizes)}">` : '',
-      image.webp ? `<source type="image/webp" srcset="${h(image.webp)}" sizes="${h(sizes)}">` : ''
+      image.avif ? `<source type="image/avif" srcset="${h(rootRelativeSrcset(image.avif))}" sizes="${h(sizes)}">` : '',
+      image.webp ? `<source type="image/webp" srcset="${h(rootRelativeSrcset(image.webp))}" sizes="${h(sizes)}">` : ''
     ].join('');
 
-    return `<picture>${sourceTags}<img src="${h(image.src)}" width="${number(image.width)}" height="${number(image.height)}" alt="${h(alt)}" loading="lazy" decoding="async"></picture>`;
+    return `<picture>${sourceTags}<img src="${h(rootRelativeAsset(image.src))}" width="${number(image.width)}" height="${number(image.height)}" alt="${h(alt)}" loading="lazy" decoding="async"></picture>`;
   }
 
   function courseFeaturedTime(key, item, index = 0) {
@@ -1136,7 +1222,7 @@
       const progress = courseProgressDetails(key, item);
       const best = Math.max(0, Math.min(100, number(progress.best, 0)));
 
-      return `<article class="availableCourseCard route-${h(routeKey)}" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}" aria-label="Entrar al curso ${h(meta.name || key)}">
+      return `<a class="availableCourseCard route-${h(routeKey)}" href="${h(coursePath(key))}" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}" aria-label="Entrar al curso ${h(meta.name || key)}">
         <div class="courseCardTop">
           <span class="statusDot">${catalog.access === 'free' ? 'Gratis' : 'Premium'}</span>
           <strong>${h(publicVersion)}</strong>
@@ -1160,7 +1246,7 @@
           <span>Mejor ${best}%</span>
         </div>
         <span class="courseEnter">Entrar al curso</span>
-      </article>`;
+      </a>`;
     }).join('');
   }
 
@@ -1172,7 +1258,7 @@
       <h3>${h(route.name)}</h3>
       <p>${h(route.description)}</p>
       <ol class="routeSteps">${route.steps.map((step) => `<li>${h(step)}</li>`).join('')}</ol>
-      ${available ? `<button class="routeExplore" type="button" data-action="filter-courses" data-filter="${h(route.key)}" aria-controls="courseCatalog">Ver cursos de esta ruta</button>` : '<b class="routeSoon">Ruta preparada para crecer</b>'}
+      ${available ? `<a class="routeExplore" href="${h(publicPath('courses'))}" data-action="filter-courses" data-filter="${h(route.key)}" aria-controls="courseCatalog">Ver cursos de esta ruta</a>` : '<b class="routeSoon">Ruta preparada para crecer</b>'}
     </article>`;
     }).join('');
   }
@@ -1187,7 +1273,7 @@
         <b>Examen CertiProf</b>
       </div>
       <div class="freeCertExamActions">
-        <button class="btn secondary" type="button" data-action="select-course" data-course="${h(exam.courseKey)}">Entrar al curso</button>
+        <a class="btn secondary" href="${h(coursePath(exam.courseKey))}" data-action="select-course" data-course="${h(exam.courseKey)}">Entrar al curso</a>
         <a class="btn freeCertLink" href="${h(exam.examUrl)}" target="_blank" rel="noopener noreferrer">Ir al examen</a>
       </div>
     </article>`).join('');
@@ -1237,7 +1323,7 @@
                 <b>${courseChapterCount(item)} capítulos</b>
                 <b>${courseObjectiveCount(item)} LO</b>
               </div>
-              <button class="btn" type="button" data-action="select-course" data-course="${h(key)}" aria-label="Entrar al curso ${h(meta.name || key)}">Entrar al curso</button>
+              <a class="btn" href="${h(coursePath(key))}" data-action="select-course" data-course="${h(key)}" aria-label="Entrar al curso ${h(meta.name || key)}">Entrar al curso</a>
             </div>
           </article>`;
         }).join('')}
@@ -1254,13 +1340,13 @@
       const route = learningRoute(routeKey);
       if (!route) return '';
       const image = routeTileImage(route.key);
-      return `<article class="homeRouteTile route-${h(route.key)}" role="button" tabindex="0" data-action="filter-courses" data-filter="${h(route.key)}" aria-controls="courseCatalog" aria-label="Ver cursos de ${h(route.name)}">
+      return `<a class="homeRouteTile route-${h(route.key)}" href="${h(publicPath('courses'))}" role="button" tabindex="0" data-action="filter-courses" data-filter="${h(route.key)}" aria-controls="courseCatalog" aria-label="Ver cursos de ${h(route.name)}">
         ${renderResponsiveImage(image, '', '(max-width: 760px) 100vw, 260px')}
         <div class="homeRouteTileCopy">
           <h3>${h(route.name)}</h3>
           <span>Ver cursos</span>
         </div>
-      </article>`;
+      </a>`;
     }).join('');
 
     return `<section class="homeSection homeAvailableCourses" id="home-cursos-disponibles" aria-labelledby="homeCoursesTitle">
@@ -1287,7 +1373,7 @@
         <p>Cada aporte impulsa nuevos cursos, simulacros, mejoras móviles y material abierto para la comunidad QA.</p>
         <div class="donationActions">
           ${renderCoffeeButton()}
-          <button class="btn secondary" type="button" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</button>
+          <a class="btn secondary" href="${h(publicPath('routes'))}" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
         </div>
       </div>
     </section>`;
@@ -1462,8 +1548,8 @@
           <h2 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h2>
           <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
           <div class="landingActions">
-            <a class="btn" href="#ruta-aprendizaje" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
-            <button class="btn secondary" type="button" data-action="select-course" data-course="${h(continueCourse)}">Continuar estudiando</button>
+            <a class="btn" href="${h(publicPath('routes'))}" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
+            <a class="btn secondary" href="${h(coursePath(continueCourse))}" data-action="select-course" data-course="${h(continueCourse)}">Continuar estudiando</a>
             ${renderCoffeeButton()}
           </div>
         </div>
@@ -1483,9 +1569,9 @@
       <section class="legalNotice" aria-label="Aviso legal">
         <b>Aviso legal:</b> AcademiaQA es una plataforma independiente de preparación y aprendizaje. No emite certificaciones ni sustituye syllabus, glosarios, reglas, materiales o exámenes oficiales de las entidades certificadoras.
         <div class="legalQuickLinks">
-          <button class="btn secondary" type="button" data-view="legal" data-view-anchor="privacidad">Política de privacidad</button>
-          <button class="btn secondary" type="button" data-view="legal" data-view-anchor="terminos">Términos y condiciones</button>
-          <button class="btn" type="button" data-view="contact" data-view-anchor="contactanos">Contáctanos</button>
+          <a class="btn secondary" href="${h(publicPath('legal'))}" data-view="legal" data-view-anchor="privacidad">Política de privacidad</a>
+          <a class="btn secondary" href="${h(publicPath('legal'))}" data-view="legal" data-view-anchor="terminos">Términos y condiciones</a>
+          <a class="btn" href="${h(publicPath('contact'))}" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
         </div>
       </section>
     </div>`;
@@ -1505,10 +1591,10 @@
         <span>Aprueba ${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions || 0}</span>
       </div>
       <div class="courseActions">
-        <div class="courseAction" role="button" tabindex="0" data-view="study"><b>📚 Estudiar syllabus</b><span class="small">Capítulos y teoría</span></div>
-        <div class="courseAction" role="button" tabindex="0" data-view="objectives"><b>🎯 Objetivos LO</b><span class="small">Mapa de aprendizaje</span></div>
-        <div class="courseAction" role="button" tabindex="0" data-view="practice"><b>📝 Practicar</b><span class="small">Por capítulo, LO y nivel</span></div>
-        <div class="courseAction" role="button" tabindex="0" data-view="exam"><b>⏱️ Simulacro</b><span class="small">Modo examen</span></div>
+        <a class="courseAction" href="${h(coursePath(activeCourseKey, 'study'))}" role="button" tabindex="0" data-view="study"><b>📚 Estudiar syllabus</b><span class="small">Capítulos y teoría</span></a>
+        <a class="courseAction" href="${h(coursePath(activeCourseKey, 'objectives'))}" role="button" tabindex="0" data-view="objectives"><b>🎯 Objetivos LO</b><span class="small">Mapa de aprendizaje</span></a>
+        <a class="courseAction" href="${h(coursePath(activeCourseKey, 'practice'))}" role="button" tabindex="0" data-view="practice"><b>📝 Practicar</b><span class="small">Por capítulo, LO y nivel</span></a>
+        <a class="courseAction" href="${h(coursePath(activeCourseKey, 'exam'))}" role="button" tabindex="0" data-view="exam"><b>⏱️ Simulacro</b><span class="small">Modo examen</span></a>
         ${course.meta?.examUrl ? `<a class="courseAction courseExternalExam" href="${h(course.meta.examUrl)}" target="_blank" rel="noopener noreferrer"><b>CertiProf Open</b><span class="small">${h(course.meta.certificationNote || 'Examen externo disponible.')}</span></a>` : ''}
       </div>
     </div>`;
@@ -1539,9 +1625,9 @@
         <div><h3>Temas débiles</h3>${weak.length ? `<ul>${weak.map(([lo, item]) => `<li><b>${h(lo)}</b> · errores: ${number(item.bad)} · ${h(item.objective)}</li>`).join('')}</ul>` : '<p class="small">Aún no hay errores registrados.</p>'}</div>
       </div>
       <div class="btnrow">
-        <button class="btn" type="button" data-view="study">Empezar a estudiar</button>
-        <button class="btn secondary" type="button" data-view="practice">Practicar por tema</button>
-        <button class="btn good" type="button" data-view="exam">Simulacro</button>
+        <a class="btn" href="${h(coursePath(activeCourseKey, 'study'))}" data-view="study">Empezar a estudiar</a>
+        <a class="btn secondary" href="${h(coursePath(activeCourseKey, 'practice'))}" data-view="practice">Practicar por tema</a>
+        <a class="btn good" href="${h(coursePath(activeCourseKey, 'exam'))}" data-view="exam">Simulacro</a>
       </div>
     </div>`;
   }
@@ -2108,7 +2194,7 @@
 
     try {
       await loadCourses();
-      const initialRoute = routeFromHash();
+      const initialRoute = routeFromLocation();
       const requestedKey = initialRoute.course || Storage.getActiveCourse();
       const initialKey = catalogEntry(requestedKey)?.src ? requestedKey : firstCatalogKey();
       activeCourseKey = initialKey;
