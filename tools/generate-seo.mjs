@@ -32,11 +32,45 @@ function plain(value = '') {
 function clip(value, max = 155) {
   const text = plain(value);
   if (text.length <= max) return text;
-  return `${text.slice(0, max - 1).trimEnd()}.`;
+  const candidate = text.slice(0, max - 3).trimEnd();
+  const lastSpace = candidate.lastIndexOf(' ');
+  const clipped = lastSpace >= Math.floor(max * 0.7) ? candidate.slice(0, lastSpace) : candidate;
+  return `${clipped.replace(/[.,;:!?-]+$/u, '')}...`;
 }
 
 function urlFor(routePath) {
   return `${cleanDomain}${routePath}`;
+}
+
+function jsonLd(value) {
+  return JSON.stringify(value, null, 2).replaceAll('<', '\\u003c');
+}
+
+function organization() {
+  return {
+    '@type': 'EducationalOrganization',
+    '@id': urlFor('/#organization'),
+    name: 'AcademiaQA',
+    url: urlFor('/'),
+    logo: {
+      '@type': 'ImageObject',
+      url: urlFor('/assets/img/academiaqa-logo.png'),
+      width: 1640,
+      height: 435
+    }
+  };
+}
+
+function breadcrumb(items) {
+  return {
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: item.name,
+      item: urlFor(item.path)
+    }))
+  };
 }
 
 function coursePath(key, view = 'panel') {
@@ -71,8 +105,13 @@ function metaOf(course) {
   return course.meta || {};
 }
 
-function courseSummary(course) {
+function seoCourseName(course) {
   const meta = metaOf(course);
+  const shortName = meta.shortName || meta.name || course.key;
+  return shortName.length <= 32 ? shortName : meta.code || shortName;
+}
+
+function courseSummary(course) {
   const counts = countsOf(course);
   const blueprint = blueprintOf(course);
   return [
@@ -83,6 +122,75 @@ function courseSummary(course) {
     `aprueba ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}`,
     `${blueprint.minutes || 0} min`
   ];
+}
+
+function courseDescription(course) {
+  const meta = metaOf(course);
+  const counts = countsOf(course);
+  const blueprint = blueprintOf(course);
+  const name = seoCourseName(course);
+  return `Estudia ${name} con ${counts.chapters || 0} capítulos, ${counts.objectives || 0} objetivos LO, práctica y simulacro de ${blueprint.totalQuestions || 0} preguntas en AcademiaQA.`;
+}
+
+function examDescription(course) {
+  const meta = metaOf(course);
+  const blueprint = blueprintOf(course);
+  const name = seoCourseName(course);
+  const points = blueprint.totalPoints || blueprint.totalQuestions || 0;
+  return `Practica con el simulacro de ${name}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${points}. Acceso gratis en AcademiaQA.`;
+}
+
+function courseEntity(course) {
+  const meta = metaOf(course);
+  const tags = [...new Set([course.family, ...(course.areas || []), ...(course.tags || [])].filter(Boolean))];
+  const routePath = coursePath(course.key);
+  return {
+    '@type': 'Course',
+    '@id': `${urlFor(routePath)}#course`,
+    name: meta.name || course.key,
+    description: plain(meta.subtitle || courseDescription(course)),
+    url: urlFor(routePath),
+    inLanguage: 'es-CO',
+    isAccessibleForFree: course.access === 'free',
+    provider: organization(),
+    about: tags.map((name) => ({ '@type': 'Thing', name }))
+  };
+}
+
+function courseList(catalog) {
+  return {
+    '@type': 'ItemList',
+    name: 'Cursos disponibles en AcademiaQA',
+    numberOfItems: catalog.length,
+    itemListElement: catalog.map((course, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      url: urlFor(coursePath(course.key)),
+      item: courseEntity(course)
+    }))
+  };
+}
+
+function examEntity(course) {
+  const meta = metaOf(course);
+  const routePath = coursePath(course.key, 'simulacro');
+  return {
+    '@type': 'LearningResource',
+    '@id': `${urlFor(routePath)}#simulacro`,
+    name: `Simulacro ${meta.name || course.key}`,
+    description: examDescription(course),
+    url: urlFor(routePath),
+    inLanguage: 'es-CO',
+    isAccessibleForFree: course.access === 'free',
+    learningResourceType: 'Simulacro de estudio',
+    provider: organization(),
+    isPartOf: {
+      '@type': 'Course',
+      '@id': `${urlFor(coursePath(course.key))}#course`,
+      name: meta.name || course.key,
+      url: urlFor(coursePath(course.key))
+    }
+  };
 }
 
 function catalogTotals(catalog) {
@@ -116,7 +224,7 @@ function scriptTags(version) {
   ].map((src) => `  <script defer src="${h(src)}"></script>`).join('\n');
 }
 
-function head({ title, description, path: routePath }, version) {
+function head({ title, description, path: routePath, schema }, version) {
   const canonical = urlFor(routePath);
   const cleanDescription = clip(description);
   return `<!DOCTYPE html>
@@ -139,6 +247,9 @@ function head({ title, description, path: routePath }, version) {
   <meta property="og:description" content="${h(cleanDescription)}">
   <meta property="og:url" content="${h(canonical)}">
   <meta property="og:image" content="${h(urlFor('/assets/img/academiaqa-logo.png'))}">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1640">
+  <meta property="og:image:height" content="435">
   <meta property="og:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${h(title)}">
@@ -146,6 +257,10 @@ function head({ title, description, path: routePath }, version) {
   <meta name="twitter:image" content="${h(urlFor('/assets/img/academiaqa-logo.png'))}">
   <meta name="twitter:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
   <title>${h(title)}</title>
+  <script type="application/ld+json">${jsonLd({
+    '@context': 'https://schema.org',
+    '@graph': schema
+  })}</script>
   <link rel="stylesheet" href="/assets/css/app.css?v=${h(version)}">
 ${scriptTags(version)}
 </head>`;
@@ -167,7 +282,7 @@ function shell({ page, content, catalog }, version) {
   <header id="inicio">
     <div class="wrap siteTopbar">
       <a class="brandMark" href="/" data-home-anchor="inicio" aria-label="Ir al inicio">
-        <img class="brandLogo" src="/assets/img/academiaqa-logo.png" width="1640" height="435" alt="AcademiaQA - QA &amp; Testing Academia">
+        <img class="brandLogo" src="/assets/img/academiaqa-logo.png" width="1640" height="435" alt="AcademiaQA - QA &amp; Testing Academia" decoding="async" fetchpriority="high">
       </a>
       <button class="menuToggle" type="button" data-action="toggle-site-menu" aria-controls="siteMenu" aria-expanded="false">
         <span class="srOnly">Abrir menu principal</span>
@@ -347,60 +462,88 @@ function courseContent(course, isExam = false) {
 
 function pageDefinitions(catalog) {
   const totals = catalogTotals(catalog);
-  const baseDescription = `AcademiaQA reune ${totals.courses} cursos, ${totals.chapters} capitulos, ${totals.objectives} objetivos LO y ${totals.questions} preguntas.`;
+  const catalogSchema = courseList(catalog);
   const publicPages = [
     {
       key: 'courses',
       path: '/cursos/',
-      title: 'Cursos disponibles · AcademiaQA',
+      title: 'Cursos gratis de QA, Testing, IA y Scrum | AcademiaQA',
       heroTitle: 'Cursos',
-      description: baseDescription,
+      description: `Explora ${totals.courses} cursos gratis de QA, testing, IA, Scrum, gestión de proyectos y ciberseguridad con syllabus, práctica y simulacros.`,
+      schema: [
+        catalogSchema,
+        breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Cursos', path: '/cursos/' }])
+      ],
       content: publicContent('courses', catalog)
     },
     {
       key: 'routes',
       path: '/ruta-aprendizaje/',
-      title: 'Ruta de aprendizaje · AcademiaQA',
+      title: 'Rutas para aprender QA, Testing, IA y Scrum | AcademiaQA',
       heroTitle: 'Ruta de aprendizaje',
-      description: baseDescription,
+      description: 'Elige una ruta de aprendizaje gratuita en QA, testing, IA, Scrum, gestión de proyectos o ciberseguridad y avanza hasta el simulacro.',
+      schema: [
+        catalogSchema,
+        breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Ruta de aprendizaje', path: '/ruta-aprendizaje/' }])
+      ],
       content: publicContent('routes', catalog)
     },
     {
       key: 'contact',
       path: '/contactanos/',
-      title: 'Contactanos · AcademiaQA',
-      heroTitle: 'Contactanos',
-      description: baseDescription,
+      title: 'Contáctanos | AcademiaQA',
+      heroTitle: 'Contáctanos',
+      description: 'Contacta a AcademiaQA para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.',
+      schema: [breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Contáctanos', path: '/contactanos/' }])],
       content: publicContent('contact', catalog)
     },
     {
       key: 'legal',
       path: '/legal/',
-      title: 'Informacion legal · AcademiaQA',
-      heroTitle: 'Informacion legal',
-      description: baseDescription,
+      title: 'Información legal y privacidad | AcademiaQA',
+      heroTitle: 'Información legal',
+      description: 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.',
+      schema: [breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Información legal', path: '/legal/' }])],
       content: publicContent('legal', catalog)
     }
   ];
 
   const coursePages = catalog.flatMap((course) => {
     const meta = metaOf(course);
-    const description = `${meta.subtitle || meta.name || course.key} ${courseSummary(course).join(', ')}.`;
+    const courseRoute = coursePath(course.key);
+    const examRoute = coursePath(course.key, 'simulacro');
     return [
       {
         key: `${course.key}-course`,
-        path: coursePath(course.key),
-        title: `${meta.name || course.key} · AcademiaQA`,
+        path: courseRoute,
+        title: `${seoCourseName(course)}: curso y simulacro | AcademiaQA`,
         heroTitle: meta.name || course.key,
-        description,
+        description: courseDescription(course),
+        schema: [
+          courseEntity(course),
+          breadcrumb([
+            { name: 'Inicio', path: '/' },
+            { name: 'Cursos', path: '/cursos/' },
+            { name: meta.shortName || meta.name || course.key, path: courseRoute }
+          ])
+        ],
         content: courseContent(course)
       },
       {
         key: `${course.key}-exam`,
-        path: coursePath(course.key, 'simulacro'),
-        title: `Simulacro ${meta.name || course.key} · AcademiaQA`,
+        path: examRoute,
+        title: `Simulacro ${seoCourseName(course)} | AcademiaQA`,
         heroTitle: meta.name || course.key,
-        description,
+        description: examDescription(course),
+        schema: [
+          examEntity(course),
+          breadcrumb([
+            { name: 'Inicio', path: '/' },
+            { name: 'Cursos', path: '/cursos/' },
+            { name: meta.shortName || meta.name || course.key, path: courseRoute },
+            { name: 'Simulacro', path: examRoute }
+          ])
+        ],
         content: courseContent(course, true)
       }
     ];
@@ -449,9 +592,10 @@ ${urls}
 const catalog = await loadCatalog();
 const version = await assetVersion();
 const pages = pageDefinitions(catalog);
+const sitemapPages = [{ path: '/' }, ...pages];
 
 await writeRobots();
-await writeSitemap(pages);
+await writeSitemap(sitemapPages);
 for (const page of pages) await writePage(page, catalog, version);
 
 console.log(`SEO generado: ${pages.length} paginas, robots.txt y sitemap.xml.`);
