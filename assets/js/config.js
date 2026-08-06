@@ -7,5 +7,5 @@ window.ACADEMY_CONFIG = Object.freeze({
   description: 'Aprende, practica y prepárate para certificaciones y retos profesionales en testing, inteligencia artificial, Scrum y gestión de proyectos.',
   footerHome: '',
   importLimit: 500,
-  assetVersion: '2026-07-31-ct-genai'
+  assetVersion: '2026-08-05-route-images-all'
 });

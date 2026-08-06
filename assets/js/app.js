@@ -5,7 +5,7 @@
   const Registry = global.AcademyRegistry;
   const Storage = global.AcademyStorage;
   const Config = global.ACADEMY_CONFIG || {};
-  const ASSET_VERSION = String(Config.assetVersion || '2026-07-31-ct-genai');
+  const ASSET_VERSION = String(Config.assetVersion || '2026-08-05-route-images-all');
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
   const TRM_API_URL = 'https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde DESC';
   const COFFEE_COP_PER_USD_FALLBACK = 3206.18;
@@ -13,6 +13,13 @@
   const PAYMENT_POPUP_LOCK_MS = 1_500;
   const CONTACT_EMAIL = 'javidez89@gmail.com';
   const LINKEDIN_URL = 'https://www.linkedin.com/in/javierchilatra89/';
+  const DEFAULT_PRACTICE_FILTER = Object.freeze({
+    chapter: 'all',
+    k: 'all',
+    lo: 'all',
+    count: 40,
+    mode: 'study'
+  });
   const LEARNING_ROUTES = Object.freeze([
     Object.freeze({
       key: 'testing-istqb',
@@ -69,6 +76,38 @@
       summary: 'CIA, amenazas, controles, IAM, respuesta a incidentes y cumplimiento.'
     })
   ]);
+  const DEFAULT_ROUTE_TILE_IMAGE = Object.freeze({
+    src: 'assets/img/academiaqa-support.png',
+    width: 1983,
+    height: 793
+  });
+  const ROUTE_TILE_IMAGES = Object.freeze({
+    'testing-istqb': Object.freeze({
+      src: 'assets/img/routes/testing-istqb.jpg',
+      width: 1200,
+      height: 894
+    }),
+    'ai-automation': Object.freeze({
+      src: 'assets/img/routes/ai-automation.jpg',
+      width: 1200,
+      height: 851
+    }),
+    'scrum-agility': Object.freeze({
+      src: 'assets/img/routes/scrum-agility.jpg',
+      width: 1200,
+      height: 859
+    }),
+    cybersecurity: Object.freeze({
+      src: 'assets/img/routes/cybersecurity.jpg',
+      width: 1200,
+      height: 861
+    }),
+    'project-management': Object.freeze({
+      src: 'assets/img/routes/project-management.jpg',
+      width: 1200,
+      height: 894
+    })
+  });
 
   const VIEW_RENDERERS = Object.freeze({
     home: renderHome,
@@ -97,6 +136,7 @@
   let coffeeTrmDate = COFFEE_TRM_FALLBACK_DATE;
   let coffeeTrmSource = 'fallback';
   let coffeeTrmRequest = null;
+  let homeSliderTimer = null;
 
   function createState(view = 'home') {
     return {
@@ -114,7 +154,9 @@
       flashShow: false,
       flashFilter: 'all',
       catalogFilter: 'all',
-      homePanel: 'overview'
+      homePanel: 'overview',
+      homeSlide: 0,
+      practiceFilter: { ...DEFAULT_PRACTICE_FILTER }
     };
   }
 
@@ -276,9 +318,23 @@
         state.catalogFilter = learningRoute(actionTarget.dataset.filter)
           ? actionTarget.dataset.filter
           : 'all';
-        if (state.view !== 'courses') setView('courses');
-        else render();
-        global.setTimeout(() => $('cursos-disponibles')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
+        if (actionTarget.dataset.filterScope === 'home' && state.view === 'home') {
+          render();
+          global.setTimeout(() => $('home-cursos-disponibles')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
+        } else {
+          if (state.view !== 'courses') setView('courses');
+          else render();
+          global.setTimeout(() => $('cursos-disponibles')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
+        }
+        break;
+      case 'home-slide-prev':
+        shiftHomeSlide(-1);
+        break;
+      case 'home-slide-next':
+        shiftHomeSlide(1);
+        break;
+      case 'home-slide-go':
+        setHomeSlide(actionTarget.dataset.slide);
         break;
       case 'send-contact-message':
         sendContactMessage();
@@ -535,6 +591,7 @@
   }
 
   function clearRuntimeTimers() {
+    clearHomeSlider();
     if (state.timer) global.clearInterval(state.timer);
     if (state.pendingAdvance) global.clearTimeout(state.pendingAdvance);
     state.timer = null;
@@ -637,6 +694,8 @@
 
     try {
       dom.app.innerHTML = renderer();
+      if (state.view === 'home') startHomeSlider();
+      else clearHomeSlider();
     } catch (error) {
       showFatalError(error);
     }
@@ -659,6 +718,68 @@
     const marked = Array.isArray(progress.marked) ? progress.marked.length : 0;
     const started = attempts.length > 0 || answered > 0 || marked > 0;
     return { attempts, best, last: attempts.at(-1) || null, answered, marked, started };
+  }
+
+  function courseRouteKey(key) {
+    const areas = catalogEntry(key).areas || [];
+    return areas.includes('ai-automation') ? 'ai-automation' : areas[0] || 'testing-istqb';
+  }
+
+  function courseAreaNames(key) {
+    return (catalogEntry(key).areas || [])
+      .map((areaKey) => learningRoute(areaKey)?.name)
+      .filter(Boolean);
+  }
+
+  function routeTileImage(routeKey) {
+    return ROUTE_TILE_IMAGES[routeKey] || DEFAULT_ROUTE_TILE_IMAGE;
+  }
+
+  function courseFeaturedTime(key, item, index = 0) {
+    const catalog = catalogEntry(key);
+    const featured = Date.parse(catalog.featuredAt || item.generatedAt || item.meta?.updatedAt || '');
+    return Number.isFinite(featured) ? featured : index;
+  }
+
+  function latestCourseEntries(limit = 3) {
+    return Registry.entries()
+      .map(([key, item], index) => ({ key, item, index, time: courseFeaturedTime(key, item, index) }))
+      .sort((left, right) => right.time - left.time || right.index - left.index)
+      .slice(0, limit);
+  }
+
+  function setHomeSlide(value) {
+    const slides = latestCourseEntries(3);
+    if (!slides.length) return;
+    state.homeSlide = Math.max(0, Math.min(slides.length - 1, Math.trunc(number(value, 0))));
+    render();
+  }
+
+  function shiftHomeSlide(delta) {
+    const slides = latestCourseEntries(3);
+    if (!slides.length) return;
+    state.homeSlide = (state.homeSlide + number(delta, 0) + slides.length) % slides.length;
+    render();
+  }
+
+  function clearHomeSlider() {
+    if (!homeSliderTimer) return;
+    global.clearInterval(homeSliderTimer);
+    homeSliderTimer = null;
+  }
+
+  function startHomeSlider() {
+    const slides = latestCourseEntries(3);
+    clearHomeSlider();
+    if (slides.length < 2) return;
+    homeSliderTimer = global.setInterval(() => {
+      if (state.view !== 'home') {
+        clearHomeSlider();
+        return;
+      }
+      state.homeSlide = (state.homeSlide + 1) % slides.length;
+      render();
+    }, 7_000);
   }
 
   function heroProgressCourse() {
@@ -726,10 +847,6 @@
     </aside>`;
   }
 
-  function chapterTitle(id) {
-    return course.chapters.find((chapter) => String(chapter.id) === String(id))?.title || `Capítulo ${id}`;
-  }
-
   function pct(value, total) {
     return total ? Math.round((value / total) * 100) : 0;
   }
@@ -785,7 +902,8 @@
     return Registry.entries().filter(([key]) => courseMatchesFilter(key, routeKey)).length;
   }
 
-  function renderCatalogFilters() {
+  function renderCatalogFilters(scope = 'courses') {
+    const controls = scope === 'home' ? 'homeCourseCatalog' : 'courseCatalog';
     const filters = [{ key: 'all', name: 'Todos', count: Registry.entries().length }]
       .concat(LEARNING_ROUTES.map((route) => ({
         key: route.key,
@@ -795,7 +913,7 @@
 
     return `<div class="catalogFilters" role="group" aria-label="Filtrar cursos por área">${filters.map((filter) => {
       const active = state.catalogFilter === filter.key;
-      return `<button class="catalogFilter${active ? ' active' : ''}" type="button" data-action="filter-courses" data-filter="${h(filter.key)}" aria-controls="courseCatalog" aria-pressed="${active}">
+      return `<button class="catalogFilter${active ? ' active' : ''}" type="button" data-action="filter-courses" data-filter="${h(filter.key)}" data-filter-scope="${h(scope)}" aria-controls="${h(controls)}" aria-pressed="${active}">
         ${h(filter.name)} <span>${filter.count}</span>
       </button>`;
     }).join('')}</div>`;
@@ -817,11 +935,8 @@
       const pass = `${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions || 0}`;
       const publicVersion = coursePublicVersion(key, item);
       const catalog = catalogEntry(key);
-      const areaNames = (catalog.areas || [])
-        .map((areaKey) => learningRoute(areaKey)?.name)
-        .filter(Boolean);
-
-      const routeKey = catalog.areas?.includes('ai-automation') ? 'ai-automation' : (catalog.areas || [])[0] || 'testing-istqb';
+      const areaNames = courseAreaNames(key);
+      const routeKey = courseRouteKey(key);
       const progress = courseProgressDetails(key, item);
       const best = Math.max(0, Math.min(100, number(progress.best, 0)));
 
@@ -890,6 +1005,72 @@
         <p>Estas tres rutas quedan destacadas como preparacion gratuita en AcademiaQA, con acceso directo al examen abierto de CertiProf. La disponibilidad y emision del certificado se confirman en CertiProf.</p>
       </div>
       <div class="freeCertCards">${renderFreeCertCards()}</div>
+    </section>`;
+  }
+
+  function renderNewCoursesSlider() {
+    const slides = latestCourseEntries(3);
+    if (!slides.length) return '';
+    state.homeSlide = ((state.homeSlide % slides.length) + slides.length) % slides.length;
+
+    return `<section class="newCoursesSlider" aria-labelledby="newCoursesTitle">
+      <div class="sliderHead">
+        <span class="sectionKicker">Nuevos cursos</span>
+        <div class="sliderControls" aria-label="Cambiar curso destacado">
+          <button type="button" data-action="home-slide-prev" aria-label="Curso anterior">‹</button>
+          <button type="button" data-action="home-slide-next" aria-label="Curso siguiente">›</button>
+        </div>
+      </div>
+      <div class="courseSlides">
+        ${slides.map(({ key, item }, index) => {
+          const active = index === state.homeSlide;
+          const routeKey = courseRouteKey(key);
+          const areas = courseAreaNames(key);
+          return `<article class="courseSlide route-${h(routeKey)}${active ? ' active' : ''}" ${active ? '' : 'hidden'} aria-hidden="${active ? 'false' : 'true'}">
+            <div class="courseSlideMedia">
+              <img src="assets/img/academiaqa-support.png" width="1983" height="793" alt="Imagen destacada de ${h(item.meta?.name || key)}">
+            </div>
+            <div class="courseSlideCopy">
+              <span>${h(coursePublicVersion(key, item))}</span>
+              <h2${active ? ' id="newCoursesTitle"' : ''}>${h(item.meta?.name || key)}</h2>
+              <p>${h(item.meta?.subtitle || 'Curso gratis disponible para estudiar, practicar y simular.')}</p>
+              <div class="courseSlideMeta">
+                ${areas.map((areaName) => `<b>${h(areaName)}</b>`).join('')}
+                <b>${item.chapters.length} capítulos</b>
+                <b>${item.objectives?.length || 0} LO</b>
+              </div>
+              <button class="btn" type="button" data-action="select-course" data-course="${h(key)}">Entrar al curso</button>
+            </div>
+          </article>`;
+        }).join('')}
+      </div>
+      <div class="sliderDots" role="tablist" aria-label="Cursos nuevos destacados">
+        ${slides.map(({ key, item }, index) => `<button type="button" data-action="home-slide-go" data-slide="${index}" class="${index === state.homeSlide ? 'active' : ''}" aria-label="Ver ${h(coursePublicVersion(key, item))}" aria-selected="${index === state.homeSlide}"></button>`).join('')}
+      </div>
+    </section>`;
+  }
+
+  function renderHomeAvailableCoursesSection() {
+    const routeKeys = ['testing-istqb', 'ai-automation', 'scrum-agility', 'project-management', 'cybersecurity'];
+    const routeTiles = routeKeys.map((routeKey) => {
+      const route = learningRoute(routeKey);
+      if (!route) return '';
+      const image = routeTileImage(route.key);
+      return `<article class="homeRouteTile route-${h(route.key)}" role="button" tabindex="0" data-action="filter-courses" data-filter="${h(route.key)}" aria-controls="courseCatalog" aria-label="Ver cursos de ${h(route.name)}">
+        <img src="${h(image.src)}" width="${number(image.width)}" height="${number(image.height)}" alt="">
+        <div class="homeRouteTileCopy">
+          <h3>${h(route.name)}</h3>
+          <span>Ver cursos</span>
+        </div>
+      </article>`;
+    }).join('');
+
+    return `<section class="homeSection homeAvailableCourses" id="home-cursos-disponibles" aria-labelledby="homeCoursesTitle">
+      <div class="sectionIntro">
+        <span class="sectionKicker">Cursos disponibles</span>
+        <h2 id="homeCoursesTitle">Elige tu ruta de aprendizaje.</h2>
+      </div>
+      <div class="homeRouteTiles" id="homeCourseCatalog" aria-live="polite">${routeTiles}</div>
     </section>`;
   }
 
@@ -1091,6 +1272,10 @@
         ${renderHeroProgressCard()}
       </section>
 
+      ${renderNewCoursesSlider()}
+
+      ${renderHomeAvailableCoursesSection()}
+
       ${renderStudyPathSection()}
 
       ${renderDonationSpotlight()}
@@ -1184,39 +1369,6 @@
     return course.blueprint.matrix || {};
   }
 
-  function countByChapterAndK(chapter, kLevel) {
-    return questions.filter((question) => String(question.chapter) === String(chapter) && question.k === kLevel).length;
-  }
-
-  function renderExamBankStats() {
-    const matrix = officialMatrix();
-    const rows = [];
-    let totalRequired = 0;
-    const kLevels = Object.keys(course.blueprint.kDistribution || {});
-
-    Object.entries(matrix).forEach(([chapter, distribution]) => {
-      kLevels.forEach((kLevel) => {
-        const required = number(distribution[kLevel], 0);
-        if (!required) return;
-        totalRequired += required;
-        const available = countByChapterAndK(chapter, kLevel);
-        rows.push(`<tr><td>C${h(chapter)} · ${h(chapterTitle(chapter))}</td><td>${h(kLevel)}</td><td>${required}</td><td>${available}</td><td>${available >= required ? '✅' : `⚠️ Faltan ${required - available}`}</td></tr>`);
-      });
-    });
-
-    if (!rows.length) {
-      return `<div class="grid3"><div class="metric"><span>Preguntas disponibles</span><strong>${questions.length}</strong></div><div class="metric"><span>Preguntas</span><strong>${number(course.blueprint.totalQuestions)}</strong></div><div class="metric"><span>Selección</span><strong>Aleatoria</strong></div></div>`;
-    }
-
-    return `<div class="grid3">
-      <div class="metric"><span>Preguntas disponibles</span><strong>${questions.length}</strong></div>
-      <div class="metric"><span>Preguntas del simulacro</span><strong>${totalRequired}</strong></div>
-      <div class="metric"><span>Selección</span><strong>Aleatoria</strong></div>
-    </div>
-    <h3>Disponibilidad por matriz del simulacro</h3>
-    <table class="table"><tr><th>Capítulo</th><th>K</th><th>Requiere</th><th>Disponibles</th><th>Estado</th></tr>${rows.join('')}</table>`;
-  }
-
   function buildOfficialSelection() {
     const matrix = officialMatrix();
     const selected = [];
@@ -1248,16 +1400,59 @@
     return shuffle(selected).slice(0, totalQuestions);
   }
 
+  function objectiveProgress(lo) {
+    const item = getProgress().byLo?.[lo] || {};
+    const ok = number(item.ok, 0);
+    const bad = number(item.bad, 0);
+    const total = ok + bad;
+    return {
+      ok,
+      bad,
+      total,
+      accuracy: pct(ok, total)
+    };
+  }
+
+  function chapterProgressDetails(chapterId) {
+    const objectives = course.objectives.filter((objective) => Number(objective.chapter) === Number(chapterId));
+    const questionCount = questions.filter((question) => Number(question.chapter) === Number(chapterId)).length;
+    const totals = objectives.reduce((summary, objective) => {
+      const progress = objectiveProgress(objective.lo);
+      summary.ok += progress.ok;
+      summary.bad += progress.bad;
+      summary.answered += progress.total;
+      if (progress.total > 0) summary.touched += 1;
+      return summary;
+    }, { ok: 0, bad: 0, answered: 0, touched: 0 });
+
+    return {
+      objectiveCount: objectives.length,
+      questionCount,
+      touched: totals.touched,
+      answered: totals.answered,
+      ok: totals.ok,
+      bad: totals.bad,
+      coverage: pct(totals.touched, objectives.length),
+      accuracy: pct(totals.ok, totals.ok + totals.bad)
+    };
+  }
+
   function renderStudy() {
     const cards = course.chapters.map((chapter) => {
       const objectiveCount = course.objectives.filter((objective) => Number(objective.chapter) === Number(chapter.id)).length;
       const questionCount = questions.filter((question) => Number(question.chapter) === Number(chapter.id)).length;
-      const progressWidth = Math.min(100, Math.round(number(chapter.minutes) / 390 * 100));
+      const chapterProgress = chapterProgressDetails(chapter.id);
 
       return `<div class="chapterCard" role="button" tabindex="0" data-action="open-chapter" data-chapter="${number(chapter.id)}">
         <h3>Capítulo ${number(chapter.id)} · ${h(chapter.title)}</h3>
         <p class="small">Tiempo sugerido: ${number(chapter.minutes)} min · LO: ${objectiveCount} · Preguntas: ${questionCount} · Págs. syllabus: ${h(chapter.completeSyllabusPages || 'N/D')}</p>
-        <div class="progressbar"><div style="width:${progressWidth}%"></div></div>
+        <div class="chapterProgressMeta">
+          <b>Avance real ${chapterProgress.coverage}%</b>
+          <span>${chapterProgress.touched}/${chapterProgress.objectiveCount} LO practicados</span>
+          <span>${chapterProgress.answered} respuestas</span>
+          <span>Dominio ${chapterProgress.accuracy}%</span>
+        </div>
+        <div class="progressbar" aria-label="Avance real del capítulo"><div style="width:${chapterProgress.coverage}%"></div></div>
         <p>${h(chapter.summary)}</p>
       </div>`;
     }).join('');
@@ -1286,19 +1481,29 @@
     if (!chapter || !host) return;
 
     const objectives = course.objectives.filter((objective) => Number(objective.chapter) === Number(id));
-    const rows = objectives.map((objective) => `<tr>
+    const progress = chapterProgressDetails(id);
+    const rows = objectives.map((objective) => {
+      const loProgress = objectiveProgress(objective.lo);
+      return `<tr>
       <td><b>${h(objective.lo)}</b></td><td>${h(objective.k)}</td><td>${h(objective.text)}</td>
       <td>${questions.filter((question) => question.lo === objective.lo).length}</td>
+      <td>${loProgress.total ? `${loProgress.total} resp. · ${loProgress.accuracy}%` : 'Sin práctica'}</td>
       <td><button class="btn secondary" type="button" data-action="practice" data-chapter="${number(id)}" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
 
     host.innerHTML = `<div class="card">
       <h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2><p>${h(chapter.summary)}</p>
+      <div class="grid3 chapterProgressGrid">
+        <div class="metric"><span>Avance real</span><strong>${progress.coverage}%</strong></div>
+        <div class="metric"><span>LO practicados</span><strong>${progress.touched}/${progress.objectiveCount}</strong></div>
+        <div class="metric"><span>Dominio</span><strong>${progress.accuracy}%</strong></div>
+      </div>
       <h3>Teoría del syllabus resumida</h3>${(chapter.theorySections || []).map(renderTheorySection).join('')}
       <details open class="contentDetails"><summary>Texto completo evaluable · páginas ${h(chapter.completeSyllabusPages || 'N/D')}</summary><div class="prebox small">${h(chapter.completeSyllabusText || 'No hay texto ampliado cargado para este capítulo.')}</div></details>
       <h3>Términos clave</h3><div>${(chapter.terms || []).map((term) => `<span class="pill">${h(term)}</span>`).join('')}</div>
       <h3>Objetivos de aprendizaje con teoría</h3>${objectives.map(renderObjectiveTheory).join('')}
-      <h3>Mapa LO y práctica</h3><table class="table"><tr><th>LO</th><th>K</th><th>Objetivo</th><th>Preguntas</th><th>Acción</th></tr>${rows}</table>
+      <h3>Mapa LO y práctica</h3><table class="table"><tr><th>LO</th><th>K</th><th>Objetivo</th><th>Preguntas</th><th>Avance</th><th>Acción</th></tr>${rows}</table>
       <h3>Trampas frecuentes</h3><ul>${(chapter.pitfalls || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
       <h3>Ejemplos aplicados</h3><ul>${(chapter.examples || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
       <div class="btnrow"><button class="btn" type="button" data-action="practice" data-chapter="${number(id)}" data-count="20" data-mode="study">Practicar capítulo</button><button class="btn secondary" type="button" data-view="objectives">Ver mapa LO</button></div>
@@ -1321,19 +1526,54 @@
     return `<div class="card"><h2>Mapa completo de objetivos de aprendizaje</h2><p>Esta vista combina teoría, extracto del temario y práctica por objetivo.</p><table class="table"><tr><th>LO</th><th>Cap.</th><th>K</th><th>Teoría del objetivo</th><th>Preguntas</th><th></th></tr>${rows}</table></div>`;
   }
 
+  function selectedAttr(value, current) {
+    return String(value) === String(current) ? ' selected' : '';
+  }
+
+  function normalizePracticeFilter(config = {}) {
+    const input = { ...DEFAULT_PRACTICE_FILTER, ...(config || {}) };
+    const objective = course.objectives.find((item) => item.lo === input.lo);
+    const count = Math.max(1, Math.trunc(number(input.count, DEFAULT_PRACTICE_FILTER.count)));
+
+    return {
+      chapter: objective ? String(objective.chapter) : String(input.chapter || 'all'),
+      k: String(input.k || 'all'),
+      lo: objective ? objective.lo : String(input.lo || 'all'),
+      count,
+      mode: input.mode || 'study'
+    };
+  }
+
+  function practiceFilterSummary(filter, available) {
+    const parts = [];
+    if (filter.chapter && filter.chapter !== 'all') parts.push(`Capítulo ${filter.chapter}`);
+    if (filter.k && filter.k !== 'all') parts.push(filter.k);
+    if (filter.lo && filter.lo !== 'all') parts.push(filter.lo);
+    const label = parts.length ? parts.join(' · ') : 'Todos los capítulos y objetivos';
+    return `<div class="practiceContext">
+      <b>Filtro activo:</b> ${h(label)}
+      <span>${number(available)} preguntas disponibles · se cargarán hasta ${number(filter.count)}.</span>
+    </div>`;
+  }
+
   function renderPractice() {
+    const filter = normalizePracticeFilter(state.practiceFilter || DEFAULT_PRACTICE_FILTER);
+    const available = filterQuestions(filter).length;
     const kLevels = Object.keys(course.blueprint.kDistribution || {}).filter((key) => questions.some((question) => question.k === key));
-    const chapterOptions = course.chapters.map((chapter) => `<option value="${number(chapter.id)}">C${number(chapter.id)} · ${h(chapter.title)}</option>`).join('');
-    const kOptions = kLevels.map((key) => `<option value="${h(key)}">${h(key)}</option>`).join('');
-    const objectiveOptions = course.objectives.map((objective) => `<option value="${h(objective.lo)}">${h(objective.lo)} · ${h(objective.k)} · ${h(objective.text)}</option>`).join('');
+    const countOptions = [...new Set([10, 20, 40, 60, filter.count])].sort((left, right) => left - right);
+    const chapterOptions = course.chapters.map((chapter) => `<option value="${number(chapter.id)}"${selectedAttr(chapter.id, filter.chapter)}>C${number(chapter.id)} · ${h(chapter.title)}</option>`).join('');
+    const kOptions = kLevels.map((key) => `<option value="${h(key)}"${selectedAttr(key, filter.k)}>${h(key)}</option>`).join('');
+    const countSelectOptions = countOptions.map((count) => `<option value="${number(count)}"${selectedAttr(count, filter.count)}>${number(count)}</option>`).join('');
+    const objectiveOptions = course.objectives.map((objective) => `<option value="${h(objective.lo)}"${selectedAttr(objective.lo, filter.lo)}>${h(objective.lo)} · ${h(objective.k)} · ${h(objective.text)}</option>`).join('');
 
     return `<div class="card"><h2>Práctica personalizada</h2>
+      ${practiceFilterSummary(filter, available)}
       <div class="grid3">
-        <div><label for="fChapter">Capítulo</label><select id="fChapter"><option value="all">Todos</option>${chapterOptions}</select></div>
-        <div><label for="fK">Nivel K</label><select id="fK"><option value="all">Todos</option>${kOptions}</select></div>
-        <div><label for="fCount">Cantidad</label><select id="fCount"><option>10</option><option>20</option><option selected>40</option><option>60</option></select></div>
+        <div><label for="fChapter">Capítulo</label><select id="fChapter"><option value="all"${selectedAttr('all', filter.chapter)}>Todos</option>${chapterOptions}</select></div>
+        <div><label for="fK">Nivel K</label><select id="fK"><option value="all"${selectedAttr('all', filter.k)}>Todos</option>${kOptions}</select></div>
+        <div><label for="fCount">Cantidad</label><select id="fCount">${countSelectOptions}</select></div>
       </div>
-      <label for="fLo">Objetivo de aprendizaje</label><select id="fLo"><option value="all">Todos los LO</option>${objectiveOptions}</select>
+      <label for="fLo">Objetivo de aprendizaje</label><select id="fLo"><option value="all"${selectedAttr('all', filter.lo)}>Todos los LO</option>${objectiveOptions}</select>
       <div class="btnrow"><button class="btn" type="button" data-action="practice-filters" data-mode="study">Modo estudio</button><button class="btn secondary" type="button" data-action="practice-filters" data-mode="exam">Modo quiz al final</button></div>
     </div><div id="sessionHost"></div>`;
   }
@@ -1357,18 +1597,20 @@
   }
 
   function startPractice(config) {
-    const pool = filterQuestions(config);
+    const filter = normalizePracticeFilter(config);
+    const pool = filterQuestions(filter);
     if (!pool.length) {
       notify('No hay preguntas con esos filtros.', 'warning');
       return;
     }
 
     clearRuntimeTimers();
-    state.session = shuffle(pool).slice(0, Math.min(number(config.count, 10), pool.length));
+    state.practiceFilter = filter;
+    state.session = shuffle(pool).slice(0, Math.min(number(filter.count, 10), pool.length));
     state.current = 0;
     state.answers = {};
     state.orders = {};
-    state.mode = config.mode || 'study';
+    state.mode = filter.mode || 'study';
     state.startTime = Date.now();
     state.questionLocked = false;
     state.view = 'practice';
@@ -1549,7 +1791,8 @@
     const kText = Object.entries(blueprint.kDistribution || {}).filter(([, value]) => number(value) > 0).map(([key, value]) => `${key}=${value}`).join(', ');
     return `<div class="card"><h2>Simulacro ${h(courseLabel())}</h2>
       <p>Genera ${number(blueprint.totalQuestions)} preguntas aleatorias desde las preguntas activas, respetando la matriz por capítulo y nivel K cuando hay suficientes preguntas.</p>
-      ${renderBlueprintTable()}${renderExamBankStats()}
+      ${renderBlueprintTable()}
+      <div class="grid3"><div class="metric"><span>Preguntas disponibles</span><strong>${questions.length}</strong></div><div class="metric"><span>Preguntas</span><strong>${number(blueprint.totalQuestions)}</strong></div><div class="metric"><span>Selección</span><strong>Aleatoria</strong></div></div>
       <div class="note"><b>Preguntas activas:</b> ${questions.length}. <b>Regla:</b> se seleccionan ${number(blueprint.totalQuestions)} aleatorias (${h(kText)}). La aprobación usa puntos: ${number(blueprint.passingScore)}/${number(blueprint.totalPoints || blueprint.totalQuestions)}.</div>
       <div class="btnrow"><button class="btn good" type="button" data-action="start-official-exam">Iniciar simulacro aleatorio</button><button class="btn secondary" type="button" data-action="practice" data-count="${number(blueprint.totalQuestions)}" data-mode="exam">Simulacro aleatorio libre</button></div>
     </div><div id="sessionHost"></div>`;
@@ -1625,7 +1868,7 @@
       <div class="flash" role="button" tabindex="0" data-action="flash-toggle"><div class="front">${h(flashcard.front)}</div><div>${flashcard.kind ? `<span class="pill">${h(flashcard.kind)}</span>` : ''}<span class="pill">C${number(flashcard.chapter)}</span>${flashcard.lo ? `<span class="pill">${h(flashcard.lo)}</span>` : ''}</div>
         ${state.flashShow ? `<div class="back"><b>Significado / explicación:</b><br>${h(flashcard.meaning || flashcard.back)}${flashcard.back && flashcard.meaning && flashcard.back !== flashcard.meaning ? `<br><br>${h(flashcard.back)}` : ''}${flashcard.hint ? `<br><br><b>Pista:</b> ${h(flashcard.hint)}` : ''}</div>` : '<p class="small">Clic para ver significado y explicación</p>'}
       </div>
-      <div class="btnrow"><button class="btn secondary" type="button" data-action="flash-previous">Anterior</button><button class="btn" type="button" data-action="flash-next">Siguiente</button><button class="btn secondary" type="button" data-action="flash-random">Aleatoria</button><button class="btn secondary" type="button" data-action="practice" data-chapter="${number(flashcard.chapter)}" data-lo="${h(flashcard.lo || 'all')}" data-count="10" data-mode="study">Practicar este LO</button></div>
+      <div class="btnrow"><button class="btn secondary" type="button" data-action="flash-previous">Anterior</button><button class="btn" type="button" data-action="flash-next">Siguiente</button><button class="btn secondary" type="button" data-action="flash-random">Aleatoria</button></div>
     </div>`;
   }
 
