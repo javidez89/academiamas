@@ -1,5 +1,24 @@
 # Changelog
 
+## [v0.5.0] - 2026-08-06
+
+### Added
+
+- Datos estructurados `EducationalOrganization`, `WebSite`, `ItemList`, `Course`, `LearningResource` y `BreadcrumbList`.
+- Documentación técnica para metadatos, jerarquía semántica, sitemap, robots y Core Web Vitals.
+- Pruebas SEO para Schema, títulos y descripciones únicas, idioma, H1 y enlaces internos limpios.
+
+### Changed
+
+- Metadatos de portada, catálogo, rutas, cursos y simulacros con descripciones específicas y naturales.
+- Navegación inicial con rutas rastreables y compatibilidad conservada con hashes antiguos.
+- Sitemap ampliado para incluir la portada y señales de carga estables para imágenes.
+
+### Validation
+
+- 21 URLs canónicas verificadas en el smoke SEO.
+- Sin cambios en cursos, preguntas, simulacros, progreso, pagos ni contenido académico.
+
 ## [v0.4.0] - 2026-08-06
 
 ### Added

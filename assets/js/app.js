@@ -974,13 +974,15 @@
     return ROUTE_TILE_IMAGES[routeKey] || DEFAULT_ROUTE_TILE_IMAGE;
   }
 
-  function renderResponsiveImage(image, alt = '', sizes = '100vw') {
+  function renderResponsiveImage(image, alt = '', sizes = '100vw', options = {}) {
     const sourceTags = [
       image.avif ? `<source type="image/avif" srcset="${h(rootRelativeSrcset(image.avif))}" sizes="${h(sizes)}">` : '',
       image.webp ? `<source type="image/webp" srcset="${h(rootRelativeSrcset(image.webp))}" sizes="${h(sizes)}">` : ''
     ].join('');
+    const loading = options.loading === 'eager' ? 'eager' : 'lazy';
+    const fetchPriority = ['high', 'low'].includes(options.fetchPriority) ? ` fetchpriority="${options.fetchPriority}"` : '';
 
-    return `<picture>${sourceTags}<img src="${h(rootRelativeAsset(image.src))}" width="${number(image.width)}" height="${number(image.height)}" alt="${h(alt)}" loading="lazy" decoding="async"></picture>`;
+    return `<picture>${sourceTags}<img src="${h(rootRelativeAsset(image.src))}" width="${number(image.width)}" height="${number(image.height)}" alt="${h(alt)}" loading="${loading}" decoding="async"${fetchPriority}></picture>`;
   }
 
   function courseFeaturedTime(key, item, index = 0) {
@@ -1315,7 +1317,7 @@
           const slideId = `newCourseSlide-${h(key)}`;
           return `<article class="courseSlide route-${h(routeKey)}${active ? ' active' : ''}" id="${slideId}" role="tabpanel" ${active ? '' : 'hidden'} aria-hidden="${active ? 'false' : 'true'}">
             <div class="courseSlideMedia">
-              ${renderResponsiveImage(NEW_COURSES_IMAGE, NEW_COURSES_IMAGE.alt, '(max-width: 760px) 100vw, 560px')}
+              ${renderResponsiveImage(NEW_COURSES_IMAGE, NEW_COURSES_IMAGE.alt, '(max-width: 760px) 100vw, 560px', { fetchPriority: active ? 'auto' : 'low' })}
             </div>
             <div class="courseSlideCopy">
               <span>${h(coursePublicVersion(key, item))}</span>

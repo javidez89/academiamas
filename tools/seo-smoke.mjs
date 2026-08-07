@@ -39,13 +39,25 @@ function titleOf(html) {
   return html.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.trim() || '';
 }
 
+function jsonLdItems(html) {
+  const scripts = [...html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+  return scripts.flatMap((match) => {
+    const parsed = JSON.parse(match[1]);
+    return Array.isArray(parsed['@graph']) ? parsed['@graph'] : [parsed];
+  });
+}
+
+function hasSchemaType(items, type) {
+  return items.some((item) => item?.['@type'] === type || (Array.isArray(item?.['@type']) && item['@type'].includes(type)));
+}
+
 function expectedPaths(catalog) {
   const publicPaths = ['/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/'];
   const coursePaths = catalog.flatMap(({ key }) => [
     `/curso/${encodeURIComponent(key)}/`,
     `/curso/${encodeURIComponent(key)}/simulacro/`
   ]);
-  return [...publicPaths, ...coursePaths];
+  return ['/', ...publicPaths, ...coursePaths];
 }
 
 async function loadCatalog() {
@@ -64,12 +76,25 @@ function validatePageMetadata(html, path) {
   const description = findTag(html, 'meta', { name: 'description' })?.content;
   const ogUrl = findTag(html, 'meta', { property: 'og:url' })?.content;
   const title = titleOf(html);
+  const robots = findTag(html, 'meta', { name: 'robots' })?.content;
+  const alternate = findTag(html, 'link', { rel: 'alternate' });
+  const schema = jsonLdItems(html);
+  const h1Count = (html.match(/<h1\b/gi) || []).length;
 
   assert.equal(canonical, expectedCanonical, `Canonical incorrecto en ${path}.`);
   assert.equal(ogUrl, expectedCanonical, `og:url incorrecto en ${path}.`);
-  assert.ok(title.length > 0, `Falta title en ${path}.`);
-  assert.ok(description?.trim(), `Falta meta description en ${path}.`);
+  assert.ok(title.length > 0 && title.length <= 65, `Title ausente o demasiado largo en ${path}: ${title.length}.`);
+  assert.ok(description?.trim() && description.length >= 70 && description.length <= 160, `Meta description ausente o fuera de rango en ${path}: ${description?.length || 0}.`);
+  assert.match(robots || '', /index\s*,\s*follow/i, `Robots meta incorrecto en ${path}.`);
+  assert.equal(alternate?.hreflang?.toLowerCase(), 'es-co', `hreflang incorrecto en ${path}.`);
+  assert.equal(alternate?.href, expectedCanonical, `URL hreflang incorrecta en ${path}.`);
+  assert.match(html, /<html\b[^>]*lang=["']es-CO["']/i, `Idioma HTML incorrecto en ${path}.`);
+  assert.equal(h1Count, 1, `Se esperaban un H1 en ${path}, encontrados: ${h1Count}.`);
+  assert.ok(schema.length > 0, `Falta JSON-LD en ${path}.`);
+  assert.ok(!hasSchemaType(schema, 'FAQPage') && !hasSchemaType(schema, 'QAPage'), `Schema FAQ/QAPage no elegible encontrado en ${path}.`);
   assert.ok(!html.includes('github.io'), `Referencia github.io encontrada en ${path}.`);
+
+  return { title, description, schema };
 }
 
 async function validateStaticSeo(catalog) {
@@ -89,13 +114,37 @@ async function validateStaticSeo(catalog) {
   assert.ok(!/github\.io/i.test(robots), 'robots.txt contiene referencias a github.io.');
   assert.ok(!/^Disallow:\s*\/$/mi.test(robots), 'robots.txt bloquea todo el sitio.');
 
-  const pages = ['/', ...paths];
+  const metadata = [];
+  const pages = paths;
   for (const path of pages) {
     const response = await fetch(`${LOCAL_BASE}${path}`, { redirect: 'manual' });
     assert.equal(response.status, 200, `${path} respondió HTTP ${response.status}.`);
     const html = await response.text();
-    validatePageMetadata(html, path);
+    const pageMetadata = validatePageMetadata(html, path);
+    metadata.push({ path, ...pageMetadata });
+
+    if (path === '/') {
+      assert.ok(hasSchemaType(pageMetadata.schema, 'EducationalOrganization'), 'La portada no declara EducationalOrganization.');
+      assert.ok(hasSchemaType(pageMetadata.schema, 'WebSite'), 'La portada no declara WebSite.');
+      for (const publicPath of ['/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/']) {
+        assert.match(html, new RegExp(`href=["']${publicPath.replaceAll('/', '\\/')}["']`), `La portada no enlaza limpiamente a ${publicPath}.`);
+      }
+    } else if (path === '/cursos/' || path === '/ruta-aprendizaje/') {
+      assert.ok(hasSchemaType(pageMetadata.schema, 'ItemList'), `${path} no declara ItemList.`);
+      assert.ok(hasSchemaType(pageMetadata.schema, 'BreadcrumbList'), `${path} no declara BreadcrumbList.`);
+    } else if (/\/simulacro\/$/.test(path)) {
+      assert.ok(hasSchemaType(pageMetadata.schema, 'LearningResource'), `${path} no declara LearningResource.`);
+      assert.ok(hasSchemaType(pageMetadata.schema, 'BreadcrumbList'), `${path} no declara BreadcrumbList.`);
+    } else if (/^\/curso\//.test(path)) {
+      assert.ok(hasSchemaType(pageMetadata.schema, 'Course'), `${path} no declara Course.`);
+      assert.ok(hasSchemaType(pageMetadata.schema, 'BreadcrumbList'), `${path} no declara BreadcrumbList.`);
+    } else {
+      assert.ok(hasSchemaType(pageMetadata.schema, 'BreadcrumbList'), `${path} no declara BreadcrumbList.`);
+    }
   }
+
+  assert.equal(new Set(metadata.map((item) => item.title)).size, metadata.length, 'Hay titles SEO duplicados.');
+  assert.equal(new Set(metadata.map((item) => item.description)).size, metadata.length, 'Hay meta descriptions duplicadas.');
 
   for (const course of catalog) {
     const coursePath = `/curso/${encodeURIComponent(course.key)}/`;
