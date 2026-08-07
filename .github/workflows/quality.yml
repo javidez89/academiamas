@@ -58,6 +58,9 @@ jobs:
       - name: Probar persistencia y estadísticas
         run: npm run test:unit
 
+      - name: Audit course content and simulator realism
+        run: npm run test:content
+
       - name: Regenerar SEO
         run: npm run generate:seo
 

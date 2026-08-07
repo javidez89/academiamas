@@ -4,6 +4,7 @@
   const Security = global.AcademySecurity;
   const Registry = global.AcademyRegistry;
   const Storage = global.AcademyStorage;
+  const QuestionSelection = global.AcademyQuestionSelection;
   const Config = global.ACADEMY_CONFIG || {};
   const ASSET_VERSION = String(Config.assetVersion || '2026-08-05-mobile-responsive-study');
   const APP_VERSION = String(Config.version || '0.0.0');
@@ -1659,34 +1660,23 @@
   }
 
   function buildOfficialSelection() {
-    const matrix = officialMatrix();
-    const selected = [];
-    const used = new Set();
-    const warnings = [];
-    const kLevels = Object.keys(course.blueprint.kDistribution || {});
+    const result = QuestionSelection.buildMatrixSelection(
+      questions,
+      { ...course.blueprint, matrix: officialMatrix() },
+      getProgress().questionHistory,
+      randomInt
+    );
+    if (result.warnings.length) notify(`Las preguntas no cubren toda la matriz. Se completó con preguntas disponibles. ${result.warnings.join(' ')}`, 'warning', 10_000);
+    return result.questions;
+  }
 
-    Object.entries(matrix).forEach(([chapter, distribution]) => {
-      kLevels.forEach((kLevel) => {
-        const needed = number(distribution[kLevel], 0);
-        if (!needed) return;
-        const pool = shuffle(questions.filter((question) => String(question.chapter) === String(chapter) && question.k === kLevel && !used.has(question.id)));
-        const picked = pool.slice(0, needed);
-        picked.forEach((question) => {
-          selected.push(question);
-          used.add(question.id);
-        });
-        if (picked.length < needed) warnings.push(`C${chapter} ${kLevel}: requiere ${needed}, disponibles ${picked.length}.`);
-      });
-    });
-
-    const totalQuestions = number(course.blueprint.totalQuestions, 40);
-    if (selected.length < totalQuestions) {
-      const fill = shuffle(questions.filter((question) => !used.has(question.id))).slice(0, totalQuestions - selected.length);
-      selected.push(...fill);
-    }
-
-    if (warnings.length) notify(`Las preguntas no cubren toda la matriz. Se completó con preguntas disponibles. ${warnings.join(' ')}`, 'warning', 10_000);
-    return shuffle(selected).slice(0, totalQuestions);
+  function rememberSessionQuestions(session, mode) {
+    if (!session.length) return;
+    const progress = getProgress();
+    const seenAt = new Date().toISOString();
+    progress.questionHistory.push(...session.map((question) => ({ id: question.id, mode, seenAt })));
+    progress.questionHistory = progress.questionHistory.slice(-5_000);
+    saveProgress(progress);
   }
 
   function objectiveProgress(lo) {
@@ -1895,7 +1885,13 @@
 
     clearRuntimeTimers();
     state.practiceFilter = filter;
-    state.session = shuffle(pool).slice(0, Math.min(number(filter.count, 10), pool.length));
+    state.session = QuestionSelection.selectLeastSeen(
+      pool,
+      Math.min(number(filter.count, 10), pool.length),
+      getProgress().questionHistory,
+      randomInt
+    );
+    rememberSessionQuestions(state.session, filter.mode === 'exam' ? 'practice-quiz' : 'practice-study');
     state.current = 0;
     state.answers = {};
     state.orders = {};
@@ -1919,7 +1915,7 @@
     }
 
     const marked = getProgress().marked.includes(question.id);
-    const options = state.orders[question.id].map((option) => `<div class="opt ${answered.includes(option.originalIndex) ? 'selected' : ''}" role="button" tabindex="0" data-action="select-option" data-option-index="${option.originalIndex}"><b>${String.fromCharCode(65 + option.originalIndex)}.</b><span>${h(option.text)}</span></div>`).join('');
+    const options = state.orders[question.id].map((option, displayIndex) => `<div class="opt ${answered.includes(option.originalIndex) ? 'selected' : ''}" role="button" tabindex="0" data-action="select-option" data-option-index="${option.originalIndex}"><b>${String.fromCharCode(65 + displayIndex)}.</b><span>${h(option.text)}</span></div>`).join('');
     const sessionCardClass = `card sessionCard${state.examFocus ? ' examQuestionCard' : ''}`;
 
     host.innerHTML = `<div class="${sessionCardClass}">
@@ -2064,7 +2060,11 @@
       <td>${index + 1}</td>
       <td><b>${h(item.question.lo)}</b><br><span class="small">${h(item.question.topic)}</span><br><span class="sourceTag">${number(item.question.points, 1)} punto(s)</span></td>
       <td>${item.isCorrect ? '✅' : '❌'}</td>
-      <td>${item.question.correct.map((correctIndex) => `${String.fromCharCode(65 + correctIndex)}. ${h(item.question.options[correctIndex])}`).join('<br>')}</td>
+      <td>${item.question.correct.map((correctIndex) => {
+        const order = state.orders[item.question.id] || [];
+        const displayIndex = order.findIndex((option) => option.originalIndex === correctIndex);
+        return `${String.fromCharCode(65 + Math.max(0, displayIndex))}. ${h(item.question.options[correctIndex])}`;
+      }).join('<br>')}</td>
       <td>${h(item.question.explanation)}</td>
     </tr>`).join('');
 
@@ -2099,6 +2099,7 @@
       notify('No fue posible construir el simulacro.', 'error');
       return;
     }
+    rememberSessionQuestions(state.session, 'official-exam');
     state.current = 0;
     state.answers = {};
     state.orders = {};

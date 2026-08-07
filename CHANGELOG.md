@@ -1,5 +1,28 @@
 # Changelog
 
+## [v0.7.0] - 2026-08-06
+
+### Added
+
+- Motor reutilizable de selección que prioriza preguntas no vistas, menos usadas y vistas hace más tiempo.
+- Historial local de preguntas por curso, compatible con el progreso existente y limitado a 5.000 registros.
+- Auditoría de realismo sobre bancos reales para matriz, puntos, idioma, diversidad y repetición entre simulacros.
+- Guía de metodología, fortalezas, límites y capacidad sin repetición de los simuladores ISTQB.
+
+### Changed
+
+- Prácticas y simulacros equilibran LO y barajan preguntas y opciones en cada intento.
+- CTFL y CT-AI reducen patrones de redacción y distractores genéricos; CT-GenAI usa variantes específicas por objetivo.
+- Las letras A, B, C y D ahora siguen el orden visual barajado y coinciden con la revisión de resultados.
+- El Quality Gate bloquea cambios que degraden el contenido o el realismo de los simuladores.
+
+### Validation
+
+- CTFL: seis simulacros consecutivos, 240 selecciones únicas, 40 preguntas y 40 puntos por intento.
+- CT-AI: tres simulacros consecutivos, 120 selecciones únicas, 40 preguntas y 44 puntos por intento.
+- CT-GenAI: tres simulacros consecutivos, 120 selecciones únicas, 40 preguntas y 46 puntos por intento.
+- Sin cambios visuales, sin PDF oficiales y sin reproducción completa de exámenes de muestra.
+
 ## [v0.6.0] - 2026-08-06
 
 ### Added

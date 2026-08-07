@@ -50,6 +50,7 @@ button{font:inherit}
 .qhead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .qtitle{font-size:1.08rem;font-weight:850;line-height:1.45}
 .opt{border:1px solid var(--line);border-radius:14px;padding:12px;margin:9px 0;cursor:pointer;background:#fff;display:flex;gap:10px;align-items:flex-start}
+.opt b{flex:0 0 1.5rem;white-space:nowrap}
 .opt:hover{background:#f8fbff;border-color:#b9d7f6} .opt.selected{background:#e8f2ff;border-color:#0f5faa} .opt.correct{background:#eaf7ef;border-color:#137a3f} .opt.wrong{background:#fdecec;border-color:#b42318}
 .progressbar{height:10px;background:#e8eef6;border-radius:99px;overflow:hidden;margin:8px 0} .progressbar > div{height:100%;background:linear-gradient(90deg,#0f5faa,#1d9bd7);width:0%}
 .table{width:100%;border-collapse:collapse;font-size:.92rem} .table th,.table td{border-bottom:1px solid var(--line);padding:9px;text-align:left;vertical-align:top} .table th{background:#f8fafc;color:#344054}

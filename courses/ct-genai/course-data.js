@@ -187,15 +187,23 @@
 
   function buildQuestions(objective, index) {
     const id = index * 4 + 1;
-    const commonWrong = objective.k === 'K3'
-      ? ['Ejecutar la salida generada sin revision ni evidencia.', 'Cambiar la base de prueba para que coincida con la respuesta del modelo.']
-      : ['Confiar solo en que la respuesta parece correcta.', 'Ignorar contexto, datos y restricciones del proceso de prueba.'];
+    const related = objectiveSpecs
+      .filter((candidate) => candidate.lo !== objective.lo && candidate.chapter === objective.chapter)
+      .concat(objectiveSpecs.filter((candidate) => candidate.lo !== objective.lo && candidate.chapter !== objective.chapter));
+    const alternatives = (field, offset) => {
+      const values = [];
+      for (let step = 0; step < related.length && values.length < 3; step += 1) {
+        const value = related[(offset + step) % related.length]?.[field];
+        if (value && value !== objective[field] && !values.includes(value)) values.push(value);
+      }
+      return values;
+    };
 
     return [
-      q(`${courseKey}-Q${String(id).padStart(3, '0')}`, objective, `¿Cuál afirmación se alinea mejor con ${objective.lo}?`, [objective.remember, objective.trap, ...commonWrong], objective.theory, 0),
-      q(`${courseKey}-Q${String(id + 1).padStart(3, '0')}`, objective, `Escenario: ${objective.example} ¿Qué deberías priorizar?`, [objective.theory, objective.trap, commonWrong[0], commonWrong[1]], objective.remember, 1),
-      q(`${courseKey}-Q${String(id + 2).padStart(3, '0')}`, objective, `Durante una revisión de ${objective.lo}, ¿qué evidencia apoyaría mejor una decisión de calidad?`, [objective.remember, 'Una salida convincente sin referencia a la base de prueba.', objective.trap, commonWrong[0]], `${objective.remember} La evidencia debe contrastarse con la base de prueba y el riesgo de la tarea.`, 2),
-      q(`${courseKey}-Q${String(id + 3).padStart(3, '0')}`, objective, `¿Qué control reduce mejor el riesgo al trabajar con el objetivo ${objective.lo}?`, [objective.theory, 'Priorizar velocidad aunque no exista trazabilidad.', commonWrong[1], objective.trap], `${objective.theory} La revisión humana conserva la responsabilidad sobre la decisión.`, 3)
+      q(`${courseKey}-Q${String(id).padStart(3, '0')}`, objective, `¿Qué afirmación distingue mejor ${objective.text.toLowerCase()}?`, [objective.remember, ...alternatives('remember', index)], objective.theory, 0),
+      q(`${courseKey}-Q${String(id + 1).padStart(3, '0')}`, objective, `Escenario: ${objective.example} ¿Qué interpretación responde directamente al objetivo ${objective.lo}?`, [objective.theory, ...alternatives('theory', index + 1)], objective.remember, 1),
+      q(`${courseKey}-Q${String(id + 2).padStart(3, '0')}`, objective, `¿Cuál ejemplo corresponde de forma más directa a ${objective.text.toLowerCase()}?`, [objective.example, ...alternatives('example', index + 2)], `${objective.remember} El ejemplo debe conservar trazabilidad con el objetivo y la base de prueba.`, 2),
+      q(`${courseKey}-Q${String(id + 3).padStart(3, '0')}`, objective, `Al aplicar ${objective.text.toLowerCase()}, ¿qué práctica debe evitar específicamente el equipo?`, [objective.trap, ...alternatives('trap', index + 3)], `${objective.trap} ${objective.remember}`, 3)
     ];
   }
 

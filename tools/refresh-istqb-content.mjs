@@ -111,20 +111,81 @@ function rotateOptions(options, correctIndex) {
 function distributeAnswerPositions(questions) {
   return questions.map((question, index) => {
     const size = question.options.length;
+    const explanations = Array.isArray(question.optionExplanations) && question.optionExplanations.length === size
+      ? question.optionExplanations
+      : question.options.map((_option, optionIndex) => (
+        question.correct.includes(optionIndex)
+          ? `Correcta. ${question.explanation}`
+          : 'Incorrecta. La opción no responde al objetivo evaluado en este contexto.'
+      ));
     if (question.correct.length === 1) {
-      const correctText = question.options[question.correct[0]];
-      const options = question.options.filter((_option, optionIndex) => optionIndex !== question.correct[0]);
+      const correctIndex = question.correct[0];
+      const correctText = question.options[correctIndex];
+      const correctExplanation = explanations[correctIndex];
+      const options = question.options.filter((_option, optionIndex) => optionIndex !== correctIndex);
+      const optionExplanations = explanations.filter((_option, optionIndex) => optionIndex !== correctIndex);
       const target = index % size;
       options.splice(target, 0, correctText);
-      return { ...question, options, correct: [target] };
+      optionExplanations.splice(target, 0, correctExplanation);
+      return { ...question, options, optionExplanations, correct: [target] };
     }
     const offset = index % size;
     const options = [...question.options.slice(offset), ...question.options.slice(0, offset)];
+    const optionExplanations = [...explanations.slice(offset), ...explanations.slice(0, offset)];
     const correct = question.correct
       .map((answerIndex) => (answerIndex - offset + size) % size)
       .sort((left, right) => left - right);
-    return { ...question, options, correct };
+    return { ...question, options, optionExplanations, correct };
   });
+}
+
+const GENERIC_DISTRACTOR = /(?:garantiza que|solo se puede|responsabilidad exclusiva|reemplaza completamente|hace innecesaria|ausencia total de defectos|se aplica igual en todos|siempre elimina|solo aplica a pruebas manuales|elimina la necesidad|se limita a verificar|debe evaluarse únicamente|reemplaza la necesidad)/i;
+
+function refineQuestionWording(course, question, index) {
+  const objective = course.objectives.find((item) => item.lo === question.lo);
+  if (!objective) return question;
+  const related = course.objectives
+    .filter((item) => item.lo !== objective.lo && item.chapter === objective.chapter)
+    .concat(course.objectives.filter((item) => item.lo !== objective.lo && item.chapter !== objective.chapter));
+  const candidates = related.flatMap((item) => [item.remember, item.theory, item.example]).filter(Boolean);
+  const correct = new Set(question.correct);
+  const used = new Set(question.options.map(normalize));
+  let candidateIndex = index;
+  const options = question.options.map((option, optionIndex) => {
+    if (correct.has(optionIndex) || !GENERIC_DISTRACTOR.test(option)) return option;
+    for (let step = 0; step < candidates.length; step += 1) {
+      const candidate = candidates[(candidateIndex + step) % candidates.length];
+      const normalized = normalize(candidate);
+      if (normalized && !used.has(normalized)) {
+        used.add(normalized);
+        candidateIndex += step + 1;
+        return candidate;
+      }
+    }
+    return option;
+  });
+
+  let stem = question.stem;
+  if (/¿Cuál es la clave de examen para/i.test(stem)) {
+    stem = `Durante una revisión sobre ${objective.text.toLowerCase()}, ¿qué conclusión debe conservar el equipo?`;
+  } else if (/trampa frecuente en el examen/i.test(stem)) {
+    stem = `Al aplicar ${objective.text.toLowerCase()}, ¿qué afirmación conduciría a una decisión incorrecta?`;
+  } else if (/En el contexto del syllabus, ¿qué representa este ejemplo/i.test(stem)) {
+    stem = `Escenario: ${objective.example} ¿Qué concepto de ${objective.lo} explica mejor la situación?`;
+  } else if (/¿Cuál afirmación representa mejor el objetivo/i.test(stem)) {
+    stem = `En una revisión de ${objective.text.toLowerCase()}, ¿qué afirmación está mejor alineada con el syllabus?`;
+  }
+
+  return {
+    ...question,
+    stem,
+    options,
+    optionExplanations: options.map((_option, optionIndex) => (
+      correct.has(optionIndex)
+        ? `Correcta. ${question.explanation}`
+        : `Incorrecta. Describe otro concepto o no responde directamente a ${objective.lo}.`
+    ))
+  };
 }
 
 function originalCtAiQuestion(course, template, index, id = template.id) {
@@ -157,7 +218,8 @@ function originalCtAiQuestion(course, template, index, id = template.id) {
   const objectiveLabel = objective?.text
     ? `${objective.text.charAt(0).toLowerCase()}${objective.text.slice(1)}`
     : template.topic;
-  const stem = `${scenarios[template.chapter]} ¿Qué enfoque responde mejor a ${objectiveLabel}?`;
+  const scenario = objective?.example || scenarios[template.chapter];
+  const stem = `Escenario: ${scenario} ¿Qué enfoque responde mejor a ${objectiveLabel}?`;
   const choice = rotateOptions([correctText, ...distractors], index);
 
   return {
@@ -197,6 +259,7 @@ async function refreshCtAi() {
     course.questions.push(originalCtAiQuestion(course, template, 40 + index, id));
   });
 
+  course.questions = course.questions.map((question, index) => refineQuestionWording(course, question, index));
   course.questions = distributeAnswerPositions(course.questions);
   course.qaValidation.answerOrderVersion = 'balanced-v2';
 
@@ -233,16 +296,16 @@ async function refreshCtAi() {
 async function refreshCtfl() {
   const { file, course } = await loadCourse('ctfl');
   const objectives = new Map(course.objectives.map((objective) => [objective.lo, objective]));
-  course.questions = course.questions.map((question) => {
+  course.questions = course.questions.map((question, index) => {
     const objective = objectives.get(question.lo);
     const explanation = String(question.explanation || '').trim();
-    return {
+    return refineQuestionWording(course, {
       ...question,
       explanation: explanation.length >= 40
         ? explanation
         : `${explanation}${explanation ? ' ' : ''}Objetivo evaluado: ${objective?.text || question.lo}.`,
       source: 'AcademiaQA: pregunta original alineada al syllabus ISTQB CTFL v4.0.1'
-    };
+    }, index);
   });
   if (course.qaValidation.answerOrderVersion !== 'balanced-v2') {
     course.questions = distributeAnswerPositions(course.questions);
