@@ -1,5 +1,26 @@
 # Changelog
 
+## [v0.6.0] - 2026-08-06
+
+### Added
+
+- Auditoría reproducible de las siete carpetas de conocimiento y selección de fuentes canónicas ISTQB.
+- Quality gate de contenido para cobertura LO/K, explicaciones, duplicados, distribución de respuestas y capacidad de las matrices.
+- 74 preguntas originales adicionales para CT-GenAI y tres preguntas para completar la cobertura mínima de CT-AI.
+- Auditoría de flashcards por contenido, capítulo, LO, duplicados y cobertura mínima.
+
+### Changed
+
+- CT-GenAI actualizado de syllabus v1.0 a v1.1 y ampliado de 74 a 148 preguntas.
+- CT-AI conserva 40/44 puntos y sustituye 40 traducciones del examen oficial por preguntas originales alineadas a los mismos LO.
+- CTFL conserva 400 preguntas y actualiza su trazabilidad a syllabus v4.0.1 y Exam Structure Tables v1.18.
+- Flashcards ampliadas a 174 en CTFL, 158 en CT-AI y 111 en CT-GenAI, con tarjetas de aplicación por LO y tarjetas de trampa en CT-GenAI.
+
+### Validation
+
+- Los exámenes oficiales se usan como referencia de cobertura y dificultad; no se publican sus PDF ni se reproducen completos.
+- Los tres simuladores ISTQB conservan tiempo, puntuación de aprobación y matriz por capítulo/nivel K.
+
 ## [v0.5.0] - 2026-08-06
 
 ### Added

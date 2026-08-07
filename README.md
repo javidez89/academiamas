@@ -1,6 +1,6 @@
 # AcademiaQA · Arquitectura modular segura y escalable
 
-Versión actual: `v0.4.0`. Consulta [`docs/CI_CD_GOVERNANCE.md`](docs/CI_CD_GOVERNANCE.md) para el flujo de ramas, controles de calidad, releases y rollback.
+Versión actual: `v0.6.0`. Consulta [`docs/CI_CD_GOVERNANCE.md`](docs/CI_CD_GOVERNANCE.md) para el flujo de ramas, controles de calidad, releases y rollback.
 
 Esta versión conserva el diseño y las funciones principales del simulador, pero separa el motor, la seguridad, el almacenamiento, el estilo y los datos de cada curso.
 
@@ -29,8 +29,9 @@ courses/
 
 ## Cursos disponibles
 
-- CTFL 4.0: curso gratuito de fundamentos ISTQB.
-- CT-AI 2.0: curso gratuito de testing e inteligencia artificial.
+- CTFL 4.0.1: curso gratuito de fundamentos ISTQB con 400 preguntas originales y 174 flashcards.
+- CT-AI 2.0: curso gratuito de testing de inteligencia artificial con 133 preguntas originales y 158 flashcards.
+- CT-GenAI 1.1: curso gratuito de testing con IA generativa con 148 preguntas originales y 111 flashcards.
 - Scrum Master: curso gratuito basado en la Scrum Guide 2020.
 - Scrum Product Owner Professional Certification: curso gratuito basado en guías Product Owner 2025/2026.
 - Project Management Essentials: curso gratuito basado en el PDF adjunto `Project Management Essentials.pdf` y enlace externo al examen abierto de CertiProf.
@@ -42,6 +43,10 @@ courses/
 ### GitHub Pages
 
 Sube toda la carpeta al repositorio y publica la rama desde GitHub Pages. `index.html` debe permanecer en la raíz.
+
+### Auditoría de contenido ISTQB
+
+Ejecuta `npm run test:content` para validar cobertura LO/K de preguntas y flashcards, explicaciones, duplicados, distribución de respuestas y capacidad de las matrices de simulacro.
 
 ### Prueba local recomendada
 

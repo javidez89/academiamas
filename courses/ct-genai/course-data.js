@@ -2,7 +2,7 @@
 
 (function registerCtGenAiCourse() {
   const courseKey = 'ct-genai';
-  const sourceName = 'ISTQB CT-GenAI Syllabus v1.0 Spanish - AcademiaQA knowledge base';
+  const sourceName = 'AcademiaQA: contenido original alineado al ISTQB CT-GenAI Syllabus v1.1';
 
   const specs = [
     spec(
@@ -26,7 +26,7 @@
       [
         section('Estructura de prompts', 'Un prompt util define rol, contexto, instrucciones, datos de entrada, restricciones y formato de salida esperado.', ['El contexto evita respuestas genericas.', 'Las restricciones controlan alcance, formato y riesgos.', 'El formato de salida facilita revision y trazabilidad.']),
         section('Tecnicas de prompting', 'Zero-shot, one-shot, few-shot, encadenamiento y meta-prompting permiten adaptar la ayuda de un LLM a tareas de prueba concretas.', ['Few-shot usa ejemplos.', 'El encadenamiento divide problemas complejos.', 'Meta-prompting mejora la instruccion antes de ejecutar la tarea.']),
-        section('Aplicacion a testing', 'La seleccion de tecnica depende de la tarea, el riesgo, la informacion disponible y la necesidad de verificacion humana.', ['Usa GenAI para acelerar, no para saltar analisis.', 'Valida criterios, casos, scripts y reportes.', 'Refina prompts con metricas y feedback.'])
+        section('Aplicacion a testing', 'La seleccion de tecnica depende de la tarea, el riesgo, la informacion disponible y la necesidad de verificacion humana.', ['Usa GenAI para acelerar, no para saltar analisis.', 'Valida criterios, casos, scripts y reportes.', 'Refina prompts con metricas, feedback y una tasa de exito que mida si la salida puede ejecutarse y producir el resultado esperado.'])
       ]
     ),
     spec(
@@ -37,7 +37,7 @@
       'Paginas 33-42',
       [
         section('Calidad de la salida GenAI', 'Los resultados de un LLM pueden contener hechos inventados, razonamiento incorrecto, sesgo o variacion no deseada.', ['Comprueba contra fuentes confiables.', 'Prueba con prompts adversos y variantes.', 'Usa configuraciones y criterios repetibles cuando el riesgo lo exige.']),
-        section('Privacidad y seguridad', 'El uso de GenAI en pruebas puede exponer datos, requisitos, arquitectura, vulnerabilidades o informacion de clientes si no hay controles.', ['Anonimiza o sintetiza datos.', 'Evalua fuga de datos y prompt injection.', 'Define politicas de uso y aprobacion.']),
+        section('Privacidad y seguridad', 'El uso de GenAI en pruebas puede exponer datos, requisitos, arquitectura, vulnerabilidades o informacion de clientes si no hay controles.', ['Anonimiza o sintetiza datos.', 'Evalua manipulacion de contexto, fuga de datos y prompt injection.', 'Define politicas de uso y aprobacion.']),
         section('Responsabilidad y sostenibilidad', 'El contexto regulatorio, el consumo energetico y las mejores practicas deben traducirse en requisitos verificables.', ['Elige modelos de forma proporcional.', 'Documenta decisiones.', 'Considera impacto ambiental, legal y etico.'])
       ]
     ),
@@ -49,7 +49,7 @@
       'Paginas 43-48',
       [
         section('Arquitectura LLM para testing', 'Una infraestructura de pruebas con LLM combina interfaz, orquestacion, modelo, fuentes de datos, controles y posprocesamiento.', ['Separa datos, prompts, ejecucion y evaluacion.', 'Controla permisos y trazabilidad.', 'Mide calidad, latencia, coste y seguridad.']),
-        section('RAG y agentes', 'RAG recupera informacion relevante antes de generar una respuesta; los agentes usan LLM para planificar o automatizar tareas repetitivas.', ['RAG reduce respuestas descontextualizadas.', 'Los agentes necesitan limites y supervision.', 'La automatizacion debe dejar evidencia revisable.']),
+        section('RAG y agentes', 'RAG recupera informacion relevante antes de generar una respuesta; los agentes y asistentes orientados a objetivos pueden planificar, usar herramientas y automatizar tareas de prueba.', ['RAG reduce respuestas descontextualizadas.', 'Los agentes necesitan objetivos, permisos, limites y supervision.', 'La automatizacion debe dejar evidencia revisable.']),
         section('Ajuste fino y LLMOps', 'El ajuste fino adapta un modelo a tareas especificas; LLMOps gestiona ciclo de vida, despliegue, versionado, evaluacion y monitoreo.', ['Evita ajustar fino si basta RAG o prompting.', 'Versiona datos, prompts y modelos.', 'Define rollback y monitoreo continuo.'])
       ]
     ),
@@ -81,7 +81,7 @@
     lo('GenAI-2.2.1', 2, 'K3', 'Aplicar GenAI al analisis de prueba', 'Usa GenAI para explorar requisitos, criterios de aceptacion, condiciones y riesgos.', 'El analisis generado debe validarse contra la base de prueba.', 'Dada una historia ambigua, iteras prompts para detectar reglas faltantes.', 'Confundir sugerencias del LLM con requisitos aprobados.'),
     lo('GenAI-2.2.2', 2, 'K3', 'Aplicar GenAI al diseno e implementacion de pruebas', 'Convierte condiciones en casos, datos, pasos, scripts o escenarios verificables.', 'El testware generado requiere revision de cobertura, consistencia y mantenibilidad.', 'Generas casos funcionales desde criterios y revisas equivalencias, bordes y negativos.', 'Crear muchos casos sin trazabilidad ni valor.'),
     lo('GenAI-2.2.3', 2, 'K3', 'Aplicar GenAI a regresion automatizada', 'Usa prompting para apoyar scripts, pruebas por palabras clave y analisis de reportes.', 'La automatizacion generada debe ejecutarse, revisarse y versionarse.', 'Pides un script base y luego corriges selectores, datos y aserciones.', 'Copiar codigo generado directo al pipeline.'),
-    lo('GenAI-2.2.4', 2, 'K3', 'Aplicar GenAI a monitoreo y control de pruebas', 'Resume metricas, riesgos, tendencias y acciones a partir de datos de prueba.', 'GenAI puede sintetizar estado, pero los datos y conclusiones deben verificarse.', 'Pides un reporte ejecutivo desde resultados y defectos exportados.', 'Reportar recomendaciones sin revisar datos fuente.'),
+    lo('GenAI-2.2.4', 2, 'K3', 'Aplicar GenAI a una tarea de monitoreo y control de pruebas', 'Resume metricas, riesgos, tendencias y acciones a partir de datos de prueba.', 'GenAI puede sintetizar estado, pero los datos y conclusiones deben verificarse.', 'Pides un reporte ejecutivo desde resultados y defectos exportados.', 'Reportar recomendaciones sin revisar datos fuente.'),
     lo('GenAI-2.2.5', 2, 'K3', 'Seleccionar tecnicas de prompt segun contexto', 'Elige tecnica, ejemplos y refinamiento considerando tarea, riesgo, dominio y evidencia.', 'La mejor tecnica es la que controla el riesgo de la tarea concreta.', 'Para una tarea compleja eliges encadenamiento y verificacion humana.', 'Usar few-shot aunque los ejemplos sean incorrectos.'),
     lo('GenAI-2.3.1', 2, 'K2', 'Resumir metricas para evaluar salidas GenAI', 'Considera exactitud, cobertura, consistencia, utilidad, trazabilidad, seguridad y coste.', 'Medir la salida permite mejorar prompts y decidir si usarla.', 'Comparas casos generados contra requisitos, defectos historicos y reglas de estilo.', 'Evaluar solo si la respuesta suena convincente.'),
     lo('GenAI-2.3.2', 2, 'K2', 'Ejemplificar refinamiento iterativo de prompts', 'Aplica retroalimentacion, restricciones, ejemplos y criterios para mejorar resultados.', 'Refinar prompts es un ciclo de prueba y aprendizaje.', 'Mejoras un prompt que generaba casos duplicados agregando criterios de cobertura.', 'Cambiar el prompt sin registrar que mejoro o empeoro.'),
@@ -91,14 +91,14 @@
     lo('GenAI-3.1.3', 3, 'K2', 'Resumir mitigaciones para fallas GenAI', 'Usa fuentes confiables, RAG, ejemplos, restricciones, revision humana y pruebas repetidas.', 'Mitigar no elimina todo riesgo, pero reduce probabilidad e impacto.', 'Agregas criterios de verificacion y referencias al prompt.', 'Creer que bajar temperatura resuelve todos los problemas.'),
     lo('GenAI-3.1.4', 3, 'K1', 'Recordar mitigaciones para no determinismo LLM', 'Reconoce control de parametros, versionado, semillas cuando existan y criterios de tolerancia.', 'Los LLM pueden variar; las pruebas deben contemplar variabilidad.', 'Definir una prueba de aceptacion para salidas equivalentes.', 'Exigir texto identico cuando no corresponde.'),
     lo('GenAI-3.2.1', 3, 'K2', 'Explicar riesgos de privacidad y seguridad', 'Relaciona datos sensibles, secretos, propiedad intelectual, prompt injection y fuga de informacion.', 'Usar GenAI con datos reales exige gobierno y controles.', 'Detectas que un prompt incluye credenciales y datos personales.', 'Enviar datos productivos a herramientas no aprobadas.'),
-    lo('GenAI-3.2.2', 3, 'K2', 'Dar ejemplos de vulnerabilidades en uso de GenAI', 'Incluye exposicion de datos, dependencia de proveedor, prompts maliciosos y salidas inseguras.', 'La vulnerabilidad puede estar en la herramienta, datos, integracion o proceso.', 'Un reporte generado revela rutas internas del sistema.', 'Asumir que el proveedor controla todos los riesgos.'),
+    lo('GenAI-3.2.2', 3, 'K2', 'Dar ejemplos de vulnerabilidades en uso de GenAI', 'Incluye manipulacion de contexto, exposicion de datos, dependencia de proveedor, prompts maliciosos y salidas inseguras.', 'La vulnerabilidad puede estar en la herramienta, datos, contexto, integracion o proceso.', 'Una entrada manipulada cambia el contexto recuperado y hace que el reporte omita controles criticos.', 'Asumir que el proveedor controla todos los riesgos.'),
     lo('GenAI-3.2.3', 3, 'K2', 'Resumir estrategias de privacidad y seguridad', 'Aplica anonimizar, minimizar datos, control de acceso, registro, evaluacion y politicas.', 'La proteccion empieza antes de enviar el prompt.', 'Diseñas una politica para usar datos sinteticos en pruebas con GenAI.', 'Depender solo de acuerdos legales sin controles tecnicos.'),
     lo('GenAI-3.3.1', 3, 'K2', 'Explicar impacto energetico de tareas GenAI', 'Relaciona tamano de modelo, numero de consultas, complejidad, contexto y reintentos con energia y emisiones.', 'La eficiencia tambien es un criterio de calidad operativa.', 'Comparas un SLM local con un LLM grande para una tarea repetitiva.', 'Ignorar coste y energia porque la tarea es tecnica.'),
     lo('GenAI-3.4.1', 3, 'K1', 'Recordar regulaciones, estandares y buenas practicas', 'Reconoce que marcos de IA, privacidad, seguridad y calidad pueden aplicar a pruebas con GenAI.', 'Las obligaciones deben convertirse en criterios verificables.', 'Mapeas una regla de privacidad a una restriccion de datos de prueba.', 'Ver regulacion como tema ajeno al testing.'),
 
     lo('GenAI-4.1.1', 4, 'K2', 'Explicar componentes de infraestructura LLM para testing', 'Describe interfaz, orquestacion, modelo, fuentes, controles, almacenamiento, evaluacion y monitoreo.', 'La arquitectura determina trazabilidad, calidad, seguridad y coste.', 'Disenas un flujo para generar casos usando requisitos aprobados y revision humana.', 'Conectar un LLM sin control de datos ni evidencias.'),
     lo('GenAI-4.1.2', 4, 'K2', 'Resumir generacion aumentada por recuperacion', 'Explica recuperar informacion relevante y usarla para producir respuestas contextualizadas.', 'RAG ayuda cuando el modelo necesita conocimiento controlado del dominio.', 'Usas documentos aprobados como fuente para responder sobre reglas de negocio.', 'Pensar que RAG siempre garantiza verdad.'),
-    lo('GenAI-4.1.3', 4, 'K2', 'Explicar agentes LLM en automatizacion de pruebas', 'Un agente puede planificar pasos, usar herramientas y ejecutar subtareas bajo limites.', 'Los agentes necesitan permisos, objetivos claros y supervision.', 'Un agente clasifica defectos repetitivos y propone evidencias faltantes.', 'Dar acceso amplio a un agente sin guardrails.'),
+    lo('GenAI-4.1.3', 4, 'K2', 'Explicar agentes LLM en automatizacion de pruebas', 'Un asistente o agente orientado a objetivos puede planificar pasos, usar herramientas y ejecutar subtareas bajo limites.', 'Los agentes necesitan permisos, objetivos claros, observabilidad y supervision.', 'Un agente clasifica defectos repetitivos, consulta evidencias autorizadas y propone informacion faltante.', 'Dar acceso amplio a un agente sin guardrails.'),
     lo('GenAI-4.2.1', 4, 'K2', 'Explicar ajuste fino para tareas de prueba', 'Diferencia ajuste fino de prompting y RAG, y cuando podria aportar valor.', 'El ajuste fino requiere datos de calidad, evaluacion y mantenimiento.', 'Evalua si ajustar un modelo para clasificar defectos historicos.', 'Ajustar fino antes de probar alternativas mas simples.'),
     lo('GenAI-4.2.2', 4, 'K2', 'Explicar LLMOps para implementar y gestionar LLM', 'Incluye versionado, despliegue, evaluacion, monitoreo, seguridad, observabilidad y mejora continua.', 'LLMOps hace operable y gobernable el uso de LLM.', 'Preparas monitoreo de drift, coste y calidad para una herramienta de pruebas.', 'Tratar el modelo como componente estatico.'),
 
@@ -114,7 +114,7 @@
   const chapters = specs.map(toChapter);
   const objectives = objectiveSpecs.map((item) => ({ ...item }));
   const questions = objectives.flatMap(buildQuestions);
-  const flashcards = objectives.map(toCard);
+  const flashcards = objectives.flatMap(buildFlashcards);
 
   AcademyRegistry.register(courseKey, {
     meta: {
@@ -122,8 +122,8 @@
       code: 'CT-GenAI',
       name: 'ISTQB® Certified Tester - Testing with Generative AI (CT-GenAI)',
       shortName: 'CT-GenAI',
-      subtitle: 'Curso gratuito alineado al syllabus ISTQB CT-GenAI v1.0: fundamentos de IA generativa, prompts para testing, riesgos, infraestructura LLM y adopcion organizacional.',
-      versionLabel: 'ISTQB CT-GenAI v1.0',
+      subtitle: 'Curso gratuito alineado al syllabus ISTQB CT-GenAI v1.1: fundamentos de IA generativa, prompts para testing, riesgos, infraestructura LLM y adopcion organizacional.',
+      versionLabel: 'ISTQB CT-GenAI v1.1 · Banco original ampliado',
       storageKey: 'istqb_ct_genai_progress',
       sourceLanguage: 'ES',
       questionLanguage: 'ES',
@@ -135,14 +135,14 @@
     questions,
     flashcards,
     blueprint: blueprint(),
-    generatedAt: '2026-07-31T00:00:00-05:00',
+    generatedAt: '2026-08-06T00:00:00-05:00',
     qaValidation: qa(),
     syllabusCoverageNote: {
       source: sourceName,
-      scope: 'Estructura alineada a los 5 capitulos evaluables del syllabus CT-GenAI v1.0 en espanol. Se usan resumenes y preguntas propias; no se incorpora ningun PDF oficial al repositorio.',
+      scope: 'Estructura alineada a los 5 capitulos y 37 LO evaluables del syllabus CT-GenAI v1.1. Se usan resumenes y preguntas propias; el examen de muestra v1.1 solo sirve como matriz de cobertura y no se incorpora ningun PDF oficial al repositorio.',
       noOfficialPdfIncluded: true,
       pageRanges: { 1: '13-18', 2: '19-32', 3: '33-42', 4: '43-48', 5: '49-53' },
-      updatedAt: '2026-07-31'
+      updatedAt: '2026-08-06'
     }
   });
 
@@ -186,18 +186,22 @@
   }
 
   function buildQuestions(objective, index) {
-    const id = index * 2 + 1;
+    const id = index * 4 + 1;
     const commonWrong = objective.k === 'K3'
       ? ['Ejecutar la salida generada sin revision ni evidencia.', 'Cambiar la base de prueba para que coincida con la respuesta del modelo.']
       : ['Confiar solo en que la respuesta parece correcta.', 'Ignorar contexto, datos y restricciones del proceso de prueba.'];
 
     return [
-      q(`${courseKey}-Q${String(id).padStart(3, '0')}`, objective, `Cual afirmacion se alinea mejor con ${objective.lo}?`, [objective.remember, objective.trap, ...commonWrong], objective.theory),
-      q(`${courseKey}-Q${String(id + 1).padStart(3, '0')}`, objective, `Escenario: ${objective.example} Que deberias priorizar?`, [objective.theory, objective.trap, commonWrong[0], commonWrong[1]], objective.remember)
+      q(`${courseKey}-Q${String(id).padStart(3, '0')}`, objective, `¿Cuál afirmación se alinea mejor con ${objective.lo}?`, [objective.remember, objective.trap, ...commonWrong], objective.theory, 0),
+      q(`${courseKey}-Q${String(id + 1).padStart(3, '0')}`, objective, `Escenario: ${objective.example} ¿Qué deberías priorizar?`, [objective.theory, objective.trap, commonWrong[0], commonWrong[1]], objective.remember, 1),
+      q(`${courseKey}-Q${String(id + 2).padStart(3, '0')}`, objective, `Durante una revisión de ${objective.lo}, ¿qué evidencia apoyaría mejor una decisión de calidad?`, [objective.remember, 'Una salida convincente sin referencia a la base de prueba.', objective.trap, commonWrong[0]], `${objective.remember} La evidencia debe contrastarse con la base de prueba y el riesgo de la tarea.`, 2),
+      q(`${courseKey}-Q${String(id + 3).padStart(3, '0')}`, objective, `¿Qué control reduce mejor el riesgo al trabajar con el objetivo ${objective.lo}?`, [objective.theory, 'Priorizar velocidad aunque no exista trazabilidad.', commonWrong[1], objective.trap], `${objective.theory} La revisión humana conserva la responsabilidad sobre la decisión.`, 3)
     ];
   }
 
-  function q(id, objective, stem, options, explanation) {
+  function q(id, objective, stem, options, explanation, rotation) {
+    const offset = rotation % options.length;
+    const rotatedOptions = [...options.slice(offset), ...options.slice(0, offset)];
     return {
       id,
       chapter: objective.chapter,
@@ -206,8 +210,8 @@
       objective: objective.text,
       topic: objective.text,
       stem,
-      options,
-      correct: [0],
+      options: rotatedOptions,
+      correct: [rotatedOptions.indexOf(options[0])],
       explanation,
       multi: false,
       difficulty: objective.k === 'K3' ? 'aplicacion' : 'normal',
@@ -216,16 +220,35 @@
     };
   }
 
-  function toCard(objective) {
-    return {
-      front: `${objective.lo} · ${objective.text}`,
-      back: `Significado: ${objective.remember}\n\nQue estudiar: ${objective.theory}\n\nTrampa: ${objective.trap}`,
-      meaning: objective.remember,
+  function buildFlashcards(objective) {
+    const common = {
       chapter: objective.chapter,
       lo: objective.lo,
-      kind: objective.k,
       hint: 'Relaciona la respuesta con riesgo, evidencia y revision humana.'
     };
+    return [
+      {
+        ...common,
+        front: `${objective.lo} · ${objective.text}`,
+        back: `Que estudiar: ${objective.theory}`,
+        meaning: objective.remember,
+        kind: `Concepto ${objective.k}`
+      },
+      {
+        ...common,
+        front: `Aplicación ${objective.lo}`,
+        back: `Escenario: ${objective.example}\n\nCriterio: ${objective.theory}`,
+        meaning: objective.theory,
+        kind: 'Aplicación'
+      },
+      {
+        ...common,
+        front: `Trampa ${objective.lo}`,
+        back: `Evita: ${objective.trap}\n\nClave: ${objective.remember}`,
+        meaning: objective.trap,
+        kind: 'Trampa'
+      }
+    ];
   }
 
   function blueprint() {
@@ -246,13 +269,13 @@
       chapterDistribution: { 1: 7, 2: 11, 3: 10, 4: 5, 5: 7 },
       kDistribution: { K1: 8, K2: 26, K3: 6, K4: 0 },
       matrix,
-      version: 'ISTQB CT-GenAI v1.0 - estructura de examen 1.18'
+      version: 'ISTQB CT-GenAI v1.1 - Exam Structure Tables v1.18'
     };
   }
 
   function qa() {
     return {
-      version: 'CT-GenAI v1.0 - curso gratuito',
+      version: 'CT-GenAI v1.1 - banco original ampliado',
       sourceSyllabus: sourceName,
       syllabusStatus: 'OK: curso alineado a capitulos y LO evaluables; sin PDFs oficiales incluidos.',
       syllabusChapterAudit: chapters.map((chapter) => ({
@@ -270,11 +293,19 @@
         totalQuestions: questions.length,
         loCovered: new Set(questions.map((question) => question.lo)).size,
         loTotal: objectives.length,
-        minQuestionsPerLO: 2,
+        minQuestionsPerLO: 4,
         byChapter: countBy(questions, 'chapter'),
         byK: countBy(questions, 'k'),
         structuralIssues: [],
-        correctedItems: ['Curso CT-GenAI agregado desde la base de conocimiento organizada.', 'Preguntas propias alineadas a LO y matriz oficial.', 'No se incluyen PDFs oficiales.']
+        correctedItems: ['Curso actualizado al syllabus CT-GenAI v1.1.', 'Banco ampliado a cuatro preguntas originales por LO con respuestas distribuidas.', 'El examen de muestra v1.1 se usa como referencia de cobertura; no se reproducen sus preguntas ni se incluyen PDFs oficiales.']
+      },
+      flashcardAudit: {
+        totalFlashcards: flashcards.length,
+        loCovered: new Set(flashcards.map((flashcard) => flashcard.lo)).size,
+        loTotal: objectives.length,
+        byChapter: countBy(flashcards, 'chapter'),
+        duplicateFronts: [],
+        status: 'OK: tres tarjetas por LO para concepto, aplicación y trampa.'
       },
       simulationAudit: {
         runs: 100,

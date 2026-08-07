@@ -9,12 +9,12 @@ window.ACADEMY_CATALOG = Object.freeze([
       code: 'CTFL',
       name: 'ISTQB® Certified Tester Foundation Level 4.0 (CTFL)',
       shortName: 'CTFL',
-      subtitle: 'Programa offline para estudiar teoría del syllabus, practicar por objetivo de aprendizaje, entrenar técnicas K3 y hacer simulacros oficiales aleatorios.',
+      subtitle: 'Programa offline para estudiar teoría del syllabus, practicar por objetivo de aprendizaje, entrenar técnicas K3 y hacer simulacros aleatorios alineados a la estructura oficial.',
       storageKey: 'istqb_ctfl_v2_progress'
     }),
     counts: Object.freeze({ chapters: 6, objectives: 64, questions: 400 }),
     blueprint: Object.freeze({ totalQuestions: 40, passingScore: 26, totalPoints: 40, minutes: 60 }),
-    generatedAt: '2026-06-18T21:55:00',
+    generatedAt: '2026-08-06T00:00:00-05:00',
     family: 'ISTQB',
     areas: Object.freeze(['testing-istqb']),
     tags: Object.freeze(['Testing', 'ISTQB', 'Fundamentos'])
@@ -27,12 +27,12 @@ window.ACADEMY_CATALOG = Object.freeze([
       code: 'CT-AI',
       name: 'ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI)',
       shortName: 'Certificado en Pruebas de IA v2.0 (CT-AI)',
-      subtitle: 'Programa offline en español con teoría ampliada por todos los capítulos del syllabus CT-AI v2.0, objetivos de aprendizaje, flashcards con significado, práctica K2/K3 y simulacro oficial aleatorio.',
+      subtitle: 'Programa offline en español con teoría ampliada por todos los capítulos del syllabus CT-AI v2.0, objetivos de aprendizaje, flashcards con significado, práctica K2/K3 y simulacro aleatorio alineado a la estructura oficial.',
       storageKey: 'istqb_ctai_v2_progress'
     }),
-    counts: Object.freeze({ chapters: 7, objectives: 43, questions: 130 }),
+    counts: Object.freeze({ chapters: 7, objectives: 43, questions: 133 }),
     blueprint: Object.freeze({ totalQuestions: 40, passingScore: 29, totalPoints: 44, minutes: 60 }),
-    generatedAt: '2026-06-19T03:45:00',
+    generatedAt: '2026-08-06T00:00:00-05:00',
     family: 'ISTQB',
     areas: Object.freeze(['testing-istqb', 'ai-automation']),
     tags: Object.freeze(['Testing', 'ISTQB', 'Inteligencia artificial'])
@@ -46,12 +46,12 @@ window.ACADEMY_CATALOG = Object.freeze([
       code: 'CT-GenAI',
       name: 'ISTQB® Certified Tester - Testing with Generative AI (CT-GenAI)',
       shortName: 'CT-GenAI',
-      subtitle: 'Curso gratuito alineado al syllabus ISTQB CT-GenAI v1.0: fundamentos de IA generativa, prompts para testing, riesgos, infraestructura LLM y adopción organizacional.',
+      subtitle: 'Curso gratuito alineado al syllabus ISTQB CT-GenAI v1.1: fundamentos de IA generativa, prompts para testing, riesgos, infraestructura LLM y adopción organizacional.',
       storageKey: 'istqb_ct_genai_progress'
     }),
-    counts: Object.freeze({ chapters: 5, objectives: 37, questions: 74 }),
+    counts: Object.freeze({ chapters: 5, objectives: 37, questions: 148 }),
     blueprint: Object.freeze({ totalQuestions: 40, passingScore: 30, totalPoints: 46, minutes: 60 }),
-    generatedAt: '2026-07-31T00:00:00-05:00',
+    generatedAt: '2026-08-06T00:00:00-05:00',
     family: 'ISTQB',
     areas: Object.freeze(['testing-istqb', 'ai-automation']),
     tags: Object.freeze(['Testing', 'ISTQB', 'IA generativa', 'LLM'])
