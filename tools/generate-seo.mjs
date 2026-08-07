@@ -218,6 +218,7 @@ function scriptTags(version) {
     `/assets/js/core/security.js${suffix}`,
     `/assets/js/core/registry.js${suffix}`,
     `/assets/js/core/storage.js${suffix}`,
+    `/assets/js/core/question-selection.js${suffix}`,
     `/assets/js/config.js${suffix}`,
     `/courses/catalog.js${suffix}`,
     `/assets/js/app.js${suffix}`

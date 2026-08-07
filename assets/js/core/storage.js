@@ -3,7 +3,7 @@
 (function initAcademyStorage(global) {
   const ACTIVE_KEY = 'academy_active_course';
   const LEGACY_ACTIVE_KEY = 'istqb_active_cert';
-  const SCHEMA_VERSION = 2;
+  const SCHEMA_VERSION = 3;
 
   function available() {
     try {
@@ -67,7 +67,15 @@
       ? [...new Set(input.marked.map((id) => String(id).slice(0, 128)))].slice(0, 5_000)
       : [];
 
-    return { _schema: SCHEMA_VERSION, attempts, byLo: safeByLo, marked };
+    const questionHistory = Array.isArray(input.questionHistory)
+      ? input.questionHistory.slice(-5_000).map((entry) => ({
+        id: String(entry?.id || '').slice(0, 128),
+        mode: String(entry?.mode || '').slice(0, 32),
+        seenAt: String(entry?.seenAt || new Date(0).toISOString()).slice(0, 64)
+      })).filter((entry) => entry.id)
+      : [];
+
+    return { _schema: SCHEMA_VERSION, attempts, byLo: safeByLo, marked, questionHistory };
   }
 
   function getActiveCourse() {

@@ -1,6 +1,6 @@
 # AcademiaQA · Arquitectura modular segura y escalable
 
-Versión actual: `v0.6.0`. Consulta [`docs/CI_CD_GOVERNANCE.md`](docs/CI_CD_GOVERNANCE.md) para el flujo de ramas, controles de calidad, releases y rollback.
+Versión actual: `v0.7.0`. Consulta [`docs/CI_CD_GOVERNANCE.md`](docs/CI_CD_GOVERNANCE.md) para el flujo de ramas, controles de calidad, releases y rollback.
 
 Esta versión conserva el diseño y las funciones principales del simulador, pero separa el motor, la seguridad, el almacenamiento, el estilo y los datos de cada curso.
 
@@ -15,6 +15,7 @@ assets/
   js/core/security.js
   js/core/registry.js
   js/core/storage.js
+  js/core/question-selection.js
 courses/
   catalog.js
   ctfl/course-data.js
@@ -46,7 +47,7 @@ Sube toda la carpeta al repositorio y publica la rama desde GitHub Pages. `index
 
 ### Auditoría de contenido ISTQB
 
-Ejecuta `npm run test:content` para validar cobertura LO/K de preguntas y flashcards, explicaciones, duplicados, distribución de respuestas y capacidad de las matrices de simulacro.
+Ejecuta `npm run test:content` para validar cobertura LO/K de preguntas y flashcards, explicaciones, duplicados, distribución de respuestas, capacidad de las matrices, puntos e intentos consecutivos sin repetición. La metodología y sus límites están documentados en [`docs/ISTQB_SIMULATOR_METHODOLOGY.md`](docs/ISTQB_SIMULATOR_METHODOLOGY.md).
 
 ### Prueba local recomendada
 
