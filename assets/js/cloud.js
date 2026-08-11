@@ -1,0 +1,218 @@
+'use strict';
+
+(function initAcademyCloud(global) {
+  const Auth = global.AcademyAuth;
+  const Storage = global.AcademyStorage;
+  const pendingSyncs = new Map();
+
+  function requireUser() {
+    const client = Auth?.getClient?.();
+    const user = Auth?.getUser?.();
+    if (!client || !user) throw new Error('Debes iniciar sesión con Google.');
+    return { client, user };
+  }
+
+  function normalizeCourseKey(value) {
+    const key = String(value || '').trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(key)) throw new Error('Curso no válido.');
+    return key;
+  }
+
+  function unwrap(data) {
+    return Array.isArray(data) ? data[0] || null : data || null;
+  }
+
+  function normalizeProgress(value) {
+    return Storage.normalizeProgress(value);
+  }
+
+  function mergeProgress(localValue, cloudValue) {
+    const local = normalizeProgress(localValue);
+    const cloud = normalizeProgress(cloudValue);
+    const byLo = { ...cloud.byLo };
+
+    Object.entries(local.byLo).forEach(([lo, item]) => {
+      const existing = byLo[lo];
+      const localTotal = Number(item.ok || 0) + Number(item.bad || 0);
+      const cloudTotal = Number(existing?.ok || 0) + Number(existing?.bad || 0);
+      if (!existing || localTotal > cloudTotal) byLo[lo] = item;
+    });
+
+    const attemptMap = new Map();
+    [...cloud.attempts, ...local.attempts].forEach((attempt) => {
+      const key = [attempt.date, attempt.mode, attempt.total, attempt.correct, attempt.scorePct].join('|');
+      attemptMap.set(key, attempt);
+    });
+
+    const historyMap = new Map();
+    [...cloud.questionHistory, ...local.questionHistory].forEach((entry) => {
+      historyMap.set([entry.id, entry.mode, entry.seenAt].join('|'), entry);
+    });
+
+    const chapterActivity = { ...cloud.chapterActivity };
+    Object.entries(local.chapterActivity).forEach(([chapterId, item]) => {
+      const existing = chapterActivity[chapterId] || {};
+      chapterActivity[chapterId] = {
+        studySeconds: Math.max(Number(existing.studySeconds || 0), Number(item.studySeconds || 0)),
+        visitedAt: [existing.visitedAt, item.visitedAt].filter(Boolean).sort()[0] || '',
+        lastStudiedAt: [existing.lastStudiedAt, item.lastStudiedAt].filter(Boolean).sort().at(-1) || ''
+      };
+    });
+
+    return normalizeProgress({
+      attempts: [...attemptMap.values()]
+        .sort((left, right) => String(left.date).localeCompare(String(right.date)))
+        .slice(-30),
+      byLo,
+      marked: [...new Set([...cloud.marked, ...local.marked])],
+      questionHistory: [...historyMap.values()]
+        .sort((left, right) => String(left.seenAt).localeCompare(String(right.seenAt)))
+        .slice(-5_000),
+      studySeconds: Math.max(Number(local.studySeconds || 0), Number(cloud.studySeconds || 0)),
+      chapterActivity
+    });
+  }
+
+  function answeredCount(progress) {
+    return Object.values(progress?.byLo || {}).reduce((sum, item) => (
+      sum + Number(item?.ok || 0) + Number(item?.bad || 0)
+    ), 0);
+  }
+
+  async function getProfile() {
+    const { client } = requireUser();
+    const { data, error } = await client
+      .from('profiles')
+      .select('id,email,full_name,avatar_url,provider,country,created_at,updated_at')
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  async function listEnrollments() {
+    const { client } = requireUser();
+    const { data, error } = await client
+      .from('course_enrollments')
+      .select('course_key,status,started_at,cancelled_at,last_activity_at,estimated_hours,study_seconds,simulator_attempts,practice_answers,best_simulator_score,final_exam_attempts,best_final_exam_score,final_exam_passed,final_exam_passed_at,completed_at,created_at,updated_at')
+      .order('started_at', { ascending: false });
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function enroll(courseKey, estimatedHours) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('enroll_in_course', {
+      p_course_key: normalizeCourseKey(courseKey),
+      p_estimated_hours: Math.max(1, Math.min(500, Number(estimatedHours) || 1))
+    });
+    if (error) throw error;
+    return unwrap(data);
+  }
+
+  async function cancelEnrollment(courseKey) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('cancel_course', {
+      p_course_key: normalizeCourseKey(courseKey)
+    });
+    if (error) throw error;
+    return unwrap(data);
+  }
+
+  async function loadProgress(courseKey) {
+    const { client, user } = requireUser();
+    const { data, error } = await client
+      .from('course_progress')
+      .select('progress,schema_version,updated_at')
+      .eq('user_id', user.id)
+      .eq('course_key', normalizeCourseKey(courseKey))
+      .maybeSingle();
+    if (error) throw error;
+    return data ? normalizeProgress(data.progress) : normalizeProgress({});
+  }
+
+  async function syncProgress(courseKey, progressValue) {
+    const { client, user } = requireUser();
+    const key = normalizeCourseKey(courseKey);
+    const progress = normalizeProgress(progressValue);
+    const { error } = await client.from('course_progress').upsert({
+      user_id: user.id,
+      course_key: key,
+      schema_version: Storage.SCHEMA_VERSION,
+      progress,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,course_key' });
+    if (error) throw error;
+
+    const activity = await client.rpc('sync_course_activity', {
+      p_course_key: key,
+      p_practice_answers: answeredCount(progress),
+      p_study_seconds: Math.max(0, Math.trunc(Number(progress.studySeconds) || 0))
+    });
+    if (activity.error) throw activity.error;
+    return progress;
+  }
+
+  function queueProgressSync(courseKey, progressValue, delay = 700) {
+    const key = normalizeCourseKey(courseKey);
+    const current = pendingSyncs.get(key);
+    if (current?.timer) global.clearTimeout(current.timer);
+    const progress = normalizeProgress(progressValue);
+    const timer = global.setTimeout(() => {
+      pendingSyncs.delete(key);
+      syncProgress(key, progress).catch((error) => {
+        console.error('No fue posible sincronizar el progreso.', error);
+      });
+    }, delay);
+    pendingSyncs.set(key, { progress, timer });
+  }
+
+  async function flushProgress(courseKey) {
+    const key = normalizeCourseKey(courseKey);
+    const pending = pendingSyncs.get(key);
+    if (!pending) return null;
+    global.clearTimeout(pending.timer);
+    pendingSyncs.delete(key);
+    return syncProgress(key, pending.progress);
+  }
+
+  async function recordSimulatorCompletion(courseKey, score) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('record_simulator_completion', {
+      p_course_key: normalizeCourseKey(courseKey),
+      p_score: Math.max(0, Math.min(100, Number(score) || 0))
+    });
+    if (error) throw error;
+    return unwrap(data);
+  }
+
+  async function recordFinalExamCompletion(courseKey, result) {
+    const { client } = requireUser();
+    const input = result && typeof result === 'object' ? result : {};
+    const { data, error } = await client.rpc('record_final_exam_completion', {
+      p_course_key: normalizeCourseKey(courseKey),
+      p_score: Math.max(0, Math.min(100, Number(input.score) || 0)),
+      p_earned_points: Math.max(0, Number(input.earnedPoints) || 0),
+      p_total_points: Math.max(0, Number(input.totalPoints) || 0),
+      p_passing_points: Math.max(0, Number(input.passingPoints) || 0),
+      p_correct_answers: Math.max(0, Math.trunc(Number(input.correctAnswers) || 0)),
+      p_total_questions: Math.max(0, Math.trunc(Number(input.totalQuestions) || 0)),
+      p_duration_seconds: Math.max(0, Math.trunc(Number(input.durationSeconds) || 0))
+    });
+    if (error) throw error;
+    return unwrap(data);
+  }
+
+  global.AcademyCloud = Object.freeze({
+    getProfile,
+    listEnrollments,
+    enroll,
+    cancelEnrollment,
+    loadProgress,
+    syncProgress,
+    queueProgressSync,
+    flushProgress,
+    recordSimulatorCompletion,
+    recordFinalExamCompletion,
+    mergeProgress
+  });
+}(window));

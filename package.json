@@ -1,6 +1,6 @@
 {
   "name": "academiaqa",
-  "version": "0.8.0",
+  "version": "0.11.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,9 +13,14 @@
     "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs",
     "test:integration": "node tools/catalog-smoke.mjs",
     "test:seo": "node tools/seo-smoke.mjs",
+    "test:auth": "node tools/auth-smoke.mjs",
+    "test:cloud": "node tools/cloud-account-smoke.mjs",
     "test:e2e": "node tools/smoke.mjs"
   },
   "devDependencies": {
     "playwright": "1.57.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.3"
   }
 }

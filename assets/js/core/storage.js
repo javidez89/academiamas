@@ -3,7 +3,7 @@
 (function initAcademyStorage(global) {
   const ACTIVE_KEY = 'academy_active_course';
   const LEGACY_ACTIVE_KEY = 'istqb_active_cert';
-  const SCHEMA_VERSION = 3;
+  const SCHEMA_VERSION = 4;
 
   function available() {
     try {
@@ -60,7 +60,9 @@
       correct: Math.max(0, Math.trunc(Number(attempt?.correct) || 0)),
       scorePct: Math.min(100, Math.max(0, Math.trunc(Number(attempt?.scorePct) || 0))),
       mode: String(attempt?.mode || '').slice(0, 32),
-      cert: String(attempt?.cert || '').slice(0, 64)
+      cert: String(attempt?.cert || '').slice(0, 64),
+      durationSeconds: Math.min(86400, Math.max(0, Math.trunc(Number(attempt?.durationSeconds) || 0))),
+      passed: Boolean(attempt?.passed)
     })) : [];
 
     const marked = Array.isArray(input.marked)
@@ -75,7 +77,34 @@
       })).filter((entry) => entry.id)
       : [];
 
-    return { _schema: SCHEMA_VERSION, attempts, byLo: safeByLo, marked, questionHistory };
+    const chapterActivityInput = input.chapterActivity && typeof input.chapterActivity === 'object' && !Array.isArray(input.chapterActivity)
+      ? input.chapterActivity
+      : {};
+    const chapterActivity = {};
+    Object.entries(chapterActivityInput).slice(0, 500).forEach(([chapterId, item]) => {
+      if (!item || typeof item !== 'object') return;
+      const normalizedId = String(Math.max(0, Math.trunc(Number(chapterId) || 0)));
+      chapterActivity[normalizedId] = {
+        studySeconds: Math.min(315360000, Math.max(0, Math.trunc(Number(item.studySeconds) || 0))),
+        visitedAt: String(item.visitedAt || '').slice(0, 64),
+        lastStudiedAt: String(item.lastStudiedAt || '').slice(0, 64)
+      };
+    });
+
+    const studySeconds = Math.min(315360000, Math.max(
+      Math.trunc(Number(input.studySeconds) || 0),
+      Object.values(chapterActivity).reduce((sum, item) => sum + item.studySeconds, 0)
+    ));
+
+    return {
+      _schema: SCHEMA_VERSION,
+      attempts,
+      byLo: safeByLo,
+      marked,
+      questionHistory,
+      studySeconds,
+      chapterActivity
+    };
   }
 
   function getActiveCourse() {
@@ -116,6 +145,7 @@
   global.AcademyStorage = Object.freeze({
     SCHEMA_VERSION,
     available,
+    normalizeProgress,
     getActiveCourse,
     setActiveCourse,
     getProgress,

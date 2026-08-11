@@ -13,7 +13,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
   <meta name="robots" content="index, follow">
   <meta name="description" content="Capítulo 8 de PME: Incluye revision de fin de proyecto, lecciones aprendidas, recomendaciones post-proyecto, informe final y cierre administrativo...">
@@ -127,14 +127,17 @@
     }
   ]
 }</script>
-  <link rel="stylesheet" href="/assets/css/app.css?v=2026-08-11-seo-analytics">
-  <script defer src="/assets/js/core/security.js?v=2026-08-11-seo-analytics"></script>
-  <script defer src="/assets/js/core/registry.js?v=2026-08-11-seo-analytics"></script>
-  <script defer src="/assets/js/core/storage.js?v=2026-08-11-seo-analytics"></script>
-  <script defer src="/assets/js/core/question-selection.js?v=2026-08-11-seo-analytics"></script>
-  <script defer src="/assets/js/config.js?v=2026-08-11-seo-analytics"></script>
-  <script defer src="/courses/catalog.js?v=2026-08-11-seo-analytics"></script>
-  <script defer src="/assets/js/app-loader.js?v=2026-08-11-seo-analytics"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=2026-08-11-course-completion-certificate">
+  <script defer src="/assets/js/core/security.js?v=2026-08-11-course-completion-certificate"></script>
+  <script defer src="/assets/js/core/registry.js?v=2026-08-11-course-completion-certificate"></script>
+  <script defer src="/assets/js/core/storage.js?v=2026-08-11-course-completion-certificate"></script>
+  <script defer src="/assets/js/core/question-selection.js?v=2026-08-11-course-completion-certificate"></script>
+  <script defer src="/assets/js/config.js?v=2026-08-11-course-completion-certificate"></script>
+  <script defer src="/assets/vendor/supabase-2.112.3.js?v=2.112.3"></script>
+  <script defer src="/assets/js/auth.js?v=2026-08-11-course-completion-certificate"></script>
+  <script defer src="/assets/js/cloud.js?v=2026-08-11-course-completion-certificate"></script>
+  <script defer src="/courses/catalog.js?v=2026-08-11-course-completion-certificate"></script>
+  <script defer src="/assets/js/app-loader.js?v=2026-08-11-course-completion-certificate"></script>
 </head>
 <body>
   <header id="inicio">
@@ -153,12 +156,28 @@
         <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
         <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
         <button class="coffeeLink" type="button">Invítame un café</button>
+        <div class="authControl" id="authControl" data-auth-state="loading" aria-busy="true">
+          <button class="authSignIn" type="button" data-auth-sign-in disabled>Cuenta</button>
+          <div class="authUser" data-auth-user hidden>
+            <button class="authUserButton" type="button" data-auth-menu-toggle aria-expanded="false" aria-controls="authMenu">
+              <span class="authAvatar" data-auth-initial aria-hidden="true">A</span>
+              <span data-auth-name>Mi cuenta</span>
+            </button>
+            <div class="authMenu" id="authMenu" data-auth-menu hidden>
+              <strong data-auth-full-name>Mi cuenta</strong>
+              <span data-auth-email></span>
+              <a href="/mi-cuenta/" data-view="account">Ver mi cuenta</a>
+              <button type="button" data-auth-sign-out>Cerrar sesión</button>
+            </div>
+          </div>
+          <span class="srOnly" data-auth-status role="status" aria-live="polite">Comprobando sesión.</span>
+        </div>
       </nav>
     </div>
     <div class="wrap hero">
       <div>
         <h1 id="heroTitle">Project Management Essentials</h1>
-        <p class="subtitle" id="heroSubtitle">Menú de estudio de Project Management Essentials: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.</p>
+        <p class="subtitle" id="heroSubtitle">Menú de estudio de Project Management Essentials: teoría, objetivos, práctica, flashcards, simulacro y examen final.</p>
         <div class="topbadges">
           <span class="badge" id="topChapters">📘 9 capítulos</span>
           <span class="badge">🧠 Preguntas: <b id="topBank">72</b></span>
@@ -194,6 +213,23 @@
     </div>
   </div>
 
+  <div class="certificateModal" id="certificateModal" role="dialog" aria-modal="true" aria-labelledby="certificateModalTitle" hidden>
+    <div class="certificateDialog">
+      <button class="modalClose" type="button" data-action="close-certificate-modal" aria-label="Cerrar">X</button>
+      <picture class="certificateComingSoonMedia">
+        <source type="image/avif" srcset="/assets/img/certificate-coming-soon-640.avif 640w, /assets/img/certificate-coming-soon-1200.avif 1200w" sizes="(max-width: 700px) 92vw, 620px">
+        <source type="image/webp" srcset="/assets/img/certificate-coming-soon-640.webp 640w, /assets/img/certificate-coming-soon-1200.webp 1200w" sizes="(max-width: 700px) 92vw, 620px">
+        <img src="/assets/img/certificate-coming-soon.jpg" width="1200" height="800" alt="Certificado profesional de AcademiaQA en preparación" loading="lazy" decoding="async">
+      </picture>
+      <div class="certificateComingSoonCopy">
+        <span class="sectionKicker">Próximamente</span>
+        <h2 id="certificateModalTitle">Tu certificado de curso está en camino</h2>
+        <p>Completaste <strong id="certificateCourseName">este curso</strong>. Estamos preparando la emisión y descarga segura de certificados desde AcademiaQA.</p>
+        <button class="btn" type="button" data-action="close-certificate-modal">Entendido</button>
+      </div>
+    </div>
+  </div>
+
   <main class="wrap">
     <div class="layout" id="mainLayout">
       <aside class="sidebar" id="studySidebar" aria-label="Menú del curso">
@@ -205,6 +241,7 @@
         <button class="navbtn" type="button" data-view="objectives">🎯 Objetivos LO <small>mapa</small></button>
         <button class="navbtn" type="button" data-view="practice">📝 Practicar <small>filtros</small></button>
         <button class="navbtn" type="button" data-view="exam">⏱️ Simulacro <small id="navExamCount">40</small></button>
+        <button class="navbtn" type="button" data-view="finalExam">🎓 Examen final <small>requiere 95%</small></button>
         <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3 <small>técnicas</small></button>
         <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards <small>glosario</small></button>
         <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas <small>errores</small></button>

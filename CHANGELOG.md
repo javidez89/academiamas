@@ -1,5 +1,80 @@
 # Changelog
 
+## [v0.11.0] - 2026-08-11
+
+### Added
+
+- Tiempo de estudio activo por curso y por capítulo, sincronizado con Supabase.
+- Avance por capítulo y porcentaje por curso visibles en `Mi cuenta`.
+- Examen final aleatorio para todos los cursos, separado del simulacro y basado en el banco existente.
+- Historial cloud de intentos del examen final con puntos, duración, resultado y aprobación.
+- Estado `Completado` al aprobar el examen final, conservado al volver a entrar al curso.
+- Acceso al examen final después del último capítulo, habilitado únicamente al alcanzar el 95% de avance.
+- Acción de certificado en `Mi cuenta` disponible al completar el 100%, con aviso visual de próxima disponibilidad.
+
+### Changed
+
+- El progreso general del home y de la cuenta usa únicamente cursos inscritos activos o completados.
+- El avance de cada capítulo combina tiempo activo frente al recomendado y cobertura de objetivos practicados.
+- Los cursos cancelados conservan métricas, pero dejan de participar en el progreso general.
+- El cierre de sesión vuelve al inicio y confirma al usuario que la sesión se cerró correctamente.
+
+### Security
+
+- Los intentos finales tienen RLS de lectura por propietario y escritura mediante RPC autenticada.
+- La aprobación se valida por puntos en PostgreSQL antes de marcar el curso como completado.
+
+### Validation
+
+- Sin cambios en `courses/**`, bancos de preguntas, contenido académico, pagos ni certificados.
+
+## [v0.10.0] - 2026-08-11
+
+### Added
+
+- Acceso obligatorio con Google antes de cargar el contenido interactivo de un curso.
+- Matrículas y progreso por usuario sincronizados con Supabase y protegidos mediante RLS.
+- Página privada `/mi-cuenta/` con perfil, cursos, fecha de inicio, horas estimadas, actividad y simulacros.
+- Cancelación y reactivación de matrículas conservando el historial para métricas.
+- Prueba de regresión cloud para matrícula, progreso, simulacros y cuenta.
+- Migraciones reproducibles para `course_enrollments`, `course_progress` y funciones controladas.
+
+### Changed
+
+- El progreso local se fusiona con la copia en la nube al entrar a cada curso.
+- Los bancos de preguntas se cargan bajo demanda únicamente después de validar la sesión y la matrícula.
+- La política de privacidad explica la sincronización, las métricas y la conservación tras cancelar un curso.
+
+### Security
+
+- RLS restringe perfiles, matrículas y progreso al propietario autenticado.
+- Las escrituras de matrícula y métricas usan funciones públicas `SECURITY INVOKER` con implementación privilegiada en esquema privado.
+- No se expone ninguna clave `service_role`; el navegador utiliza exclusivamente la clave publicable de Supabase.
+
+### Validation
+
+- Sin cambios en `courses/**/course-data.js`, preguntas, selección aleatoria, pagos ni certificados.
+- Quality gates funcionales, SEO, OAuth, catálogo y nube ejecutados en escritorio y móvil.
+
+## [v0.9.0] - 2026-08-11
+
+### Added
+
+- Inicio de sesión opcional con Google mediante Supabase Auth y flujo OAuth PKCE.
+- Estado de cuenta, menú accesible de usuario y cierre de sesión local en la cabecera.
+- Ruta privada de retorno `/auth/callback/`, excluida de indexación.
+- Prueba smoke dedicada a los estados anónimo y autenticado de la interfaz.
+
+### Changed
+
+- Cliente de Supabase fijado en la versión `2.112.3` y servido desde los recursos del sitio.
+- Política CSP ampliada únicamente para permitir comunicación con el proyecto AcademiaQA de Supabase.
+
+### Validation
+
+- El progreso continúa almacenado exclusivamente en el navegador en esta fase.
+- Sin cambios en cursos, preguntas, simulacros, pagos ni certificados.
+
 ## [v0.8.0] - 2026-08-11
 
 ### Added

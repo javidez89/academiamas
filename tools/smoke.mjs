@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { MOCK_SESSION, useMockedSupabase } from './helpers/mock-supabase.mjs';
+import { completeCourseStudy } from './helpers/learning-progress.mjs';
 
 const baseUrl = process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/';
-const version = process.env.ACADEMIAQA_VERSION || '2026-08-11-seo-analytics';
+const version = process.env.ACADEMIAQA_VERSION || '2026-08-11-course-completion-certificate';
 const url = `${baseUrl.replace(/\/$/, '')}/?v=${encodeURIComponent(version)}&smoke=${Date.now()}#inicio`;
 
 const browser = await chromium.launch({ headless: true });
@@ -10,6 +12,7 @@ const errors = [];
 
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+  await useMockedSupabase(page, MOCK_SESSION);
   page.on('console', (message) => {
     if (['error', 'warning'].includes(message.type())) errors.push(`${message.type()}: ${message.text()}`);
   });
@@ -41,7 +44,7 @@ try {
   const firstExamIds = await page.evaluate(() => {
     const progress = JSON.parse(localStorage.getItem('istqb_ctfl_v2_progress') || '{}');
     return (progress.questionHistory || [])
-      .filter((entry) => entry.mode === 'official-exam')
+      .filter((entry) => entry.mode === 'simulator')
       .slice(-40)
       .map((entry) => entry.id);
   });
@@ -50,13 +53,23 @@ try {
   const mobileOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(mobileOverflow <= 1, `La vista movil tiene ${mobileOverflow}px de desbordamiento horizontal.`);
 
+  await page.goto(`${baseUrl.replace(/\/$/, '')}/curso/ctfl/examen-final/?v=${encodeURIComponent(version)}&smoke=${Date.now()}`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: /Completa primero el 95% del curso/i }).waitFor();
+  assert.equal(await page.getByRole('button', { name: /Iniciar examen final/i }).count(), 0, 'El examen final no debe iniciar antes del 95%.');
+  await completeCourseStudy(page, 'ctfl');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /Iniciar examen final/i }).click();
+  await page.locator('.questionBox').waitFor();
+  const finalExamOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(finalExamOverflow <= 1, `El examen final móvil tiene ${finalExamOverflow}px de desbordamiento horizontal.`);
+
   await page.goto(`${baseUrl.replace(/\/$/, '')}/curso/ctfl/simulacro/?v=${encodeURIComponent(version)}&smoke=${Date.now()}`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).click();
   await page.locator('.questionBox').waitFor();
   const secondExamIds = await page.evaluate(() => {
     const progress = JSON.parse(localStorage.getItem('istqb_ctfl_v2_progress') || '{}');
     return (progress.questionHistory || [])
-      .filter((entry) => entry.mode === 'official-exam')
+      .filter((entry) => entry.mode === 'simulator')
       .slice(-40)
       .map((entry) => entry.id);
   });

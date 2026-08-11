@@ -453,6 +453,331 @@ header.homeHeader .hero{
   color:#10233f;
   box-shadow:0 10px 24px rgba(245,158,11,.22);
 }
+.authControl{
+  position:relative;
+  display:flex;
+  align-items:center;
+}
+.siteNav .authSignIn,
+.siteNav .authUserButton{
+  min-height:40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  background:#fff;
+  border-color:#dbe8f6;
+  color:#10233f;
+}
+.siteNav .authSignIn:hover,
+.siteNav .authUserButton:hover{
+  background:#edf6ff;
+  border-color:#bae0f7;
+}
+.siteNav .authSignIn:disabled{
+  cursor:wait;
+  opacity:.72;
+}
+.authUser{
+  position:relative;
+}
+.authAvatar{
+  width:26px;
+  height:26px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:#2563eb;
+  color:#fff;
+  font-size:.78rem;
+  font-weight:950;
+}
+.authMenu{
+  position:absolute;
+  top:calc(100% + 9px);
+  right:0;
+  z-index:30;
+  width:min(280px,calc(100vw - 28px));
+  padding:12px;
+  border:1px solid #d9e2ef;
+  border-radius:8px;
+  background:#fff;
+  color:#172033;
+  box-shadow:0 18px 38px rgba(7,17,31,.2);
+}
+.authMenu strong,
+.authMenu span{
+  display:block;
+  overflow-wrap:anywhere;
+}
+.authMenu span{
+  margin-top:3px;
+  color:#667085;
+  font-size:.82rem;
+}
+.authMenu a{
+  display:block;
+  margin-top:12px;
+  padding:10px 12px;
+  border:1px solid #cfe0f2;
+  border-radius:7px;
+  background:#edf6ff;
+  color:#0b4f87;
+  font-weight:850;
+  text-align:center;
+  text-decoration:none;
+}
+.siteNav .authMenu button{
+  width:100%;
+  margin-top:12px;
+  border:1px solid #d9e2ef;
+  border-radius:7px;
+  background:#f7fafc;
+  color:#172033;
+  text-align:center;
+}
+.courseAuthPage,
+.accountPage{
+  width:100%;
+}
+.courseAuthGate{
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);
+  gap:24px;
+  align-items:stretch;
+  padding:clamp(22px,4vw,48px) 0;
+}
+.courseAuthSummary{
+  min-width:0;
+  padding:clamp(8px,2vw,20px) 0;
+}
+.courseAuthSummary h2{
+  margin:8px 0 12px;
+  color:#10233f;
+  font-size:clamp(1.65rem,3vw,2.55rem);
+}
+.courseAuthSummary p{
+  max-width:760px;
+  color:#475467;
+  font-size:1.04rem;
+}
+.courseAuthAction,
+.accountSignIn{
+  align-self:center;
+  padding:24px;
+  border:1px solid #cfe0f2;
+  border-radius:8px;
+  background:#fff;
+  box-shadow:0 16px 34px rgba(16,35,63,.1);
+}
+.courseAuthAction h3,
+.accountSignIn h1{
+  margin:10px 0;
+  color:#10233f;
+}
+.courseAuthAction small{
+  display:block;
+  margin-top:14px;
+  color:#667085;
+}
+.authLock{
+  width:48px;
+  height:48px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:#fff;
+  border:4px solid #4285f4;
+  color:#174ea6;
+  font-weight:950;
+}
+.accountHeader{
+  padding:28px 0 18px;
+}
+.accountHeader h1{
+  margin:7px 0 4px;
+  color:#10233f;
+}
+.accountHeader>p{
+  margin-top:0;
+  color:#667085;
+}
+.accountTotals{
+  margin-top:22px;
+}
+.accountCourses{
+  display:grid;
+  gap:14px;
+  padding:12px 0 34px;
+}
+.accountCourseCard{
+  padding:20px;
+  border:1px solid #dbe8f6;
+  border-radius:8px;
+  background:#fff;
+}
+.accountCourseHead{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+.accountCourseHead h3{
+  margin:8px 0 0;
+  color:#10233f;
+}
+.accountCourseHead>strong{
+  flex:0 0 auto;
+  color:#0b6b4b;
+  font-size:1.35rem;
+}
+.accountStatus{
+  display:inline-flex;
+  padding:4px 9px;
+  border-radius:999px;
+  background:#e8f7ef;
+  color:#0b6b4b;
+  font-size:.76rem;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.accountStatus.cancelled{
+  background:#f3f4f6;
+  color:#667085;
+}
+.accountStatus.completed{
+  background:#e8f7ef;
+  color:#087443;
+}
+.accountCourseProgress{
+  margin-top:14px;
+}
+.accountCourseMetrics{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:10px;
+  margin:18px 0;
+}
+.accountCourseMetrics div{
+  min-width:0;
+  padding:10px;
+  border-left:3px solid #93c5fd;
+  background:#f7fafc;
+}
+.accountCourseMetrics dt{
+  color:#667085;
+  font-size:.76rem;
+  font-weight:800;
+}
+.accountCourseMetrics dd{
+  margin:5px 0 0;
+  color:#172033;
+  font-weight:850;
+  overflow-wrap:anywhere;
+}
+.accountFinalStatus{
+  margin:0 0 14px;
+}
+.accountChapterDetails{
+  margin:0 0 16px;
+  border:1px solid #dbe8f6;
+  border-radius:8px;
+  background:#f8fbff;
+}
+.accountChapterDetails summary{
+  cursor:pointer;
+  padding:13px 15px;
+  color:#123b67;
+  font-weight:900;
+}
+.accountChapterDetails ol{
+  display:grid;
+  gap:9px;
+  margin:0;
+  padding:0 15px 15px;
+  list-style:none;
+}
+.accountChapterDetails li{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px 14px;
+  padding:11px;
+  border:1px solid #e1ebf5;
+  border-radius:6px;
+  background:#fff;
+}
+.accountChapterDetails li>div{
+  min-width:0;
+}
+.accountChapterDetails li>div:nth-child(2){
+  text-align:right;
+}
+.accountChapterDetails li span{
+  display:block;
+  margin-top:3px;
+  color:#667085;
+  font-size:.8rem;
+}
+.accountChapterDetails .progressbar{
+  grid-column:1/-1;
+}
+.courseFinalExamAction{
+  border-color:#f4c66a;
+  background:#fffaf0;
+}
+.finalExamIntro>.sectionKicker{
+  color:#9a6700;
+}
+.dangerAction{
+  border-color:#fecaca!important;
+  color:#b42318!important;
+}
+.accountLoading{
+  text-align:center;
+}
+.authCallbackPage{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  background:#07111f;
+}
+.authCallbackShell{
+  width:min(520px,100%);
+  text-align:center;
+}
+.authCallbackShell>img{
+  width:min(330px,80%);
+  height:auto;
+  margin:0 auto 22px;
+}
+.authCallbackCard{
+  padding:30px;
+  border:1px solid #d9e2ef;
+  border-radius:8px;
+  background:#fff;
+  box-shadow:0 18px 46px rgba(0,0,0,.28);
+}
+.authCallbackCard h1{
+  margin:15px 0 8px;
+  color:#172033;
+  font-size:1.65rem;
+}
+.authCallbackSpinner{
+  width:34px;
+  height:34px;
+  display:inline-block;
+  border:4px solid #dbe8f6;
+  border-top-color:#2563eb;
+  border-radius:50%;
+  animation:auth-spin .8s linear infinite;
+}
+[data-auth-callback-state="error"] .authCallbackSpinner{
+  display:none;
+}
+@keyframes auth-spin{to{transform:rotate(360deg)}}
 .btn{
   background:var(--primary);
   border-radius:10px;
@@ -897,6 +1222,50 @@ body.modalOpen{
 }
 .coffeeModal[hidden]{
   display:none!important;
+}
+.certificateModal{
+  position:fixed;
+  inset:0;
+  z-index:110;
+  display:grid;
+  place-items:center;
+  background:rgba(7,17,31,.74);
+  padding:24px;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.certificateModal[hidden]{
+  display:none!important;
+}
+.certificateDialog{
+  position:relative;
+  width:min(100%,680px);
+  max-height:calc(100dvh - 48px);
+  overflow-y:auto;
+  border-radius:16px;
+  background:#fff;
+  color:var(--text);
+  box-shadow:0 24px 70px rgba(7,17,31,.38);
+}
+.certificateComingSoonMedia,
+.certificateComingSoonMedia img{
+  display:block;
+  width:100%;
+}
+.certificateComingSoonMedia img{
+  aspect-ratio:3/2;
+  object-fit:cover;
+}
+.certificateComingSoonCopy{
+  padding:24px;
+}
+.certificateComingSoonCopy h2{
+  margin:8px 48px 8px 0;
+  color:var(--primary2);
+}
+.certificateComingSoonCopy p{
+  margin:0 0 18px;
+  color:#475467;
 }
 .coffeeDialog{
   position:relative;
@@ -1511,6 +1880,75 @@ body.modalOpen{
 .chapterProgressGrid{
   margin:14px 0;
 }
+.finalExamMilestone{
+  grid-column:1/-1;
+  min-height:190px;
+  border-width:2px;
+  background:linear-gradient(135deg,#f8fbff,#eef7ff);
+}
+.finalExamMilestone.ready{
+  border-color:#80c9a0;
+  background:linear-gradient(135deg,#ecfdf3,#ffffff);
+}
+.finalExamMilestone.locked,
+.courseAction.locked,
+.navbtn.locked,
+.btn:disabled,
+.courseAction:disabled,
+.navbtn:disabled{
+  cursor:not-allowed;
+  filter:none;
+  opacity:.68;
+}
+.courseAction:disabled{
+  width:100%;
+  text-align:left;
+  font:inherit;
+  color:inherit;
+}
+.navbtn.locked:hover,
+.navbtn:disabled:hover{
+  background:#fff;
+  color:#18324f;
+}
+.finalExamMilestoneAction{
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  margin-top:10px;
+  border-radius:10px;
+  background:var(--primary);
+  color:#fff;
+  padding:9px 12px;
+  font-weight:900;
+}
+.finalExamMilestone.locked .finalExamMilestoneAction{
+  background:#e4e7ec;
+  color:#475467;
+}
+.certificateAction{
+  min-width:min(100%,250px);
+}
+.finalExamLocked .accountCourseProgress{
+  margin:18px 0;
+}
+
+@media(max-width:700px){
+  .certificateModal{
+    align-items:end;
+    padding:12px;
+  }
+  .certificateDialog{
+    max-height:calc(100dvh - 24px);
+  }
+  .certificateComingSoonCopy{
+    padding:20px;
+  }
+  .certificateComingSoonCopy h2{
+    margin-right:36px;
+    font-size:1.25rem;
+  }
+}
 .practiceContext{
   display:flex;
   flex-wrap:wrap;
@@ -1718,4 +2156,58 @@ body.modalOpen{
   .homeRouteTile{
     min-height:210px;
   }
+}
+
+@media(max-width:940px){
+  .authControl,
+  .authUser,
+  .siteNav .authSignIn,
+  .siteNav .authUserButton{
+    width:100%;
+  }
+  .siteNav .authSignIn,
+  .siteNav .authUserButton{
+    justify-content:flex-start;
+  }
+  .authMenu{
+    position:static;
+    width:100%;
+    margin-top:6px;
+    box-shadow:none;
+  }
+  .courseAuthGate{
+    grid-template-columns:1fr;
+  }
+  .accountCourseMetrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(max-width:560px){
+  .courseAuthAction,
+  .accountSignIn,
+  .accountCourseCard{
+    padding:17px;
+  }
+  .courseAuthAction .btnrow .btn,
+  .accountCourseCard .btnrow .btn{
+    width:100%;
+    justify-content:center;
+  }
+  .accountCourseHead{
+    display:grid;
+  }
+  .accountCourseMetrics{
+    grid-template-columns:1fr;
+  }
+  .accountChapterDetails li{
+    grid-template-columns:1fr;
+  }
+  .accountChapterDetails li>div:nth-child(2){
+    text-align:left;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .authCallbackSpinner{animation:none}
 }

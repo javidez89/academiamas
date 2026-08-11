@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import { chromium } from 'playwright';
+import { MOCK_SESSION, useMockedSupabase } from './helpers/mock-supabase.mjs';
+import { completeCourseStudy } from './helpers/learning-progress.mjs';
 
 const ROOT = process.cwd();
 const BASE_URL = (process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/').replace(/\/+$/, '');
@@ -20,6 +22,7 @@ const errors = [];
 
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await useMockedSupabase(page, MOCK_SESSION);
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(`${page.url()} console: ${message.text()}`);
   });
@@ -46,6 +49,13 @@ try {
 
     await page.goto(`${BASE_URL}/curso/${key}/simulacro/`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).waitFor();
+
+    await page.goto(`${BASE_URL}/curso/${key}/examen-final/`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: /Completa primero el 95% del curso/i }).waitFor();
+    assert.equal(await page.getByRole('button', { name: /Iniciar examen final/i }).count(), 0, `El examen final de ${entry.key} no debe abrir antes del 95%.`);
+    await completeCourseStudy(page, entry.key);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Iniciar examen final/i }).waitFor();
   }
 
   assert.deepEqual(errors, [], `Errores de navegador:\n${errors.join('\n')}`);
@@ -53,4 +63,4 @@ try {
   await browser.close();
 }
 
-console.log(`Catalog smoke OK: ${catalog.length} cursos y simulacros validados.`);
+console.log(`Catalog smoke OK: ${catalog.length} cursos, simulacros y exámenes finales validados.`);

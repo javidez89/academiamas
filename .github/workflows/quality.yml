@@ -67,7 +67,7 @@ jobs:
       - name: Verificar artefactos SEO versionados
         run: >-
           git diff --exit-code --
-          robots.txt sitemap.xml cursos ruta-aprendizaje contactanos legal curso
+          robots.txt sitemap.xml cursos ruta-aprendizaje contactanos legal mi-cuenta curso
 
   browser-gates:
     name: Browser integration gates
@@ -117,6 +117,16 @@ jobs:
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:seo
+
+      - name: Validar acceso con Google
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:auth
+
+      - name: Validar matrícula y progreso en la nube
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:cloud
 
       - name: Validar flujo funcional crítico
         env:

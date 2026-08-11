@@ -83,7 +83,9 @@ function breadcrumb(items) {
 
 function coursePath(key, view = 'panel') {
   const base = `/curso/${encodeURIComponent(key)}/`;
-  return view === 'simulacro' ? `${base}simulacro/` : base;
+  if (view === 'simulacro') return `${base}simulacro/`;
+  if (view === 'examen-final') return `${base}examen-final/`;
+  return base;
 }
 
 function chapterPath(key, chapterId) {
@@ -322,9 +324,31 @@ function scriptTags(version) {
     `/assets/js/core/storage.js${suffix}`,
     `/assets/js/core/question-selection.js${suffix}`,
     `/assets/js/config.js${suffix}`,
+    '/assets/vendor/supabase-2.112.3.js?v=2.112.3',
+    `/assets/js/auth.js${suffix}`,
+    `/assets/js/cloud.js${suffix}`,
     `/courses/catalog.js${suffix}`,
     `/assets/js/app-loader.js${suffix}`
   ].map((src) => `  <script defer src="${h(src)}"></script>`).join('\n');
+}
+
+function authControl() {
+  return `<div class="authControl" id="authControl" data-auth-state="loading" aria-busy="true">
+          <button class="authSignIn" type="button" data-auth-sign-in disabled>Cuenta</button>
+          <div class="authUser" data-auth-user hidden>
+            <button class="authUserButton" type="button" data-auth-menu-toggle aria-expanded="false" aria-controls="authMenu">
+              <span class="authAvatar" data-auth-initial aria-hidden="true">A</span>
+              <span data-auth-name>Mi cuenta</span>
+            </button>
+            <div class="authMenu" id="authMenu" data-auth-menu hidden>
+              <strong data-auth-full-name>Mi cuenta</strong>
+              <span data-auth-email></span>
+              <a href="/mi-cuenta/" data-view="account">Ver mi cuenta</a>
+              <button type="button" data-auth-sign-out>Cerrar sesión</button>
+            </div>
+          </div>
+          <span class="srOnly" data-auth-status role="status" aria-live="polite">Comprobando sesión.</span>
+        </div>`;
 }
 
 function analyticsTags() {
@@ -335,7 +359,7 @@ ${GOOGLE_TAG_SCRIPT}
   </script>`;
 }
 
-function head({ title, description, path: routePath, schema }, version) {
+function head({ title, description, path: routePath, schema, robots }, version) {
   const canonical = urlFor(routePath);
   const cleanDescription = clip(description);
   return `<!DOCTYPE html>
@@ -345,9 +369,9 @@ ${analyticsTags()}
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content="${h(robots || 'index, follow')}">
   <meta name="description" content="${h(cleanDescription)}">
   <link rel="canonical" href="${h(canonical)}">
   <link rel="alternate" hreflang="es-CO" href="${h(canonical)}">
@@ -394,7 +418,7 @@ function courseHeroProperties(course) {
   const counts = countsOf(course);
   const blueprint = blueprintOf(course);
   return {
-    heroSubtitle: `Menú de estudio de ${meta.name || course.key}: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.`,
+    heroSubtitle: `Menú de estudio de ${meta.name || course.key}: teoría, objetivos, práctica, flashcards, simulacro y examen final.`,
     heroBadges: {
       chapters: `📘 ${counts.chapters || 0} capítulos`,
       questions: counts.questions || 0,
@@ -410,7 +434,7 @@ function shell({ page, content, catalog }, version) {
     questions: totals.questions,
     exam: `🎓 ${totals.courses}`
   };
-  const isPublicPage = ['/', '/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/'].includes(page.path);
+  const isPublicPage = ['/', '/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/', '/mi-cuenta/'].includes(page.path);
   return `${head(page, version)}
 <body>
   <header id="inicio"${isPublicPage ? ' class="homeHeader"' : ''}>
@@ -429,6 +453,7 @@ function shell({ page, content, catalog }, version) {
         <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
         <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
         <button class="coffeeLink" type="button">Invítame un café</button>
+        ${authControl()}
       </nav>
     </div>
     <div class="wrap hero">
@@ -470,6 +495,23 @@ function shell({ page, content, catalog }, version) {
     </div>
   </div>
 
+  <div class="certificateModal" id="certificateModal" role="dialog" aria-modal="true" aria-labelledby="certificateModalTitle" hidden>
+    <div class="certificateDialog">
+      <button class="modalClose" type="button" data-action="close-certificate-modal" aria-label="Cerrar">X</button>
+      <picture class="certificateComingSoonMedia">
+        <source type="image/avif" srcset="/assets/img/certificate-coming-soon-640.avif 640w, /assets/img/certificate-coming-soon-1200.avif 1200w" sizes="(max-width: 700px) 92vw, 620px">
+        <source type="image/webp" srcset="/assets/img/certificate-coming-soon-640.webp 640w, /assets/img/certificate-coming-soon-1200.webp 1200w" sizes="(max-width: 700px) 92vw, 620px">
+        <img src="/assets/img/certificate-coming-soon.jpg" width="1200" height="800" alt="Certificado profesional de AcademiaQA en preparación" loading="lazy" decoding="async">
+      </picture>
+      <div class="certificateComingSoonCopy">
+        <span class="sectionKicker">Próximamente</span>
+        <h2 id="certificateModalTitle">Tu certificado de curso está en camino</h2>
+        <p>Completaste <strong id="certificateCourseName">este curso</strong>. Estamos preparando la emisión y descarga segura de certificados desde AcademiaQA.</p>
+        <button class="btn" type="button" data-action="close-certificate-modal">Entendido</button>
+      </div>
+    </div>
+  </div>
+
   <main class="wrap">
     <div class="layout${isPublicPage ? ' homeLayout' : ''}" id="mainLayout">
       <aside class="sidebar" id="studySidebar" aria-label="Menú del curso">
@@ -481,6 +523,7 @@ function shell({ page, content, catalog }, version) {
         <button class="navbtn" type="button" data-view="objectives">🎯 Objetivos LO <small>mapa</small></button>
         <button class="navbtn" type="button" data-view="practice">📝 Practicar <small>filtros</small></button>
         <button class="navbtn" type="button" data-view="exam">⏱️ Simulacro <small id="navExamCount">40</small></button>
+        <button class="navbtn" type="button" data-view="finalExam">🎓 Examen final <small>requiere 95%</small></button>
         <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3 <small>técnicas</small></button>
         <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards <small>glosario</small></button>
         <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas <small>errores</small></button>
@@ -597,6 +640,7 @@ function publicContent(kind, catalog) {
           <span class="sectionKicker">AcademiaQA</span>
           <h1 id="legalTitle">Politica de privacidad y terminos de uso</h1>
           <p>${h(intro)}</p>
+          <p>AcademiaQA requiere inicio de sesión con Google mediante Supabase Auth para entrar a los cursos. AcademiaQA no recibe la contraseña de Google. Las matrículas, el avance por capítulo, el tiempo activo de estudio y los resultados se sincronizan con Supabase y conservan una copia local en el navegador.</p>
           <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
           ${badges(tagList)}
         </div>`;
@@ -798,6 +842,50 @@ function pageDefinitions(catalog, courseDataByKey) {
   return [...publicPages, ...coursePages];
 }
 
+function privatePageDefinitions(catalog) {
+  const account = {
+    key: 'account',
+    path: '/mi-cuenta/',
+    title: 'Mi cuenta | AcademiaQA',
+    heroTitle: 'Mi cuenta',
+    description: 'Consulta tus matrículas, avance y actividad de aprendizaje en AcademiaQA.',
+    robots: 'noindex, nofollow',
+    schema: [],
+    content: `        <div class="publicHome publicPage accountPage" id="mi-cuenta">
+          <section class="accountSignIn" aria-labelledby="accountTitle">
+            <span class="sectionKicker">Mi cuenta</span>
+            <h1 id="accountTitle">Tu aprendizaje, en un solo lugar</h1>
+            <p>Inicia sesión con Google para consultar tus matrículas, avance por capítulo, tiempo de estudio, simulacros y exámenes finales.</p>
+            <button class="btn" type="button" data-action="sign-in-google">Iniciar sesión</button>
+          </section>
+        </div>`
+  };
+
+  const finalExams = catalog.map((course) => {
+    const meta = metaOf(course);
+    const blueprint = blueprintOf(course);
+    return {
+      key: `${course.key}-final-exam`,
+      path: coursePath(course.key, 'examen-final'),
+      ...courseHeroProperties(course),
+      title: `Examen final ${meta.name || course.key} | AcademiaQA`,
+      heroTitle: meta.name || course.key,
+      description: `Examen final interno de ${meta.name || course.key} con ${blueprint.totalQuestions || 0} preguntas y aprobación de ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}.`,
+      robots: 'noindex, nofollow',
+      schema: [],
+      content: `        <div class="card finalExamIntro">
+          <span class="sectionKicker">Aprobación del curso</span>
+          <h2>Examen final · ${h(meta.name || course.key)}</h2>
+          <p>Inicia sesión con Google para presentar el examen final y guardar el resultado en tu cuenta.</p>
+          ${badges([`${blueprint.totalQuestions || 0} preguntas`, `${blueprint.minutes || 0} min`, `aprueba ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}`])}
+          <button class="btn" type="button" data-action="sign-in-google">Iniciar sesión</button>
+        </div>`
+    };
+  });
+
+  return [account, ...finalExams];
+}
+
 function outputPath(routePath) {
   if (routePath === '/') return rootPath('index.html');
   return rootPath(...routePath.split('/').filter(Boolean), 'index.html');
@@ -839,9 +927,10 @@ const catalog = await loadCatalog();
 const courseDataByKey = await loadCourseData(catalog);
 const version = await assetVersion();
 const pages = pageDefinitions(catalog, courseDataByKey);
+const privatePages = privatePageDefinitions(catalog);
 
 await writeRobots();
 await writeSitemap(pages);
-for (const page of pages) await writePage(page, catalog, version);
+for (const page of [...pages, ...privatePages]) await writePage(page, catalog, version);
 
-console.log(`SEO generado: ${pages.length} paginas, robots.txt y sitemap.xml.`);
+console.log(`SEO generado: ${pages.length} paginas indexables, ${privatePages.length} privadas, robots.txt y sitemap.xml.`);
