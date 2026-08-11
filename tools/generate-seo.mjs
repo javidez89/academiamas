@@ -327,6 +327,7 @@ function scriptTags(version) {
     '/assets/vendor/supabase-2.112.3.js?v=2.112.3',
     `/assets/js/auth.js${suffix}`,
     `/assets/js/cloud.js${suffix}`,
+    `/assets/js/pwa.js${suffix}`,
     `/courses/catalog.js${suffix}`,
     `/assets/js/app-loader.js${suffix}`
   ].map((src) => `  <script defer src="${h(src)}"></script>`).join('\n');
@@ -369,6 +370,7 @@ ${analyticsTags()}
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#0b315d">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
   <meta name="robots" content="${h(robots || 'index, follow')}">
@@ -377,6 +379,7 @@ ${analyticsTags()}
   <link rel="alternate" hreflang="es-CO" href="${h(canonical)}">
   <link rel="icon" type="image/png" sizes="48x48" href="/assets/img/favicon-48.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
   <base href="/">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="es_CO">
@@ -453,6 +456,7 @@ function shell({ page, content, catalog }, version) {
         <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
         <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
         <button class="coffeeLink" type="button">Invítame un café</button>
+        <button class="pwaInstallButton" type="button" data-pwa-install hidden><span aria-hidden="true">&#8595;</span> Instalar app</button>
         ${authControl()}
       </nav>
     </div>
@@ -641,6 +645,7 @@ function publicContent(kind, catalog) {
           <h1 id="legalTitle">Politica de privacidad y terminos de uso</h1>
           <p>${h(intro)}</p>
           <p>AcademiaQA requiere inicio de sesión con Google mediante Supabase Auth para entrar a los cursos. AcademiaQA no recibe la contraseña de Google. Las matrículas, el avance por capítulo, el tiempo activo de estudio y los resultados se sincronizan con Supabase y conservan una copia local en el navegador.</p>
+          <p>Cancelar un curso conserva su historial para permitir la reactivación. El usuario puede eliminar definitivamente un curso cancelado desde Mi cuenta, lo que borra su matrícula, avance, tiempo e intentos asociados.</p>
           <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
           ${badges(tagList)}
         </div>`;

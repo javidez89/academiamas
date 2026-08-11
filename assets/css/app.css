@@ -94,6 +94,24 @@ details.contentDetails summary{cursor:pointer;font-weight:850;color:#143d70}
 
 .footer{text-align:center;color:#667085;margin:24px 0}
 .footer.homeFooter{text-align:left;font-size:.85rem;font-weight:800;color:#475467;padding-left:2px}
+.pwaInstallButton{
+  display:inline-flex;
+  min-height:40px;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  border:1px solid #a9c5e6;
+  border-radius:8px;
+  background:#fff;
+  color:#0b315d;
+  padding:8px 12px;
+  font:inherit;
+  font-weight:900;
+  cursor:pointer;
+}
+.pwaInstallButton:hover{background:#eef6ff;border-color:#1976c9}
+.pwaInstallButton:focus-visible{outline:3px solid rgba(25,118,201,.3);outline-offset:2px}
+.pwaInstallButton[hidden]{display:none}
 
 .siteTopbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:26px}
 .brandMark{display:inline-flex;align-items:center;color:#fff;text-decoration:none;min-width:0;background:#fff;border:1px solid rgba(255,255,255,.5);border-radius:14px;padding:6px 10px;box-shadow:0 10px 24px rgba(0,0,0,.18)}
@@ -628,10 +646,24 @@ header.homeHeader .hero{
   margin:8px 0 0;
   color:#10233f;
 }
-.accountCourseHead>strong{
+.accountCourseScores{
   flex:0 0 auto;
+  display:grid;
+  justify-items:end;
+  gap:2px;
+  text-align:right;
+}
+.accountCourseScores strong{
   color:#0b6b4b;
-  font-size:1.35rem;
+  font-size:1.08rem;
+}
+.accountCourseScores span{
+  color:#10233f;
+  font-weight:900;
+}
+.accountCourseScores small{
+  color:#667085;
+  font-size:.72rem;
 }
 .accountStatus{
   display:inline-flex;
@@ -722,6 +754,24 @@ header.homeHeader .hero{
 }
 .accountChapterDetails .progressbar{
   grid-column:1/-1;
+}
+.accountChapterProgressBars{
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px 14px;
+}
+.accountChapterProgressBars>div>span{
+  margin:0;
+  color:#475467;
+  font-size:.72rem;
+  font-weight:850;
+}
+.accountChapterProgressBars .progressbar{
+  margin:5px 0 0;
+}
+.masteryProgress>div{
+  background:#0c6b45;
 }
 .courseFinalExamAction{
   border-color:#f4c66a;
@@ -1877,8 +1927,81 @@ body.modalOpen{
   color:#475467;
   border:1px solid #e4e7ec;
 }
+.chapterProgressCompare{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px 16px;
+  margin:14px 0 8px;
+}
+.chapterProgressCompare>div{
+  min-width:0;
+  padding-bottom:8px;
+  border-bottom:1px solid #dbe8f6;
+}
+.chapterProgressCompare span,
+.chapterProgressCompare small{
+  display:block;
+  color:#667085;
+}
+.chapterProgressCompare span{
+  font-size:.74rem;
+  font-weight:850;
+  text-transform:uppercase;
+}
+.chapterProgressCompare strong{
+  display:block;
+  margin:2px 0;
+  color:#10233f;
+  font-size:1.08rem;
+}
+.chapterProgressCompare small{
+  font-size:.76rem;
+}
+.chapterProgressBars{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px 14px;
+}
+.chapterProgressBars>div>span{
+  color:#475467;
+  font-size:.72rem;
+  font-weight:850;
+}
+.chapterProgressBars .progressbar{
+  margin:5px 0 8px;
+}
 .chapterProgressGrid{
   margin:14px 0;
+}
+.studyMasterySummary{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(180px,.75fr);
+  gap:12px 22px;
+  align-items:center;
+  margin:16px 0 18px;
+  padding:12px 0;
+  border-top:1px solid #dbe8f6;
+  border-bottom:1px solid #dbe8f6;
+}
+.studyMasterySummary span,
+.studyMasterySummary small{
+  display:block;
+  color:#667085;
+}
+.studyMasterySummary span{
+  font-size:.76rem;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.studyMasterySummary strong{
+  display:block;
+  margin:2px 0;
+  color:#0c6b45;
+  font-size:1.35rem;
+}
+.studyMasterySummary .progressbar{
+  width:100%;
+  margin:0;
 }
 .finalExamMilestone{
   grid-column:1/-1;
@@ -2159,6 +2282,10 @@ body.modalOpen{
 }
 
 @media(max-width:940px){
+  .pwaInstallButton{
+    width:100%;
+    justify-content:flex-start;
+  }
   .authControl,
   .authUser,
   .siteNav .authSignIn,
@@ -2197,6 +2324,10 @@ body.modalOpen{
   .accountCourseHead{
     display:grid;
   }
+  .accountCourseScores{
+    justify-items:start;
+    text-align:left;
+  }
   .accountCourseMetrics{
     grid-template-columns:1fr;
   }
@@ -2205,6 +2336,12 @@ body.modalOpen{
   }
   .accountChapterDetails li>div:nth-child(2){
     text-align:left;
+  }
+  .accountChapterProgressBars,
+  .chapterProgressCompare,
+  .chapterProgressBars,
+  .studyMasterySummary{
+    grid-template-columns:1fr;
   }
 }
 

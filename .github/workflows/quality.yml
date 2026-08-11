@@ -118,6 +118,11 @@ jobs:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:seo
 
+      - name: Validar instalaciÃ³n PWA
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:pwa
+
       - name: Validar acceso con Google
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/

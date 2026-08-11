@@ -26,6 +26,10 @@ try {
   ));
   assert.ok(enrollment.estimated_hours > 0, 'La matrícula debe guardar horas estimadas.');
   assert.equal(await page.evaluate(() => Boolean(window.AcademyCloud)), true, 'La capa cloud debe estar disponible.');
+  await assert.rejects(
+    page.evaluate(() => window.AcademyCloud.deleteEnrollment('ctfl')),
+    'Un curso activo no debe poder eliminarse.'
+  );
 
   await page.evaluate(() => window.AcademyCloud.syncProgress('ctfl', {
     studySeconds: 3_900,
@@ -59,6 +63,16 @@ try {
   await page.waitForFunction(() => (
     document.querySelector('.navbtn[data-view="finalExam"] small')?.textContent.trim() === 'habilitado'
   ));
+  await page.locator('[data-view="study"]').first().click();
+  await page.getByRole('heading', { name: /Estudiar syllabus por cap/i }).waitFor();
+  const firstChapterCardText = await page.locator('.chapterCard').first().innerText();
+  assert.match(firstChapterCardText, /Avance\s+100%/i, 'El temario debe mostrar el avance real del capitulo.');
+  assert.match(firstChapterCardText, /Dominio del cap[ií]tulo\s+\d+%/i, 'El temario debe mostrar el dominio propio del capitulo.');
+  assert.match(firstChapterCardText, /\d+\/\d+ correctas/i, 'El dominio del capitulo debe mostrar su evidencia de respuestas.');
+  assert.match(firstChapterCardText, /\d+\/\d+ min/i, 'El temario debe comparar minutos estudiados y sugeridos.');
+  const courseMasteryText = await page.locator('.studyMasterySummary').innerText();
+  assert.match(courseMasteryText, /Dominio real del curso\s+\d+%/i, 'El dominio real debe representar el curso completo.');
+  assert.match(courseMasteryText, /Todos los cap[ií]tulos \d+%.*examen final \d+%/i, 'El dominio real debe desglosar capitulos y examen final.');
   const enabledFinalExam = page.locator('[data-view="finalExam"]').first();
   assert.equal(await enabledFinalExam.isDisabled(), false, 'El examen final debe habilitarse al alcanzar el 95%.');
   await enabledFinalExam.click();
@@ -92,6 +106,13 @@ try {
   assert.match((await studyTime.textContent()) || '', /^\d+ h(?: \d+ min)?$/, 'Mi cuenta debe mostrar horas reales de estudio del curso.');
   await page.getByText('Avance por capítulo', { exact: true }).click();
   await page.getByText(/C1 · Fundamentos de la Prueba/i).waitFor();
+  const firstAccountChapterText = await courseCard.locator('.accountChapterDetails li').first().innerText();
+  assert.match(firstAccountChapterText, /Avance\s+100%/i, 'Mi cuenta debe mostrar el avance del capitulo.');
+  assert.match(firstAccountChapterText, /Dominio del cap[ií]tulo\s+\d+%/i, 'Mi cuenta debe mostrar el dominio propio del capitulo.');
+  assert.match(firstAccountChapterText, /\d+\/\d+ min/i, 'Mi cuenta debe mostrar el tiempo del capitulo en minutos.');
+  const accountCourseText = await courseCard.innerText();
+  assert.match(accountCourseText, /Dominio real \d+%/i, 'Mi cuenta debe mostrar el dominio real del curso completo.');
+  assert.match(accountCourseText, /Cap[ií]tulos \d+%.*examen final \d+%/i, 'Mi cuenta debe desglosar el dominio del curso y del examen final.');
   await page.getByText(/Aprobado · 100%/i).waitFor();
   await page.getByText('Completado', { exact: true }).waitFor();
   const certificateButton = page.getByRole('button', { name: 'Obtener certificado de curso' });
@@ -102,10 +123,12 @@ try {
   await page.getByText('Próximamente', { exact: true }).waitFor();
   await page.locator('.certificateComingSoonMedia img').waitFor();
   await page.getByRole('button', { name: 'Entendido' }).click();
+  assert.equal(await courseCard.getByRole('button', { name: 'Eliminar curso' }).count(), 0, 'La eliminacion no debe aparecer mientras el curso este activo o completado.');
 
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Cancelar curso' }).click();
   await page.getByText('Cancelado', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Eliminar curso' }).waitFor();
   assert.equal(await page.evaluate(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.status
   )), 'cancelled');
@@ -118,6 +141,31 @@ try {
 
   await page.getByRole('link', { name: 'Ir al inicio' }).click();
   await page.getByText('1 cursos inscritos', { exact: true }).waitFor();
+
+  await page.evaluate(() => document.querySelector('a[data-view="account"]')?.click());
+  await page.getByRole('heading', { name: /Mis cursos/i }).waitFor();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Cancelar curso' }).click();
+  await page.getByText('Cancelado', { exact: true }).waitFor();
+  assert.notEqual(await page.evaluate(() => localStorage.getItem('istqb_ctfl_v2_progress')), null, 'Debe existir progreso local antes de eliminar el curso.');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Eliminar curso' }).click();
+  await page.getByRole('link', { name: 'Explorar cursos' }).waitFor();
+  assert.equal(await page.locator('.accountCourseCard').count(), 0, 'El curso eliminado debe desaparecer de Mi cuenta.');
+  const deletedState = await page.evaluate(() => ({
+    enrollment: window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl') || null,
+    progress: window.__supabaseMock.progressByCourse.has('ctfl'),
+    attempts: window.__supabaseMock.finalExamAttempts.filter((item) => item.p_course_key === 'ctfl').length,
+    localProgress: localStorage.getItem('istqb_ctfl_v2_progress'),
+    activeCourse: localStorage.getItem('academy_active_course'),
+    rpcArgs: window.__supabaseMock.calls.delete_cancelled_course
+  }));
+  assert.equal(deletedState.enrollment, null, 'La matricula cancelada debe eliminarse de la nube.');
+  assert.equal(deletedState.progress, false, 'El progreso cloud del curso debe eliminarse.');
+  assert.equal(deletedState.attempts, 0, 'Los intentos finales del curso deben eliminarse.');
+  assert.equal(deletedState.localProgress, null, 'El progreso local del curso debe eliminarse.');
+  assert.equal(deletedState.activeCourse, '', 'El curso eliminado no debe conservarse como curso activo local.');
+  assert.deepEqual(deletedState.rpcArgs, { p_course_key: 'ctfl' }, 'La eliminacion debe usar la RPC autenticada del curso seleccionado.');
 
   assert.deepEqual(errors, [], `Errores de navegador:\n${errors.join('\n')}`);
   console.log('Cloud account smoke OK: matrícula, tiempo, capítulos, simulacro, examen final, cuenta y progreso por inscripción.');

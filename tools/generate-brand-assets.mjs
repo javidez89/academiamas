@@ -31,6 +31,11 @@ async function renderAsset({ file, width, height, type, quality = 0.9, draw }) {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, outputWidth, outputHeight);
         context.drawImage(image, 22, 18, 458, 399, 2, 2, outputWidth - 4, outputHeight - 4);
+      } else if (draw === 'maskable') {
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, outputWidth, outputHeight);
+        const inset = Math.round(outputWidth * 0.16);
+        context.drawImage(image, 22, 18, 458, 399, inset, inset, outputWidth - (inset * 2), outputHeight - (inset * 2));
       } else {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, outputWidth, outputHeight);
@@ -62,7 +67,10 @@ try {
     renderAsset({ file: 'assets/img/academiaqa-logo-660.webp', width: 660, height: 175, type: 'image/webp', quality: 0.9, draw: 'logo' }),
     renderAsset({ file: 'assets/img/academiaqa-social.jpg', width: 1200, height: 630, type: 'image/jpeg', quality: 0.9, draw: 'social' }),
     renderAsset({ file: 'assets/img/favicon-48.png', width: 48, height: 48, type: 'image/png', draw: 'icon' }),
-    renderAsset({ file: 'assets/img/apple-touch-icon.png', width: 180, height: 180, type: 'image/png', draw: 'icon' })
+    renderAsset({ file: 'assets/img/apple-touch-icon.png', width: 180, height: 180, type: 'image/png', draw: 'icon' }),
+    renderAsset({ file: 'assets/img/pwa-icon-192.png', width: 192, height: 192, type: 'image/png', draw: 'icon' }),
+    renderAsset({ file: 'assets/img/pwa-icon-512.png', width: 512, height: 512, type: 'image/png', draw: 'icon' }),
+    renderAsset({ file: 'assets/img/pwa-maskable-512.png', width: 512, height: 512, type: 'image/png', draw: 'maskable' })
   ]);
 } finally {
   await browser.close();

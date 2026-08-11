@@ -118,6 +118,20 @@
     return unwrap(data);
   }
 
+  async function deleteEnrollment(courseKey) {
+    const { client } = requireUser();
+    const key = normalizeCourseKey(courseKey);
+    const pending = pendingSyncs.get(key);
+    if (pending?.timer) global.clearTimeout(pending.timer);
+    pendingSyncs.delete(key);
+    const { data, error } = await client.rpc('delete_cancelled_course', {
+      p_course_key: key
+    });
+    if (error) throw error;
+    if (data !== true) throw new Error('El curso no estaba cancelado o ya fue eliminado.');
+    return true;
+  }
+
   async function loadProgress(courseKey) {
     const { client, user } = requireUser();
     const { data, error } = await client
@@ -207,6 +221,7 @@
     listEnrollments,
     enroll,
     cancelEnrollment,
+    deleteEnrollment,
     loadProgress,
     syncProgress,
     queueProgressSync,
