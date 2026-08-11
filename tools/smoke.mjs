@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
 const baseUrl = process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/';
-const version = process.env.ACADEMIAQA_VERSION || '2026-08-06-istqb-realism-2';
+const version = process.env.ACADEMIAQA_VERSION || '2026-08-11-seo-analytics';
 const url = `${baseUrl.replace(/\/$/, '')}/?v=${encodeURIComponent(version)}&smoke=${Date.now()}#inicio`;
 
 const browser = await chromium.launch({ headless: true });

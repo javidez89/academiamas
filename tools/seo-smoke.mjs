@@ -5,6 +5,7 @@ import { chromium } from 'playwright';
 
 const ROOT = process.cwd();
 const PROD_BASE = 'https://academiaqaoficial.com';
+const GOOGLE_TAG_ID = 'G-F5VK3VZYR0';
 const LOCAL_BASE = (process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/').replace(/\/+$/, '');
 
 function decodeXml(value = '') {
@@ -51,12 +52,16 @@ function hasSchemaType(items, type) {
   return items.some((item) => item?.['@type'] === type || (Array.isArray(item?.['@type']) && item['@type'].includes(type)));
 }
 
-function expectedPaths(catalog) {
+function expectedPaths(catalog, courseDataByKey) {
   const publicPaths = ['/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/'];
-  const coursePaths = catalog.flatMap(({ key }) => [
-    `/curso/${encodeURIComponent(key)}/`,
-    `/curso/${encodeURIComponent(key)}/simulacro/`
-  ]);
+  const coursePaths = catalog.flatMap(({ key }) => {
+    const chapters = courseDataByKey.get(key)?.chapters || [];
+    return [
+      `/curso/${encodeURIComponent(key)}/`,
+      `/curso/${encodeURIComponent(key)}/simulacro/`,
+      ...chapters.map((chapter) => `/curso/${encodeURIComponent(key)}/capitulo/${encodeURIComponent(chapter.id)}/`)
+    ];
+  });
   return ['/', ...publicPaths, ...coursePaths];
 }
 
@@ -70,6 +75,19 @@ async function loadCatalog() {
   return catalog;
 }
 
+async function loadCourseData(catalog) {
+  const entries = await Promise.all(catalog.map(async (entry) => {
+    const source = await fs.readFile(`${ROOT}/${entry.src}`, 'utf8');
+    let registered = null;
+    const sandbox = { AcademyRegistry: { register: (key, data) => { registered = { key, data }; } } };
+    vm.createContext(sandbox);
+    vm.runInContext(source, sandbox, { filename: entry.src });
+    assert.equal(registered?.key, entry.key, `No se pudo cargar el contenido de ${entry.key}.`);
+    return [entry.key, registered.data];
+  }));
+  return new Map(entries);
+}
+
 function validatePageMetadata(html, path) {
   const expectedCanonical = `${PROD_BASE}${path}`;
   const canonical = findTag(html, 'link', { rel: 'canonical' })?.href;
@@ -78,8 +96,14 @@ function validatePageMetadata(html, path) {
   const title = titleOf(html);
   const robots = findTag(html, 'meta', { name: 'robots' })?.content;
   const alternate = findTag(html, 'link', { rel: 'alternate' });
+  const favicon = findTag(html, 'link', { rel: 'icon' });
+  const socialImage = findTag(html, 'meta', { property: 'og:image' })?.content;
+  const contentSecurityPolicy = findTag(html, 'meta', { 'http-equiv': 'Content-Security-Policy' })?.content;
   const schema = jsonLdItems(html);
   const h1Count = (html.match(/<h1\b/gi) || []).length;
+  const googleTagUrl = `https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG_ID}`;
+  const googleTagCount = html.split(googleTagUrl).length - 1;
+  const googleConfigCount = (html.match(new RegExp(`gtag\\('config', '${GOOGLE_TAG_ID}'\\)`, 'g')) || []).length;
 
   assert.equal(canonical, expectedCanonical, `Canonical incorrecto en ${path}.`);
   assert.equal(ogUrl, expectedCanonical, `og:url incorrecto en ${path}.`);
@@ -88,6 +112,14 @@ function validatePageMetadata(html, path) {
   assert.match(robots || '', /index\s*,\s*follow/i, `Robots meta incorrecto en ${path}.`);
   assert.equal(alternate?.hreflang?.toLowerCase(), 'es-co', `hreflang incorrecto en ${path}.`);
   assert.equal(alternate?.href, expectedCanonical, `URL hreflang incorrecta en ${path}.`);
+  assert.equal(favicon?.href, '/assets/img/favicon-48.png', `Favicon incorrecto en ${path}.`);
+  assert.equal(socialImage, `${PROD_BASE}/assets/img/academiaqa-social.jpg`, `Imagen social incorrecta en ${path}.`);
+  assert.equal(googleTagCount, 1, `La etiqueta remota de Google Analytics falta o está duplicada en ${path}.`);
+  assert.equal(googleConfigCount, 1, `La configuración de Google Analytics falta o está duplicada en ${path}.`);
+  assert.match(html, /<head>\s*<!-- Google tag \(gtag\.js\) -->\s*<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=G-F5VK3VZYR0"><\/script>/i, `La etiqueta de Google no está inmediatamente después de <head> en ${path}.`);
+  assert.match(contentSecurityPolicy || '', /https:\/\/www\.googletagmanager\.com/, `La CSP bloquea Google Tag Manager en ${path}.`);
+  assert.match(contentSecurityPolicy || '', /https:\/\/www\.google-analytics\.com/, `La CSP bloquea Google Analytics en ${path}.`);
+  assert.match(contentSecurityPolicy || '', /https:\/\/www\.google\.com/, `La CSP bloquea el endpoint de medición de Google en ${path}.`);
   assert.match(html, /<html\b[^>]*lang=["']es-CO["']/i, `Idioma HTML incorrecto en ${path}.`);
   assert.equal(h1Count, 1, `Se esperaban un H1 en ${path}, encontrados: ${h1Count}.`);
   assert.ok(schema.length > 0, `Falta JSON-LD en ${path}.`);
@@ -97,10 +129,10 @@ function validatePageMetadata(html, path) {
   return { title, description, schema };
 }
 
-async function validateStaticSeo(catalog) {
+async function validateStaticSeo(catalog, courseDataByKey) {
   const sitemap = await fs.readFile(`${ROOT}/sitemap.xml`, 'utf8');
   const robots = await fs.readFile(`${ROOT}/robots.txt`, 'utf8');
-  const paths = expectedPaths(catalog);
+  const paths = expectedPaths(catalog, courseDataByKey);
   const expectedUrls = paths.map((path) => `${PROD_BASE}${path}`);
   const sitemapUrls = [...sitemap.matchAll(/<loc>(.*?)<\/loc>/g)].map((match) => decodeXml(match[1].trim()));
 
@@ -132,6 +164,10 @@ async function validateStaticSeo(catalog) {
     } else if (path === '/cursos/' || path === '/ruta-aprendizaje/') {
       assert.ok(hasSchemaType(pageMetadata.schema, 'ItemList'), `${path} no declara ItemList.`);
       assert.ok(hasSchemaType(pageMetadata.schema, 'BreadcrumbList'), `${path} no declara BreadcrumbList.`);
+    } else if (/\/capitulo\/[^/]+\/$/.test(path)) {
+      assert.ok(hasSchemaType(pageMetadata.schema, 'LearningResource'), `${path} no declara LearningResource.`);
+      assert.ok(hasSchemaType(pageMetadata.schema, 'BreadcrumbList'), `${path} no declara BreadcrumbList.`);
+      assert.match(html, /class=["'][^"']*seoChapterFallback/i, `${path} no contiene fallback académico del capítulo.`);
     } else if (/\/simulacro\/$/.test(path)) {
       assert.ok(hasSchemaType(pageMetadata.schema, 'LearningResource'), `${path} no declara LearningResource.`);
       assert.ok(hasSchemaType(pageMetadata.schema, 'BreadcrumbList'), `${path} no declara BreadcrumbList.`);
@@ -151,14 +187,19 @@ async function validateStaticSeo(catalog) {
     const examPath = `${coursePath}simulacro/`;
     assert.ok(sitemapUrls.includes(`${PROD_BASE}${coursePath}`), `Falta página SEO para ${course.key}.`);
     assert.ok(sitemapUrls.includes(`${PROD_BASE}${examPath}`), `Falta página SEO de simulacro para ${course.key}.`);
+    for (const chapter of courseDataByKey.get(course.key)?.chapters || []) {
+      const chapterPath = `${coursePath}capitulo/${encodeURIComponent(chapter.id)}/`;
+      assert.ok(sitemapUrls.includes(`${PROD_BASE}${chapterPath}`), `Falta página SEO de ${course.key}, capítulo ${chapter.id}.`);
+    }
   }
 
   return paths.length;
 }
 
-async function validateBrowserRoutes(catalog) {
+async function validateBrowserRoutes(catalog, courseDataByKey) {
   const course = catalog[0];
   const key = encodeURIComponent(course.key);
+  const chapter = courseDataByKey.get(course.key)?.chapters?.[0];
   const browser = await chromium.launch({ headless: true });
   const errors = [];
 
@@ -172,10 +213,17 @@ async function validateBrowserRoutes(catalog) {
     await page.goto(`${LOCAL_BASE}/curso/${key}/`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
     assert.equal(new URL(page.url()).pathname, `/curso/${key}/`, 'La ruta limpia del curso cambió inesperadamente.');
+    assert.equal(await page.evaluate(() => typeof window.gtag), 'function', 'Google Analytics no inicializó gtag().');
 
-    await page.goto(`${LOCAL_BASE}/curso/${key}/simulacro/`, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-view="exam"]').first().click();
+    await page.waitForURL(`**/curso/${key}/simulacro/`);
     await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).waitFor();
     assert.equal(new URL(page.url()).pathname, `/curso/${key}/simulacro/`, 'La ruta limpia del simulacro cambió inesperadamente.');
+
+    await page.goto(`${LOCAL_BASE}/curso/${key}/capitulo/${encodeURIComponent(chapter.id)}/`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: new RegExp(chapter.title, 'i') }).last().waitFor();
+    assert.equal(new URL(page.url()).pathname, `/curso/${key}/capitulo/${encodeURIComponent(chapter.id)}/`, 'La ruta limpia del capítulo cambió inesperadamente.');
+    assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), `${PROD_BASE}/curso/${key}/capitulo/${encodeURIComponent(chapter.id)}/`, 'El canonical dinámico del capítulo es incorrecto.');
 
     await page.goto(`${LOCAL_BASE}/#curso/${key}/panel`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
@@ -192,7 +240,8 @@ async function validateBrowserRoutes(catalog) {
 }
 
 const catalog = await loadCatalog();
-const pageCount = await validateStaticSeo(catalog);
-await validateBrowserRoutes(catalog);
+const courseDataByKey = await loadCourseData(catalog);
+const pageCount = await validateStaticSeo(catalog, courseDataByKey);
+await validateBrowserRoutes(catalog, courseDataByKey);
 
 console.log(`SEO smoke OK: ${pageCount} URLs del sitemap, ${catalog.length} cursos y rutas limpias/hash verificadas.`);
