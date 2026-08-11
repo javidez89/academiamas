@@ -146,6 +146,16 @@ export function installMockSupabaseScript({ session, enrollments = [] }) {
               }
               return { data: item ? [structuredClone(item)] : [], error: null };
             }
+            if (name === 'delete_cancelled_course') {
+              const item = enrollment(args.p_course_key);
+              if (!item || item.status !== 'cancelled') {
+                return { data: null, error: { code: '55000', message: 'Cancelled enrollment required' } };
+              }
+              state.enrollments = state.enrollments.filter((entry) => entry.course_key !== args.p_course_key);
+              progressByCourse.delete(args.p_course_key);
+              state.finalExamAttempts = state.finalExamAttempts.filter((attempt) => attempt.p_course_key !== args.p_course_key);
+              return { data: true, error: null };
+            }
             if (name === 'sync_course_activity') {
               const item = enrollment(args.p_course_key);
               if (item) {

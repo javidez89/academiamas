@@ -1,5 +1,34 @@
 # Changelog
 
+## [v0.12.0] - 2026-08-11
+
+### Added
+
+- Eliminación permanente de cursos cancelados desde `Mi cuenta`, incluyendo matrícula, progreso, tiempo e intentos.
+
+- InstalaciÃ³n de AcademiaQA como PWA desde Android, Windows, macOS y Linux en navegadores compatibles.
+- Manifiesto web con identidad estable, accesos directos e iconos `any` y `maskable`.
+- Service worker limitado a recursos estÃ¡ticos del mismo origen y pantalla de contingencia sin conexiÃ³n.
+- AcciÃ³n accesible `Instalar app`, visible solo cuando el navegador ofrece la instalaciÃ³n.
+- Prueba de regresiÃ³n PWA para manifiesto, iconos, rutas generadas y registro del service worker.
+
+### Changed
+
+- Cada capítulo separa avance y dominio propio, mientras el dominio real del curso integra todos los capítulos y el mejor examen final; el tiempo compara minutos estudiados y sugeridos.
+- Las pÃ¡ginas SEO generadas comparten los metadatos y scripts requeridos por la aplicaciÃ³n instalable.
+
+### Security
+
+- La eliminación exige una sesión autenticada, pertenencia del curso al usuario y estado previamente cancelado.
+
+- El service worker no intercepta peticiones externas ni almacena sesiones o respuestas de Supabase y Google.
+
+### Validation
+
+- La prueba cloud cubre el bloqueo para cursos activos, la confirmación destructiva y la limpieza local y remota.
+
+- Sin cambios en cursos, bancos de preguntas, prÃ¡ctica, simulacros, progreso, pagos o contenido acadÃ©mico.
+
 ## [v0.11.0] - 2026-08-11
 
 ### Added

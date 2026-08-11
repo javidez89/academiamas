@@ -526,6 +526,9 @@
       case 'cancel-enrollment':
         await cancelEnrollment(actionTarget.dataset.course);
         break;
+      case 'delete-enrollment':
+        await deleteEnrollment(actionTarget.dataset.course);
+        break;
       case 'reactivate-enrollment':
         await setCourse(actionTarget.dataset.course);
         break;
@@ -1420,20 +1423,26 @@
     const activity = progress.chapterActivity?.[String(chapterId)] || {};
     const studySeconds = number(activity.studySeconds);
     const suggestedSeconds = Math.max(60, number(chapter.minutes) * 60);
+    const suggestedMinutes = Math.max(1, Math.round(suggestedSeconds / 60));
     const readingProgress = Math.min(100, pct(studySeconds, suggestedSeconds));
     const objectiveProgressPct = objectives.length ? pct(chapterStats.touched, objectives.length) : readingProgress;
     const coverage = Math.min(100, Math.round((readingProgress * 0.4) + (objectiveProgressPct * 0.6)));
+    const accuracy = pct(chapterStats.ok, chapterStats.answered);
+    const domain = Math.min(100, Math.round((accuracy * objectiveProgressPct) / 100));
 
     return {
       ...chapterStats,
       chapterId: Number(chapterId),
       title: chapter.title || `Capítulo ${chapterId}`,
       objectiveCount: objectives.length,
-      accuracy: pct(chapterStats.ok, chapterStats.answered),
+      accuracy,
+      domain,
       objectiveProgress: objectiveProgressPct,
       readingProgress,
       coverage,
       studySeconds,
+      studyMinutes: studyMinutes(studySeconds),
+      suggestedMinutes,
       visitedAt: activity.visitedAt || ''
     };
   }
@@ -1451,6 +1460,18 @@
       ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.coverage, 0) / chapters.length)
       : 0;
     const enrollment = enrollmentForCourse(key);
+    const objectiveTotal = chapters.reduce((sum, chapter) => sum + number(chapter.objectiveCount), 0);
+    const chapterDomainAverage = objectiveTotal
+      ? Math.round(chapters.reduce((sum, chapter) => sum + (chapter.domain * chapter.objectiveCount), 0) / objectiveTotal)
+      : chapters.length ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.domain, 0) / chapters.length) : 0;
+    const localFinalExamScores = attempts
+      .filter((attempt) => attempt.mode === 'final-exam')
+      .map((attempt) => number(attempt.scorePct));
+    const finalExamScore = Math.max(number(enrollment?.best_final_exam_score), ...localFinalExamScores, 0);
+    const masteryPercent = Math.min(100, Math.round((
+      (chapterDomainAverage * FINAL_EXAM_UNLOCK_PROGRESS)
+      + (finalExamScore * (100 - FINAL_EXAM_UNLOCK_PROGRESS))
+    ) / 100));
     const finalExamPassed = Boolean(enrollment?.final_exam_passed || attempts.some((attempt) => attempt.mode === 'final-exam' && attempt.passed));
     const progressPercent = finalExamPassed
       ? 100
@@ -1466,6 +1487,9 @@
       started,
       chapters,
       chapterAverage,
+      chapterDomainAverage,
+      finalExamScore,
+      masteryPercent,
       progressPercent,
       studySeconds: Math.max(number(progress.studySeconds), number(enrollment?.study_seconds)),
       enrollment,
@@ -2098,6 +2122,37 @@
     }
   }
 
+  async function deleteEnrollment(key) {
+    const courseKey = String(key || '').trim().toLowerCase();
+    const entry = catalogEntry(courseKey);
+    const enrollment = state.enrollments.find((item) => item.course_key === courseKey);
+    if (!entry || enrollment?.status !== 'cancelled') {
+      notify('Primero debes cancelar el curso antes de eliminarlo.', 'warning');
+      return;
+    }
+    const courseName = entry.meta?.name || courseKey;
+    const confirmed = global.confirm(`\u00bfEliminar ${courseName} de tu cuenta? Se borrar\u00e1n permanentemente tu matr\u00edcula, avance, tiempo de estudio e intentos. Esta acci\u00f3n no se puede deshacer.`);
+    if (!confirmed) return;
+
+    try {
+      await Cloud.deleteEnrollment(courseKey);
+      const storageKey = entry.meta?.storageKey || `academy_${courseKey}_progress`;
+      const localProgressRemoved = Storage.removeProgress(storageKey);
+      learningSnapshot.progressByCourse.delete(courseKey);
+      learningSnapshot.coursesByKey.delete(courseKey);
+      learningSnapshot.enrollments = learningSnapshot.enrollments.filter((item) => item.course_key !== courseKey);
+      state.enrollments = state.enrollments.filter((item) => item.course_key !== courseKey);
+      if (Storage.getActiveCourse() === courseKey) Storage.setActiveCourse('');
+      notify(localProgressRemoved
+        ? 'El curso y todos sus datos fueron eliminados de tu cuenta.'
+        : 'El curso se elimin\u00f3 de la nube, pero no fue posible limpiar el progreso de este dispositivo.', localProgressRemoved ? 'success' : 'warning');
+      await refreshAccount();
+    } catch (error) {
+      console.error(error);
+      notify('No fue posible eliminar el curso. Verifica que est\u00e9 cancelado e intenta nuevamente.', 'error');
+    }
+  }
+
   function renderAccountPage() {
     if (!Auth?.isAuthenticated?.()) {
       return `<div class="publicHome publicPage accountPage" id="mi-cuenta">
@@ -2141,8 +2196,11 @@
       const certificateAvailable = isCompleted;
       const chapterRows = details.chapters.map((chapter) => `<li>
         <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${chapter.touched}/${chapter.objectiveCount} LO · ${chapter.answered} respuestas</span></div>
-        <div><strong>${chapter.coverage}%</strong><span>${h(formatStudyDuration(chapter.studySeconds))}</span></div>
-        <div class="progressbar" aria-label="Avance del capítulo ${number(chapter.chapterId)}"><div style="width:${chapter.coverage}%"></div></div>
+        <div><strong>Avance ${chapter.coverage}%</strong><span>Dominio del capítulo ${chapter.domain}% · ${chapter.studyMinutes}/${chapter.suggestedMinutes} min</span></div>
+        <div class="accountChapterProgressBars">
+          <div><span>Avance</span><div class="progressbar" aria-label="Avance del capítulo ${number(chapter.chapterId)}: ${chapter.coverage}%"><div style="width:${chapter.coverage}%"></div></div></div>
+          <div><span>Dominio del capítulo</span><div class="progressbar masteryProgress" aria-label="Dominio del capítulo ${number(chapter.chapterId)}: ${chapter.domain}%"><div style="width:${chapter.domain}%"></div></div></div>
+        </div>
       </li>`).join('');
       return `<article class="accountCourseCard">
         <div class="accountCourseHead">
@@ -2150,7 +2208,11 @@
             <span class="accountStatus ${h(item.status)}">${item.status === 'active' ? 'Activo' : item.status === 'cancelled' ? 'Cancelado' : 'Completado'}</span>
             <h3>${h(meta.name || item.course_key)}</h3>
           </div>
-          <strong>${details.progressPercent}%</strong>
+          <div class="accountCourseScores">
+            <strong>Avance ${details.progressPercent}%</strong>
+            <span>Dominio real ${details.masteryPercent}%</span>
+            <small>Capítulos ${details.chapterDomainAverage}% · examen final ${details.finalExamScore}%</small>
+          </div>
         </div>
         <div class="progressbar accountCourseProgress" aria-label="Avance del curso"><div style="width:${details.progressPercent}%"></div></div>
         <dl class="accountCourseMetrics">
@@ -2178,7 +2240,8 @@
           ${isEnrolled
             ? `<a class="btn" href="${h(coursePath(item.course_key))}" data-action="select-course" data-course="${h(item.course_key)}">Continuar curso</a>
                <button class="btn secondary dangerAction" type="button" data-action="cancel-enrollment" data-course="${h(item.course_key)}">Cancelar curso</button>`
-            : `<button class="btn" type="button" data-action="reactivate-enrollment" data-course="${h(item.course_key)}">Reactivar curso</button>`}
+            : `<button class="btn" type="button" data-action="reactivate-enrollment" data-course="${h(item.course_key)}">Reactivar curso</button>
+               <button class="btn bad" type="button" data-action="delete-enrollment" data-course="${h(item.course_key)}">Eliminar curso</button>`}
         </div>
       </article>`;
     }).join('');
@@ -2222,7 +2285,7 @@
             <h3>Política de privacidad</h3>
             <p>AcademiaQA utiliza inicio de sesión con Google mediante Supabase Auth para acceder a los cursos. Al ingresar se procesan el identificador de cuenta, nombre y correo proporcionados por Google para mantener la sesión y asociar tus matrículas. AcademiaQA no recibe tu contraseña de Google.</p>
             <p>Las matrículas, fechas de inicio, avance por capítulo, tiempo activo de estudio, respuestas acumuladas y resultados de simulacros o exámenes finales se guardan en Supabase para recuperar el aprendizaje entre dispositivos y generar métricas de uso. El navegador conserva una copia local para dar continuidad a la experiencia.</p>
-            <p>Cancelar un curso detiene su estado activo, pero no elimina automáticamente el historial ni las métricas. Puedes borrar el avance desde el curso; para solicitar eliminación de cuenta o datos personales usa el formulario de contacto.</p>
+            <p>Cancelar un curso detiene su estado activo, pero conserva el historial para que puedas reactivarlo. Después de cancelarlo, puedes usar <b>Eliminar curso</b> en Mi cuenta para borrar permanentemente su matrícula, avance, tiempo e intentos; para solicitar la eliminación completa de la cuenta o de otros datos personales usa el formulario de contacto.</p>
             <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
             <p>El botón de aportes abre Wompi como servicio externo. Los enlaces a exámenes y canales externos abren sitios de terceros con sus propias políticas.</p>
           </article>
@@ -2371,6 +2434,7 @@
       <h2>Panel de estudio · ${h(courseLabel())}</h2>
       <div class="grid3">
         <div class="metric"><span>Avance del curso</span><strong>${details.progressPercent}%</strong></div>
+        <div class="metric"><span>Dominio real</span><strong>${details.masteryPercent}%</strong><small>Capítulos ${details.chapterDomainAverage}% · examen final ${details.finalExamScore}%</small></div>
         <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(details.studySeconds))}</strong></div>
         <div class="metric"><span>Mejor simulacro</span><strong>${best}%</strong></div>
         <div class="metric"><span>Examen final</span><strong>${details.finalExamPassed ? 'Aprobado' : details.finalExamEligible ? 'Habilitado' : `Bloqueado · ${FINAL_EXAM_UNLOCK_PROGRESS}%`}</strong></div>
@@ -2465,14 +2529,15 @@
       return `<a class="chapterCard" href="${h(chapterPath(activeCourseKey, chapter.id))}" data-action="open-chapter" data-chapter="${number(chapter.id)}">
         <h3>Capítulo ${number(chapter.id)} · ${h(chapter.title)}</h3>
         <p class="small">Tiempo sugerido: ${number(chapter.minutes)} min · LO: ${objectiveCount} · Preguntas: ${questionCount} · Págs. syllabus: ${h(chapter.completeSyllabusPages || 'N/D')}</p>
-        <div class="chapterProgressMeta">
-          <b>Avance real ${chapterProgress.coverage}%</b>
-          <span>${chapterProgress.touched}/${chapterProgress.objectiveCount} LO practicados</span>
-          <span>${chapterProgress.answered} respuestas</span>
-          <span>${h(formatStudyDuration(chapterProgress.studySeconds))} estudiando</span>
-          <span>Dominio ${chapterProgress.accuracy}%</span>
+        <div class="chapterProgressCompare">
+          <div><span>Avance</span><strong>${chapterProgress.coverage}%</strong><small>${chapterProgress.touched}/${chapterProgress.objectiveCount} LO recorridos</small></div>
+          <div><span>Dominio del capítulo</span><strong>${chapterProgress.domain}%</strong><small>${chapterProgress.ok}/${chapterProgress.answered} correctas · precisión ${chapterProgress.accuracy}%</small></div>
+          <div><span>Tiempo</span><strong>${chapterProgress.studyMinutes}/${chapterProgress.suggestedMinutes} min</strong><small>estudiados / sugeridos</small></div>
         </div>
-        <div class="progressbar" aria-label="Avance real del capítulo"><div style="width:${chapterProgress.coverage}%"></div></div>
+        <div class="chapterProgressBars">
+          <div><span>Avance</span><div class="progressbar" aria-label="Avance del capítulo: ${chapterProgress.coverage}%"><div style="width:${chapterProgress.coverage}%"></div></div></div>
+          <div><span>Dominio del capítulo</span><div class="progressbar masteryProgress" aria-label="Dominio del capítulo: ${chapterProgress.domain}%"><div style="width:${chapterProgress.domain}%"></div></div></div>
+        </div>
         <p>${h(chapter.summary)}</p>
       </a>`;
     }).join('');
@@ -2492,7 +2557,12 @@
           <span class="finalExamMilestoneAction">Bloqueado hasta ${FINAL_EXAM_UNLOCK_PROGRESS}%</span>
         </div>`;
 
-    return `<div class="card"><h2>Estudiar syllabus por capítulo</h2><p>Selecciona un capítulo. Cada bloque incluye teoría resumida y el texto evaluable cargado para ese capítulo.</p><div class="grid2">${cards}${finalExamCard}</div></div><div id="chapterDetail"></div>`;
+    return `<div class="card"><h2>Estudiar syllabus por capítulo</h2><p>Selecciona un capítulo. Cada bloque incluye teoría resumida y el texto evaluable cargado para ese capítulo.</p>
+      <div class="studyMasterySummary">
+        <div><span>Dominio real del curso</span><strong>${courseDetails.masteryPercent}%</strong><small>Todos los capítulos ${courseDetails.chapterDomainAverage}% · mejor examen final ${courseDetails.finalExamScore}%</small></div>
+        <div class="progressbar masteryProgress" aria-label="Dominio real del curso: ${courseDetails.masteryPercent}%"><div style="width:${courseDetails.masteryPercent}%"></div></div>
+      </div>
+      <div class="grid2">${cards}${finalExamCard}</div></div><div id="chapterDetail"></div>`;
   }
 
   function renderTheorySection(section) {
@@ -2549,9 +2619,9 @@
     host.innerHTML = `<div class="card">
       <h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2><p>${h(chapter.summary)}</p>
       <div class="grid3 chapterProgressGrid">
-        <div class="metric"><span>Avance real</span><strong>${progress.coverage}%</strong></div>
-        <div class="metric"><span>LO practicados</span><strong>${progress.touched}/${progress.objectiveCount}</strong></div>
-        <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(progress.studySeconds))}</strong></div>
+        <div class="metric"><span>Avance</span><strong>${progress.coverage}%</strong><small>${progress.touched}/${progress.objectiveCount} LO recorridos</small></div>
+        <div class="metric"><span>Dominio del capítulo</span><strong>${progress.domain}%</strong><small>${progress.ok}/${progress.answered} correctas · precisión ${progress.accuracy}%</small></div>
+        <div class="metric"><span>Tiempo estudiado</span><strong>${progress.studyMinutes}/${progress.suggestedMinutes} min</strong><small>estudiados / sugeridos</small></div>
       </div>
       <h3>Teoría del syllabus resumida</h3>${(chapter.theorySections || []).map(renderTheorySection).join('')}
       <details open class="contentDetails"><summary>Texto completo evaluable · páginas ${h(chapter.completeSyllabusPages || 'N/D')}</summary><div class="prebox small">${h(chapter.completeSyllabusText || 'No hay texto ampliado cargado para este capítulo.')}</div></details>
@@ -3084,6 +3154,11 @@
     const minutes = totalMinutes % 60;
     if (!hours) return `${minutes} min`;
     return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
+  }
+
+  function studyMinutes(value) {
+    const totalSeconds = Math.max(0, Math.trunc(number(value)));
+    return totalSeconds > 0 ? Math.max(1, Math.round(totalSeconds / 60)) : 0;
   }
 
   async function bootstrap() {

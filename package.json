@@ -1,6 +1,6 @@
 {
   "name": "academiaqa",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
     "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs",
     "test:integration": "node tools/catalog-smoke.mjs",
     "test:seo": "node tools/seo-smoke.mjs",
+    "test:pwa": "node tools/pwa-smoke.mjs",
     "test:auth": "node tools/auth-smoke.mjs",
     "test:cloud": "node tools/cloud-account-smoke.mjs",
     "test:e2e": "node tools/smoke.mjs"
