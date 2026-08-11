@@ -32,7 +32,7 @@ const localStorage = new MemoryStorage();
 const storage = await loadStorage(localStorage);
 
 assert.equal(storage.available(), true, 'localStorage debe estar disponible.');
-assert.equal(storage.SCHEMA_VERSION, 3, 'La versión del esquema de progreso cambió.');
+assert.equal(storage.SCHEMA_VERSION, 4, 'La versión del esquema de progreso cambió.');
 
 const attempts = Array.from({ length: 35 }, (_, index) => ({
   date: `2026-08-${String((index % 28) + 1).padStart(2, '0')}T00:00:00Z`,
@@ -54,18 +54,25 @@ assert.equal(storage.saveProgress('course-a', {
   marked: ['Q-1', 'Q-1', 'Q-2'],
   questionHistory: [
     { id: 'Q-1', mode: 'practice-study', seenAt: '2026-08-06T10:00:00Z' },
-    { id: 'Q-2', mode: 'official-exam', seenAt: '2026-08-06T11:00:00Z' }
-  ]
+    { id: 'Q-2', mode: 'simulator', seenAt: '2026-08-06T11:00:00Z' }
+  ],
+  studySeconds: 3_900,
+  chapterActivity: {
+    1: { studySeconds: 1_800, visitedAt: '2026-08-11T10:00:00Z', lastStudiedAt: '2026-08-11T10:30:00Z' },
+    2: { studySeconds: 2_100, visitedAt: '2026-08-11T11:00:00Z', lastStudiedAt: '2026-08-11T11:35:00Z' }
+  }
 }).ok, true, 'No fue posible guardar el progreso.');
 
 const courseA = storage.getProgress('course-a');
-assert.equal(courseA._schema, 3);
+assert.equal(courseA._schema, 4);
 assert.equal(courseA.attempts.length, 30, 'El historial debe conservar solo 30 intentos.');
 assert.deepEqual([...courseA.marked], ['Q-1', 'Q-2'], 'Las preguntas marcadas deben ser únicas.');
 assert.equal(courseA.byLo['FL-1.1.1'].ok, 3);
 assert.equal(courseA.byLo.unsafe.ok, 0, 'Los contadores negativos deben normalizarse.');
 assert.equal(courseA.byLo.unsafe.bad, 4);
 assert.deepEqual([...courseA.questionHistory].map((entry) => entry.id), ['Q-1', 'Q-2'], 'El historial de selección debe conservarse.');
+assert.equal(courseA.studySeconds, 3_900, 'Debe conservar el tiempo total de estudio.');
+assert.equal(courseA.chapterActivity['2'].studySeconds, 2_100, 'Debe conservar el tiempo por capítulo.');
 
 const courseB = storage.getProgress('course-b');
 assert.equal(courseB.attempts.length, 0, 'El progreso debe estar aislado por curso.');

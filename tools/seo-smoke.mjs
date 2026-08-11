@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import { chromium } from 'playwright';
+import { MOCK_SESSION, useMockedSupabase } from './helpers/mock-supabase.mjs';
 
 const ROOT = process.cwd();
 const PROD_BASE = 'https://academiaqaoficial.com';
@@ -145,6 +146,23 @@ async function validateStaticSeo(catalog, courseDataByKey) {
   assert.match(robots, new RegExp(`^Sitemap:\\s*${PROD_BASE.replaceAll('.', '\\.')}\\/sitemap\\.xml$`, 'mi'), 'robots.txt no apunta al sitemap canónico.');
   assert.ok(!/github\.io/i.test(robots), 'robots.txt contiene referencias a github.io.');
   assert.ok(!/^Disallow:\s*\/$/mi.test(robots), 'robots.txt bloquea todo el sitio.');
+  assert.ok(!sitemapUrls.includes(`${PROD_BASE}/mi-cuenta/`), 'La página privada no debe aparecer en el sitemap.');
+
+  const accountResponse = await fetch(`${LOCAL_BASE}/mi-cuenta/`, { redirect: 'manual' });
+  assert.equal(accountResponse.status, 200, '/mi-cuenta/ no responde HTTP 200.');
+  const accountHtml = await accountResponse.text();
+  assert.match(findTag(accountHtml, 'meta', { name: 'robots' })?.content || '', /noindex\s*,\s*nofollow/i, 'Mi cuenta debe ser noindex.');
+  assert.equal(findTag(accountHtml, 'link', { rel: 'canonical' })?.href, `${PROD_BASE}/mi-cuenta/`, 'Canonical incorrecto en Mi cuenta.');
+
+  for (const { key } of catalog) {
+    const path = `/curso/${encodeURIComponent(key)}/examen-final/`;
+    assert.ok(!sitemapUrls.includes(`${PROD_BASE}${path}`), `${path} no debe aparecer en el sitemap.`);
+    const response = await fetch(`${LOCAL_BASE}${path}`, { redirect: 'manual' });
+    assert.equal(response.status, 200, `${path} no responde HTTP 200.`);
+    const html = await response.text();
+    assert.match(findTag(html, 'meta', { name: 'robots' })?.content || '', /noindex\s*,\s*nofollow/i, `${path} debe ser noindex.`);
+    assert.equal(findTag(html, 'link', { rel: 'canonical' })?.href, `${PROD_BASE}${path}`, `Canonical incorrecto en ${path}.`);
+  }
 
   const metadata = [];
   const pages = paths;
@@ -205,6 +223,7 @@ async function validateBrowserRoutes(catalog, courseDataByKey) {
 
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await useMockedSupabase(page, MOCK_SESSION);
     page.on('console', (message) => {
       if (message.type() === 'error') errors.push(`console: ${message.text()}`);
     });

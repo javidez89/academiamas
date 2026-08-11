@@ -5,6 +5,8 @@
   const Registry = global.AcademyRegistry;
   const Storage = global.AcademyStorage;
   const QuestionSelection = global.AcademyQuestionSelection;
+  const Auth = global.AcademyAuth;
+  const Cloud = global.AcademyCloud;
   const Config = global.ACADEMY_CONFIG || {};
   const ASSET_VERSION = String(Config.assetVersion || '2026-08-05-mobile-responsive-study');
   const APP_VERSION = String(Config.version || '0.0.0');
@@ -16,6 +18,8 @@
   const PAYMENT_POPUP_LOCK_MS = 1_500;
   const CONTACT_EMAIL = 'javidez89@gmail.com';
   const LINKEDIN_URL = 'https://www.linkedin.com/in/javierchilatra89/';
+  const SESSION_CLOSED_KEY = 'academiaqa.auth.sessionClosed';
+  const FINAL_EXAM_UNLOCK_PROGRESS = 95;
   const DEFAULT_PRACTICE_FILTER = Object.freeze({
     chapter: 'all',
     k: 'all',
@@ -131,13 +135,14 @@
     height: 907,
     alt: 'Nuevo curso de capacitación profesional avanzada en AcademiaQA'
   });
-  const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal']);
+  const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal', 'account']);
   const PUBLIC_VIEW_PATHS = Object.freeze({
     home: '/',
     courses: '/cursos/',
     routes: '/ruta-aprendizaje/',
     contact: '/contactanos/',
-    legal: '/legal/'
+    legal: '/legal/',
+    account: '/mi-cuenta/'
   });
   const COURSE_VIEW_ALIASES = Object.freeze({
     panel: 'dashboard',
@@ -154,6 +159,9 @@
     simulacro: 'exam',
     examen: 'exam',
     exam: 'exam',
+    'examen-final': 'finalExam',
+    final: 'finalExam',
+    finalexam: 'finalExam',
     k3: 'k3lab',
     k3lab: 'k3lab',
     flashcards: 'flashcards',
@@ -166,6 +174,7 @@
     objectives: 'objetivos',
     practice: 'practica',
     exam: 'simulacro',
+    finalExam: 'examen-final',
     k3lab: 'k3',
     flashcards: 'flashcards',
     analytics: 'estadisticas'
@@ -177,11 +186,14 @@
     routes: renderRoutesPage,
     contact: renderContactPage,
     legal: renderLegalPage,
+    account: renderAccountPage,
+    authGate: renderCourseAuthGate,
     dashboard: renderDashboard,
     study: renderStudy,
     objectives: renderObjectives,
     practice: renderPractice,
     exam: renderExam,
+    finalExam: renderFinalExam,
     k3lab: renderK3Lab,
     flashcards: renderFlashcards,
     analytics: renderAnalytics
@@ -199,6 +211,16 @@
   let coffeeTrmSource = 'fallback';
   let coffeeTrmRequest = null;
   let homeSliderTimer = null;
+  let authGateRequest = null;
+  let learningSnapshot = {
+    profile: null,
+    enrollments: [],
+    progressByCourse: new Map(),
+    coursesByKey: new Map()
+  };
+  let studyTimer = null;
+  let lastStudyTickAt = Date.now();
+  let lastUserActivityAt = Date.now();
   const loadingCourseScripts = new Map();
 
   function createState(view = 'home') {
@@ -221,6 +243,10 @@
       homePanel: 'overview',
       homeSlide: 0,
       studyChapter: null,
+      accountLoading: false,
+      accountError: '',
+      accountProfile: null,
+      enrollments: [],
       practiceFilter: { ...DEFAULT_PRACTICE_FILTER }
     };
   }
@@ -343,6 +369,8 @@
     dom.notice = $('appNotice');
     dom.coffeeModal = $('coffeeModal');
     dom.coffeeCopHint = $('coffeeCopHint');
+    dom.certificateModal = $('certificateModal');
+    dom.certificateCourseName = $('certificateCourseName');
     dom.mainLayout = $('mainLayout');
     dom.heroTitle = $('heroTitle');
     dom.heroSubtitle = $('heroSubtitle');
@@ -359,21 +387,71 @@
     document.addEventListener('click', handleClick);
     document.addEventListener('change', handleChange);
     document.addEventListener('keydown', handleKeyboardActivation);
+    ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach((eventName) => {
+      document.addEventListener(eventName, noteUserActivity, { passive: true });
+    });
+    document.addEventListener('visibilitychange', handleStudyVisibilityChange);
+    global.addEventListener('pagehide', persistStudyTime);
     global.addEventListener('hashchange', handleLocationRoute);
     global.addEventListener('popstate', handleLocationRoute);
+    global.addEventListener('academiaqa:auth-change', handleAuthStateChange);
 
-    dom.resetProgress.addEventListener('click', () => {
+    dom.resetProgress.addEventListener('click', async () => {
       if (!course) return;
       if (!global.confirm('¿Borrar estadísticas, intentos y preguntas marcadas para repaso?')) return;
       const ok = Storage.removeProgress(progressStorageKey);
-      notify(ok ? 'El avance del curso fue eliminado.' : 'No fue posible borrar el avance.', ok ? 'success' : 'error');
+      if (ok && Auth?.isAuthenticated?.()) {
+        try {
+          await Cloud.syncProgress(activeCourseKey, Storage.getProgress(progressStorageKey));
+        } catch (error) {
+          console.error(error);
+          notify('El avance local se borró, pero no fue posible actualizar la nube.', 'warning');
+          render();
+          return;
+        }
+      }
+      notify(ok ? 'El avance del curso fue eliminado en este dispositivo y en la nube.' : 'No fue posible borrar el avance.', ok ? 'success' : 'error');
       render();
     });
+  }
+
+  async function handleAuthStateChange(event) {
+    const authenticated = Boolean(event.detail?.authenticated);
+    if (!authenticated) {
+      persistStudyTime();
+      stopStudyTimer();
+      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map() };
+      if (course && !PUBLIC_VIEWS.has(state.view)) {
+        const requestedView = state.view;
+        showCourseAuthGate(activeCourseKey, { view: requestedView, updateHash: false });
+      } else {
+        render();
+      }
+      return;
+    }
+    if (state.view === 'account') {
+      if (authenticated) await refreshAccount();
+      else render();
+      return;
+    }
+    if (authenticated && state.view === 'authGate' && authGateRequest) {
+      await setCourse(authGateRequest.key, authGateRequest.options);
+      return;
+    }
+    if (authenticated) {
+      try {
+        await refreshLearningSnapshot();
+        if (PUBLIC_VIEWS.has(state.view)) render();
+      } catch (error) {
+        console.error('No fue posible actualizar el resumen de aprendizaje.', error);
+      }
+    }
   }
 
   function handleKeyboardActivation(event) {
     if (event.key === 'Escape') {
       closeCoffeeModal();
+      closeCertificateModal();
       closeSiteMenu();
       return;
     }
@@ -395,6 +473,11 @@
 
     if (event.target === dom.coffeeModal) {
       closeCoffeeModal();
+      return;
+    }
+
+    if (event.target === dom.certificateModal) {
+      closeCertificateModal();
       return;
     }
 
@@ -431,6 +514,21 @@
       case 'select-course':
         await setCourse(actionTarget.dataset.course);
         break;
+      case 'sign-in-google':
+        await Auth?.signInWithGoogle?.();
+        break;
+      case 'retry-course':
+        await setCourse(actionTarget.dataset.course, {
+          view: actionTarget.dataset.courseView || 'dashboard',
+          updateHash: false
+        });
+        break;
+      case 'cancel-enrollment':
+        await cancelEnrollment(actionTarget.dataset.course);
+        break;
+      case 'reactivate-enrollment':
+        await setCourse(actionTarget.dataset.course);
+        break;
       case 'filter-courses':
         state.catalogFilter = learningRoute(actionTarget.dataset.filter)
           ? actionTarget.dataset.filter
@@ -465,6 +563,12 @@
         break;
       case 'close-coffee-modal':
         closeCoffeeModal();
+        break;
+      case 'open-certificate-coming-soon':
+        openCertificateModal(actionTarget.dataset.course);
+        break;
+      case 'close-certificate-modal':
+        closeCertificateModal();
         break;
       case 'toggle-site-menu':
         toggleSiteMenu();
@@ -504,6 +608,9 @@
         break;
       case 'start-official-exam':
         startOfficialExam();
+        break;
+      case 'start-final-exam':
+        startFinalExam();
         break;
       case 'flash-toggle':
         state.flashShow = !state.flashShow;
@@ -609,6 +716,7 @@
     if (anchor === 'ruta-aprendizaje') return { view: 'routes', anchor: 'ruta-aprendizaje' };
     if (['contactanos', 'redes'].includes(anchor)) return { view: 'contact', anchor: 'contactanos' };
     if (['legal', 'privacidad', 'terminos'].includes(anchor)) return { view: 'legal', anchor };
+    if (['mi-cuenta', 'cuenta'].includes(anchor)) return { view: 'account', anchor: 'mi-cuenta' };
     if (['como-estudiar'].includes(anchor)) return { view: 'home', anchor };
     return { view: 'home', anchor: 'inicio' };
   }
@@ -625,6 +733,7 @@
       if (parts[0] === 'ruta-aprendizaje') return { view: 'routes', anchor: 'ruta-aprendizaje' };
       if (parts[0] === 'contactanos') return { view: 'contact', anchor: 'contactanos' };
       if (parts[0] === 'legal') return { view: 'legal', anchor: 'legal' };
+      if (parts[0] === 'mi-cuenta') return { view: 'account', anchor: 'mi-cuenta' };
     }
 
     if (parts[0] === 'curso' && parts[1]) {
@@ -664,7 +773,7 @@
       return;
     }
 
-    if (state.view !== route.view) setView(route.view);
+    if (state.view !== route.view) await showView(route.view, { updateHash: false });
     scrollToAnchor(route.anchor);
   }
 
@@ -684,7 +793,23 @@
   function closeCoffeeModal() {
     if (!dom.coffeeModal || dom.coffeeModal.hidden) return;
     dom.coffeeModal.hidden = true;
-    document.body.classList.remove('modalOpen');
+    if (!dom.certificateModal || dom.certificateModal.hidden) document.body.classList.remove('modalOpen');
+  }
+
+  function openCertificateModal(courseKey) {
+    if (!dom.certificateModal) return;
+    closeCoffeeModal();
+    const entry = catalogEntry(courseKey);
+    setTextIfChanged(dom.certificateCourseName, entry?.meta?.name || courseKey || 'este curso');
+    dom.certificateModal.hidden = false;
+    document.body.classList.add('modalOpen');
+    global.setTimeout(() => dom.certificateModal.querySelector('[data-action="close-certificate-modal"]')?.focus(), 0);
+  }
+
+  function closeCertificateModal() {
+    if (!dom.certificateModal || dom.certificateModal.hidden) return;
+    dom.certificateModal.hidden = true;
+    if (!dom.coffeeModal || dom.coffeeModal.hidden) document.body.classList.remove('modalOpen');
   }
 
   function selectCoffeeTier(target) {
@@ -813,42 +938,157 @@
     setExamFocus(false);
   }
 
+  function noteUserActivity() {
+    lastUserActivityAt = Date.now();
+  }
+
+  function accumulateStudyTime(now = Date.now(), allowHidden = false) {
+    const elapsedSeconds = Math.min(60, Math.max(0, Math.floor((now - lastStudyTickAt) / 1_000)));
+    lastStudyTickAt = now;
+    if (!elapsedSeconds || !course || !progressStorageKey || !Auth?.isAuthenticated?.()) return;
+    if (!allowHidden && document.visibilityState !== 'visible') return;
+    if (now - lastUserActivityAt > 120_000) return;
+    if (PUBLIC_VIEWS.has(state.view) || state.view === 'authGate') return;
+
+    const progress = getProgress();
+    progress.studySeconds = Math.min(315360000, number(progress.studySeconds) + elapsedSeconds);
+    if (state.view === 'study' && state.studyChapter) {
+      const chapterId = String(state.studyChapter);
+      const current = progress.chapterActivity?.[chapterId] || {};
+      progress.chapterActivity = progress.chapterActivity || {};
+      progress.chapterActivity[chapterId] = {
+        studySeconds: Math.min(315360000, number(current.studySeconds) + elapsedSeconds),
+        visitedAt: current.visitedAt || new Date(now).toISOString(),
+        lastStudiedAt: new Date(now).toISOString()
+      };
+    }
+    saveProgress(progress);
+  }
+
+  function startStudyTimer() {
+    if (studyTimer) global.clearInterval(studyTimer);
+    lastStudyTickAt = Date.now();
+    lastUserActivityAt = Date.now();
+    studyTimer = global.setInterval(() => accumulateStudyTime(), 15_000);
+  }
+
+  function stopStudyTimer() {
+    if (studyTimer) global.clearInterval(studyTimer);
+    studyTimer = null;
+    lastStudyTickAt = Date.now();
+  }
+
+  function persistStudyTime() {
+    accumulateStudyTime(Date.now(), true);
+    if (activeCourseKey && Auth?.isAuthenticated?.()) {
+      Promise.resolve(Cloud.flushProgress(activeCourseKey)).catch(() => {});
+    }
+  }
+
+  function handleStudyVisibilityChange() {
+    if (document.visibilityState === 'hidden') persistStudyTime();
+    else {
+      lastStudyTickAt = Date.now();
+      lastUserActivityAt = Date.now();
+    }
+  }
+
   function setExamFocus(active) {
     state.examFocus = Boolean(active);
     document.body.classList.toggle('examFocusMode', state.examFocus);
+  }
+
+  function estimatedCourseHours(courseData) {
+    const theoryMinutes = (courseData?.chapters || []).reduce((sum, chapter) => (
+      sum + Math.max(0, number(chapter.minutes))
+    ), 0);
+    const practiceMinutes = Math.min(200, courseData?.questions?.length || 0) * 2;
+    const simulatorMinutes = Math.max(0, number(courseData?.blueprint?.minutes)) * 3;
+    return Math.max(1, Math.min(500, Math.ceil((theoryMinutes + practiceMinutes + simulatorMinutes) / 60)));
+  }
+
+  function showCourseAuthGate(key, options = {}, error = '') {
+    clearRuntimeTimers();
+    stopStudyTimer();
+    activeCourseKey = String(key || '').trim().toLowerCase();
+    course = null;
+    questions = [];
+    progressStorageKey = '';
+    authGateRequest = {
+      key: activeCourseKey,
+      options: {
+        view: options.view || 'dashboard',
+        chapter: Number(options.chapter) || null,
+        updateHash: false
+      }
+    };
+    state = createState('authGate');
+    state.authGateError = String(error || '');
+    render();
+    if (options.updateHash !== false) {
+      pushRoute(coursePath(activeCourseKey, options.view || 'dashboard'));
+    }
   }
 
   async function setCourse(key, options = {}) {
     const normalizedKey = String(key || '').trim().toLowerCase();
     if (!catalogEntry(normalizedKey)?.src) {
       notify('La certificación seleccionada no existe en el catálogo.', 'error');
-      return;
+      return false;
     }
 
+    await Auth?.whenReady?.();
+    if (!Auth?.isAuthenticated?.()) {
+      showCourseAuthGate(normalizedKey, options);
+      return false;
+    }
+
+    persistStudyTime();
+    stopStudyTimer();
     clearRuntimeTimers();
+    let loadedCourse;
     try {
-      course = await ensureCourseLoaded(normalizedKey);
+      loadedCourse = await ensureCourseLoaded(normalizedKey);
+      const nextStorageKey = loadedCourse.meta?.storageKey || `academy_${normalizedKey}_progress`;
+      const enrollment = await Cloud.enroll(normalizedKey, estimatedCourseHours(loadedCourse));
+      const localProgress = Storage.getProgress(nextStorageKey);
+      const cloudProgress = await Cloud.loadProgress(normalizedKey);
+      const mergedProgress = Cloud.mergeProgress(localProgress, cloudProgress);
+      const localSave = Storage.saveProgress(nextStorageKey, mergedProgress);
+      if (!localSave.ok) throw new Error('No fue posible preparar el progreso local.');
+      await Cloud.syncProgress(normalizedKey, mergedProgress);
+      updateLearningSnapshot(normalizedKey, loadedCourse, mergedProgress, enrollment);
     } catch (error) {
       console.error(error);
-      notify('No fue posible cargar el curso seleccionado.', 'error');
-      return;
+      showCourseAuthGate(normalizedKey, options, 'No fue posible conectar la matrícula y el progreso con la nube. Intenta nuevamente.');
+      return false;
     }
 
+    course = loadedCourse;
     activeCourseKey = normalizedKey;
     questions = [...course.questions];
     progressStorageKey = course.meta?.storageKey || `academy_${normalizedKey}_progress`;
     state = createState(options.view || 'dashboard');
     state.studyChapter = Number(options.chapter) || null;
+    authGateRequest = null;
     Storage.setActiveCourse(normalizedKey);
     updateCourseUi();
+    startStudyTimer();
     render();
     if (options.updateHash !== false && !PUBLIC_VIEWS.has(state.view)) {
       pushRoute(coursePath(normalizedKey, state.view));
     }
+    return true;
   }
 
   async function showView(view, options = {}) {
     if (!VIEW_RENDERERS[view]) return;
+    if (view === 'account') {
+      setView('account', options);
+      await Auth?.whenReady?.();
+      if (Auth?.isAuthenticated?.()) await refreshAccount();
+      return;
+    }
     if (!PUBLIC_VIEWS.has(view) && !course) {
       await setCourse(activeCourseKey || Storage.getActiveCourse() || firstCatalogKey(), { view, updateHash: options.updateHash });
       return;
@@ -859,11 +1099,14 @@
 
   function setView(view, options = {}) {
     if (!VIEW_RENDERERS[view]) return;
-    if (!PUBLIC_VIEWS.has(view) && !course) return;
-    if (view !== state.view) clearRuntimeTimers();
+    if (!PUBLIC_VIEWS.has(view) && view !== 'authGate' && !course) return;
+    if (view !== state.view) {
+      accumulateStudyTime();
+      clearRuntimeTimers();
+    }
     state.view = view;
     if (view === 'home') state.homePanel = 'overview';
-    state.session = ['practice', 'exam'].includes(view) ? state.session : [];
+    state.session = ['practice', 'exam', 'finalExam'].includes(view) ? state.session : [];
     syncNavigationState();
     render();
     if (options.updateHash !== false) {
@@ -872,11 +1115,24 @@
   }
 
   function syncNavigationState() {
+    const finalExamDetails = course ? courseProgressDetails(activeCourseKey, course) : null;
     document.querySelectorAll('.navbtn[data-view], .siteNav [data-view]').forEach((item) => {
       const active = item.dataset.view === state.view;
       item.classList.toggle('active', active);
       if (active) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('.navbtn[data-view="finalExam"]').forEach((item) => {
+      const locked = !finalExamDetails?.finalExamEligible;
+      item.disabled = locked;
+      item.classList.toggle('locked', locked);
+      item.setAttribute('aria-disabled', String(locked));
+      item.title = locked
+        ? `Completa el ${FINAL_EXAM_UNLOCK_PROGRESS}% del curso para habilitar el examen final.`
+        : 'Presentar examen final';
+      setTextIfChanged(item.querySelector('small'), finalExamDetails?.finalExamPassed
+        ? 'aprobado'
+        : locked ? `${finalExamDetails?.progressPercent || 0}% / ${FINAL_EXAM_UNLOCK_PROGRESS}%` : 'habilitado');
     });
   }
 
@@ -887,6 +1143,62 @@
   function saveProgress(progress) {
     const result = Storage.saveProgress(progressStorageKey, progress);
     if (!result.ok) notify('No fue posible guardar el progreso en este navegador.', 'warning');
+    if (result.ok && activeCourseKey && Auth?.isAuthenticated?.()) {
+      const normalized = Storage.normalizeProgress(progress);
+      learningSnapshot.progressByCourse.set(activeCourseKey, normalized);
+      const enrollment = learningSnapshot.enrollments.find((item) => item.course_key === activeCourseKey);
+      if (enrollment) enrollment.study_seconds = Math.max(number(enrollment.study_seconds), number(normalized.studySeconds));
+      Cloud.queueProgressSync(activeCourseKey, progress);
+    }
+  }
+
+  function updateEnrollmentSnapshot(value) {
+    if (!value?.course_key) return;
+    const index = learningSnapshot.enrollments.findIndex((item) => item.course_key === value.course_key);
+    if (index >= 0) learningSnapshot.enrollments[index] = { ...learningSnapshot.enrollments[index], ...value };
+    else learningSnapshot.enrollments.push(value);
+  }
+
+  function updateLearningSnapshot(key, courseData, progress, enrollment = null) {
+    const courseKey = String(key || '').trim().toLowerCase();
+    if (!courseKey) return;
+    if (courseData) learningSnapshot.coursesByKey.set(courseKey, courseData);
+    if (progress) learningSnapshot.progressByCourse.set(courseKey, Storage.normalizeProgress(progress));
+    if (enrollment) updateEnrollmentSnapshot(enrollment);
+  }
+
+  async function refreshLearningSnapshot({ includeProfile = false } = {}) {
+    if (!Auth?.isAuthenticated?.()) {
+      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map() };
+      return learningSnapshot;
+    }
+
+    const profileRequest = includeProfile ? Cloud.getProfile() : Promise.resolve(learningSnapshot.profile);
+    const [profile, enrollments] = await Promise.all([profileRequest, Cloud.listEnrollments()]);
+    const progressByCourse = new Map();
+    const coursesByKey = new Map();
+    await Promise.all(enrollments.map(async (enrollment) => {
+      const key = enrollment.course_key;
+      if (!catalogEntry(key)?.src) return;
+      const [loadedCourse, progress] = await Promise.all([
+        ensureCourseLoaded(key),
+        Cloud.loadProgress(key)
+      ]);
+      coursesByKey.set(key, loadedCourse);
+      progressByCourse.set(key, progress);
+      const storageKey = loadedCourse.meta?.storageKey || `academy_${key}_progress`;
+      const merged = Cloud.mergeProgress(Storage.getProgress(storageKey), progress);
+      Storage.saveProgress(storageKey, merged);
+      progressByCourse.set(key, merged);
+    }));
+
+    learningSnapshot = {
+      profile: profile || null,
+      enrollments,
+      progressByCourse,
+      coursesByKey
+    };
+    return learningSnapshot;
   }
 
   function compactText(value, max = 155) {
@@ -907,7 +1219,8 @@
       courses: ['Cursos gratis de QA, Testing, IA y Scrum | AcademiaQA', 'Explora cursos gratis de QA, testing, IA, Scrum, gestión de proyectos y ciberseguridad con syllabus, práctica y simulacros.'],
       routes: ['Rutas para aprender QA, Testing, IA y Scrum | AcademiaQA', 'Elige una ruta gratuita en QA, testing, IA, Scrum, gestión de proyectos o ciberseguridad y avanza hasta el simulacro.'],
       contact: ['Contáctanos | AcademiaQA', 'Contacta a AcademiaQA para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.'],
-      legal: ['Información legal y privacidad | AcademiaQA', 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.']
+      legal: ['Información legal y privacidad | AcademiaQA', 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.'],
+      account: ['Mi cuenta | AcademiaQA', 'Consulta tus matrículas, avance y actividad de aprendizaje en AcademiaQA.']
     };
     if (PUBLIC_VIEWS.has(state.view)) {
       const [title, description] = publicMetadata[state.view] || publicMetadata.home;
@@ -921,6 +1234,15 @@
         title: `Simulacro ${catalogEntry(activeCourseKey).family === 'ISTQB' ? 'ISTQB ' : ''}${label} gratis | AcademiaQA`,
         description: compactText(`Practica con el simulacro de ${label}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}. Acceso gratis en AcademiaQA.`),
         path: coursePath(activeCourseKey, 'exam')
+      };
+    }
+
+    if (state.view === 'finalExam') {
+      const blueprint = course?.blueprint || {};
+      return {
+        title: `Examen final ${label} | AcademiaQA`,
+        description: compactText(`Examen final interno de ${label}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}.`),
+        path: coursePath(activeCourseKey, 'finalExam')
       };
     }
 
@@ -955,10 +1277,13 @@
     document.querySelector('meta[property="og:url"]')?.setAttribute('content', canonicalUrl);
     document.querySelector('meta[name="twitter:title"]')?.setAttribute('content', metadata.title);
     document.querySelector('meta[name="twitter:description"]')?.setAttribute('content', metadata.description);
+    document.querySelector('meta[name="robots"]')?.setAttribute('content', ['account', 'finalExam'].includes(state.view) ? 'noindex, nofollow' : 'index, follow');
   }
 
   function updateCourseUi() {
-    const isPublicView = PUBLIC_VIEWS.has(state.view);
+    const isAuthGate = state.view === 'authGate';
+    const isPublicView = PUBLIC_VIEWS.has(state.view) || isAuthGate;
+    const gateEntry = catalogEntry(activeCourseKey);
     const allCourses = publicCourseEntries();
     const totalBank = allCourses.reduce((sum, [, item]) => sum + courseQuestionCount(item), 0);
     const freeCourses = allCourses.filter(([key]) => catalogEntry(key)?.access === 'free').length;
@@ -968,14 +1293,18 @@
       courses: 'Cursos',
       routes: 'Ruta de aprendizaje',
       contact: 'Contáctanos',
-      legal: 'Información legal'
+      legal: 'Información legal',
+      account: 'Mi cuenta',
+      authGate: gateEntry?.meta?.name || 'Acceso al curso'
     };
     const publicSubtitles = {
       home: Config.description || 'Selecciona una certificación para iniciar.',
       courses: 'Explora todos los cursos disponibles y entra a la ruta que quieres estudiar.',
       routes: 'Rutas sugeridas para avanzar por testing, IA, Scrum, gestión y ciberseguridad.',
       contact: 'Cuéntanos una idea, problema, error académico o propuesta de colaboración.',
-      legal: 'Política de privacidad, términos y condiciones de uso de AcademiaQA.'
+      legal: 'Política de privacidad, términos y condiciones de uso de AcademiaQA.',
+      account: 'Tu información, matrículas y actividad de aprendizaje guardadas en la nube.',
+      authGate: 'Inicia sesión con Google para inscribirte y guardar tu progreso.'
     };
 
     dom.siteHeader?.classList.toggle('homeHeader', isPublicView);
@@ -983,7 +1312,7 @@
     setTextIfChanged(dom.heroTitle, isPublicView ? publicTitles[state.view] : courseLabel());
     setTextIfChanged(dom.heroSubtitle, isPublicView
       ? publicSubtitles[state.view]
-      : `Menú de estudio de ${courseLabel()}: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.`);
+      : `Menú de estudio de ${courseLabel()}: teoría, objetivos, práctica, flashcards, simulacro y examen final.`);
     setTextIfChanged(dom.topChapters, isPublicView
       ? `🧭 ${LEARNING_ROUTES.length} rutas de aprendizaje`
       : `📘 ${course.chapters.length} capítulos`);
@@ -1012,7 +1341,7 @@
   }
 
   function render() {
-    if (!course && !PUBLIC_VIEWS.has(state.view)) return;
+    if (!course && !PUBLIC_VIEWS.has(state.view) && state.view !== 'authGate') return;
     updateCourseUi();
     const renderer = VIEW_RENDERERS[state.view] || VIEW_RENDERERS.home;
 
@@ -1056,22 +1385,94 @@
   }
 
   function courseLabel() {
-    return course.meta?.name || course.meta?.shortName || activeCourseKey.toUpperCase();
+    return course?.meta?.name || course?.meta?.shortName || catalogEntry(activeCourseKey)?.meta?.name || activeCourseKey.toUpperCase();
   }
 
   function courseAcronym(key, item) {
     return item.meta?.code || item.meta?.shortName || String(key).toUpperCase();
   }
 
-  function courseProgressDetails(key, item) {
+  function progressForCourse(key, item) {
+    const cloudProgress = learningSnapshot.progressByCourse.get(key);
+    if (cloudProgress) return cloudProgress;
     const keyForStorage = courseMeta(item).storageKey || `academy_${key}_progress`;
-    const progress = Storage.getProgress(keyForStorage);
+    return Storage.getProgress(keyForStorage);
+  }
+
+  function enrollmentForCourse(key) {
+    return learningSnapshot.enrollments.find((item) => item.course_key === key) || null;
+  }
+
+  function chapterProgressForCourse(courseData, progressValue, chapterId) {
+    const progress = Storage.normalizeProgress(progressValue);
+    const objectives = (courseData?.objectives || []).filter((objective) => Number(objective.chapter) === Number(chapterId));
+    const chapterStats = objectives.reduce((summary, objective) => {
+      const item = progress.byLo?.[objective.lo] || {};
+      const ok = number(item.ok);
+      const bad = number(item.bad);
+      summary.ok += ok;
+      summary.bad += bad;
+      summary.answered += ok + bad;
+      if (ok + bad > 0) summary.touched += 1;
+      return summary;
+    }, { ok: 0, bad: 0, answered: 0, touched: 0 });
+    const chapter = (courseData?.chapters || []).find((item) => Number(item.id) === Number(chapterId)) || {};
+    const activity = progress.chapterActivity?.[String(chapterId)] || {};
+    const studySeconds = number(activity.studySeconds);
+    const suggestedSeconds = Math.max(60, number(chapter.minutes) * 60);
+    const readingProgress = Math.min(100, pct(studySeconds, suggestedSeconds));
+    const objectiveProgressPct = objectives.length ? pct(chapterStats.touched, objectives.length) : readingProgress;
+    const coverage = Math.min(100, Math.round((readingProgress * 0.4) + (objectiveProgressPct * 0.6)));
+
+    return {
+      ...chapterStats,
+      chapterId: Number(chapterId),
+      title: chapter.title || `Capítulo ${chapterId}`,
+      objectiveCount: objectives.length,
+      accuracy: pct(chapterStats.ok, chapterStats.answered),
+      objectiveProgress: objectiveProgressPct,
+      readingProgress,
+      coverage,
+      studySeconds,
+      visitedAt: activity.visitedAt || ''
+    };
+  }
+
+  function courseProgressDetails(key, item) {
+    const progress = progressForCourse(key, item);
     const attempts = progress.attempts || [];
-    const best = attempts.length ? Math.max(...attempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
+    const simulatorAttempts = attempts.filter((attempt) => attempt.mode === 'exam');
+    const best = simulatorAttempts.length ? Math.max(...simulatorAttempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
     const answered = Object.values(progress.byLo || {}).reduce((sum, item) => sum + number(item.ok) + number(item.bad), 0);
     const marked = Array.isArray(progress.marked) ? progress.marked.length : 0;
-    const started = attempts.length > 0 || answered > 0 || marked > 0;
-    return { attempts, best, last: attempts.at(-1) || null, answered, marked, started };
+    const courseData = learningSnapshot.coursesByKey.get(key) || Registry.get(key) || (Array.isArray(item?.chapters) ? item : null);
+    const chapters = (courseData?.chapters || []).map((chapter) => chapterProgressForCourse(courseData, progress, chapter.id));
+    const chapterAverage = chapters.length
+      ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.coverage, 0) / chapters.length)
+      : 0;
+    const enrollment = enrollmentForCourse(key);
+    const finalExamPassed = Boolean(enrollment?.final_exam_passed || attempts.some((attempt) => attempt.mode === 'final-exam' && attempt.passed));
+    const progressPercent = finalExamPassed
+      ? 100
+      : Math.min(FINAL_EXAM_UNLOCK_PROGRESS, Math.round(chapterAverage * (FINAL_EXAM_UNLOCK_PROGRESS / 100)));
+    const finalExamEligible = finalExamPassed || progressPercent >= FINAL_EXAM_UNLOCK_PROGRESS;
+    const started = attempts.length > 0 || answered > 0 || marked > 0 || number(progress.studySeconds) > 0;
+    return {
+      attempts,
+      best,
+      last: attempts.at(-1) || null,
+      answered,
+      marked,
+      started,
+      chapters,
+      chapterAverage,
+      progressPercent,
+      studySeconds: Math.max(number(progress.studySeconds), number(enrollment?.study_seconds)),
+      enrollment,
+      finalExamPassed,
+      finalExamEligible,
+      isEnrolled: Boolean(enrollment && enrollment.status !== 'cancelled')
+    };
   }
 
   function courseRouteKey(key) {
@@ -1152,16 +1553,25 @@
   }
 
   function heroProgressSummary() {
-    const entries = publicCourseEntries();
+    if (!Auth?.isAuthenticated?.()) {
+      return { courses: [], totalCourses: 0, startedCourses: 0, totalAnswered: 0, totalStudySeconds: 0, averageProgress: 0, resumeEntry: null };
+    }
     const active = Storage.getActiveCourse();
-    const courses = entries.map(([key, item]) => ({ key, item, details: courseProgressDetails(key, item) }));
+    const courses = learningSnapshot.enrollments
+      .filter((enrollment) => enrollment.status !== 'cancelled')
+      .map((enrollment) => {
+        const key = enrollment.course_key;
+        const item = learningSnapshot.coursesByKey.get(key) || Registry.get(key) || catalogCourseSummary(catalogEntry(key));
+        return { key, item, details: courseProgressDetails(key, item) };
+      })
+      .filter((entry) => entry.item);
     const totalCourses = courses.length;
     const startedCourses = courses.filter((entry) => entry.details.started).length;
     const totalAnswered = courses.reduce((sum, entry) => sum + number(entry.details.answered), 0);
-    const averageBest = totalCourses
-      ? Math.round(courses.reduce((sum, entry) => sum + number(entry.details.best), 0) / totalCourses)
+    const totalStudySeconds = courses.reduce((sum, entry) => sum + number(entry.details.studySeconds), 0);
+    const averageProgress = totalCourses
+      ? Math.round(courses.reduce((sum, entry) => sum + number(entry.details.progressPercent), 0) / totalCourses)
       : 0;
-    const bestEntry = [...courses].sort((left, right) => right.details.best - left.details.best)[0] || null;
     const lastEntry = courses
       .filter((entry) => entry.details.last)
       .sort((left, right) => {
@@ -1170,42 +1580,56 @@
         return rightTime - leftTime;
       })[0] || null;
     const activeEntry = courses.find((entry) => entry.key === active) || null;
-    const resumeEntry = lastEntry || activeEntry || bestEntry || courses[0] || null;
+    const resumeEntry = lastEntry || activeEntry || courses[0] || null;
 
     return {
       courses,
       totalCourses,
       startedCourses,
       totalAnswered,
-      averageBest,
-      bestEntry,
+      totalStudySeconds,
+      averageProgress,
       lastEntry,
       resumeEntry
     };
   }
 
   function renderHeroProgressCard() {
+    if (!Auth?.isAuthenticated?.()) {
+      return `<aside class="heroProgressPanel" aria-label="Acceso al progreso">
+        <span>Tu progreso general</span>
+        <div class="heroProgressTop"><strong>AcademiaQA</strong></div>
+        <p>Inicia sesión para guardar tus cursos, tiempo de estudio y resultados en la nube.</p>
+        <button class="btn heroResume" type="button" data-action="sign-in-google">Iniciar sesión</button>
+      </aside>`;
+    }
+
     const summary = heroProgressSummary();
     const entry = summary.resumeEntry;
-    if (!entry) return '';
+    if (!entry) {
+      return `<aside class="heroProgressPanel" aria-label="Resumen de progreso">
+        <span>Tu progreso general</span>
+        <div class="heroProgressTop"><strong>Sin cursos inscritos</strong><b>0%</b></div>
+        <p>El progreso empezará cuando ingreses a tu primer curso.</p>
+        <a class="btn heroResume" href="${h(publicPath('courses'))}" data-view="courses">Explorar cursos</a>
+      </aside>`;
+    }
 
-    const pctValue = Math.max(0, Math.min(100, number(summary.averageBest, 0)));
-    const bestText = summary.bestEntry && summary.bestEntry.details.best > 0
-      ? `Mejor: ${coursePublicVersion(summary.bestEntry.key, summary.bestEntry.item)} ${number(summary.bestEntry.details.best)}%`
-      : 'Sin simulacros registrados';
+    const pctValue = Math.max(0, Math.min(100, number(summary.averageProgress, 0)));
+    const studyText = `Tiempo estudiado: ${formatStudyDuration(summary.totalStudySeconds)}`;
     const lastText = summary.lastEntry?.details.last
       ? `Último intento: ${coursePublicVersion(summary.lastEntry.key, summary.lastEntry.item)} · ${formatDate(summary.lastEntry.details.last.date)} · ${number(summary.lastEntry.details.last.scorePct)}%`
-      : 'Empieza gratis y guarda tu progreso en este navegador.';
-    const actionText = summary.startedCourses ? 'Retomar sesión' : 'Comenzar curso';
+      : 'Tu avance se calcula únicamente con los cursos en los que te inscribiste.';
+    const actionText = summary.startedCourses ? 'Retomar curso' : 'Comenzar curso';
 
     return `<aside class="heroProgressPanel" aria-label="Resumen de progreso">
       <span>Tu progreso general</span>
       <div class="heroProgressTop"><strong>AcademiaQA</strong><b>${pctValue}%</b></div>
       <div class="progressbar heroProgressBar" aria-hidden="true"><div style="width:${pctValue}%"></div></div>
       <div class="heroProgressStats" aria-label="Detalle de progreso general">
-        <span>${number(summary.startedCourses)}/${number(summary.totalCourses)} cursos con avance</span>
+        <span>${number(summary.totalCourses)} cursos inscritos</span>
         <span>${number(summary.totalAnswered)} respuestas</span>
-        <span>${h(bestText)}</span>
+        <span>${h(studyText)}</span>
       </div>
       <p>${h(lastText)}</p>
       <button class="btn heroResume" type="button" data-action="select-course" data-course="${h(entry.key)}">${h(actionText)}</button>
@@ -1596,6 +2020,195 @@
     </div>`;
   }
 
+  function authUserName() {
+    const user = Auth?.getUser?.();
+    const metadata = user?.user_metadata || {};
+    return String(metadata.full_name || metadata.name || user?.email?.split('@')[0] || 'Usuario de AcademiaQA');
+  }
+
+  function renderCourseAuthGate() {
+    const entry = catalogEntry(activeCourseKey) || {};
+    const meta = entry.meta || {};
+    const counts = entry.counts || {};
+    const blueprint = entry.blueprint || {};
+    const authenticated = Auth?.isAuthenticated?.();
+    const error = state.authGateError;
+
+    return `<div class="publicHome publicPage courseAuthPage">
+      <section class="courseAuthGate" aria-labelledby="courseAuthTitle">
+        <div class="courseAuthSummary">
+          <span class="sectionKicker">${h(meta.code || activeCourseKey.toUpperCase())}</span>
+          <h2 id="courseAuthTitle">${h(meta.name || 'Curso AcademiaQA')}</h2>
+          <p>${h(meta.subtitle || 'Ruta de aprendizaje disponible en AcademiaQA.')}</p>
+          <div class="certBadgeLine">
+            <span>${number(counts.chapters)} capítulos</span>
+            <span>${number(counts.objectives)} objetivos</span>
+            <span>${number(counts.questions)} preguntas</span>
+            <span>Simulacro ${number(blueprint.totalQuestions)} preguntas</span>
+          </div>
+        </div>
+        <div class="courseAuthAction">
+          <span class="authLock" aria-hidden="true">G</span>
+          <h3>${authenticated ? 'Conecta tu matrícula' : 'Inicia sesión para entrar'}</h3>
+          <p>${authenticated
+            ? 'Necesitamos conectar este curso con tu cuenta antes de abrir el contenido.'
+            : 'El acceso al curso requiere una cuenta de Google. Tu matrícula, avance y simulacros quedarán guardados en la nube.'}</p>
+          ${error ? `<div class="badbox">${h(error)}</div>` : ''}
+          <div class="btnrow">
+            ${authenticated
+              ? `<button class="btn" type="button" data-action="retry-course" data-course="${h(activeCourseKey)}" data-course-view="${h(authGateRequest?.options?.view || 'dashboard')}">Intentar nuevamente</button>`
+              : '<button class="btn" type="button" data-action="sign-in-google">Iniciar sesión</button>'}
+            <a class="btn secondary" href="${h(publicPath('courses'))}" data-view="courses">Volver a cursos</a>
+          </div>
+          <small>AcademiaQA no recibe ni almacena tu contraseña de Google.</small>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  async function refreshAccount() {
+    if (state.view !== 'account' || !Auth?.isAuthenticated?.()) return;
+    state.accountLoading = true;
+    state.accountError = '';
+    render();
+    try {
+      await refreshLearningSnapshot({ includeProfile: true });
+      state.accountProfile = learningSnapshot.profile;
+      state.enrollments = learningSnapshot.enrollments;
+    } catch (error) {
+      console.error(error);
+      state.accountError = 'No fue posible consultar tu información en la nube.';
+    } finally {
+      state.accountLoading = false;
+      if (state.view === 'account') render();
+    }
+  }
+
+  async function cancelEnrollment(key) {
+    const courseKey = String(key || '').trim().toLowerCase();
+    const entry = catalogEntry(courseKey);
+    if (!entry || !global.confirm(`¿Cancelar tu matrícula en ${entry.meta?.name || courseKey}? Tu historial se conservará para métricas y podrás reactivarla después.`)) return;
+    try {
+      await Cloud.cancelEnrollment(courseKey);
+      notify('La matrícula fue cancelada. Tu historial permanece protegido en la nube.', 'success');
+      await refreshAccount();
+    } catch (error) {
+      console.error(error);
+      notify('No fue posible cancelar la matrícula.', 'error');
+    }
+  }
+
+  function renderAccountPage() {
+    if (!Auth?.isAuthenticated?.()) {
+      return `<div class="publicHome publicPage accountPage" id="mi-cuenta">
+        <section class="accountSignIn" aria-labelledby="accountTitle">
+          <span class="sectionKicker">Mi cuenta</span>
+          <h1 id="accountTitle">Tu aprendizaje, en un solo lugar</h1>
+          <p>Inicia sesión con Google para consultar tus matrículas, avance por capítulo, tiempo de estudio, simulacros y exámenes finales.</p>
+          <button class="btn" type="button" data-action="sign-in-google">Iniciar sesión</button>
+        </section>
+      </div>`;
+    }
+
+    const user = Auth.getUser();
+    const profile = state.accountProfile || {};
+    const enrollments = Array.isArray(state.enrollments) ? state.enrollments : [];
+    const enrolled = enrollments.filter((item) => item.status !== 'cancelled');
+    const active = enrolled.length;
+    const simulatorTotal = enrollments.reduce((sum, item) => sum + number(item.simulator_attempts), 0);
+    const finalExamTotal = enrollments.reduce((sum, item) => sum + number(item.final_exam_attempts), 0);
+    const hoursTotal = enrollments
+      .filter((item) => item.status !== 'cancelled')
+      .reduce((sum, item) => sum + number(item.estimated_hours), 0);
+    const studySecondsTotal = enrolled.reduce((sum, item) => {
+      const progress = learningSnapshot.progressByCourse.get(item.course_key);
+      return sum + Math.max(number(item.study_seconds), number(progress?.studySeconds));
+    }, 0);
+    const overallProgress = enrolled.length
+      ? Math.round(enrolled.reduce((sum, item) => {
+        const entry = learningSnapshot.coursesByKey.get(item.course_key) || catalogCourseSummary(catalogEntry(item.course_key));
+        return sum + courseProgressDetails(item.course_key, entry).progressPercent;
+      }, 0) / enrolled.length)
+      : 0;
+
+    const enrollmentCards = enrollments.map((item) => {
+      const entry = catalogEntry(item.course_key) || {};
+      const meta = entry.meta || {};
+      const isEnrolled = item.status !== 'cancelled';
+      const courseData = learningSnapshot.coursesByKey.get(item.course_key) || Registry.get(item.course_key);
+      const details = courseProgressDetails(item.course_key, courseData || catalogCourseSummary(entry));
+      const isCompleted = details.finalExamPassed && details.progressPercent === 100;
+      const certificateAvailable = isCompleted;
+      const chapterRows = details.chapters.map((chapter) => `<li>
+        <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${chapter.touched}/${chapter.objectiveCount} LO · ${chapter.answered} respuestas</span></div>
+        <div><strong>${chapter.coverage}%</strong><span>${h(formatStudyDuration(chapter.studySeconds))}</span></div>
+        <div class="progressbar" aria-label="Avance del capítulo ${number(chapter.chapterId)}"><div style="width:${chapter.coverage}%"></div></div>
+      </li>`).join('');
+      return `<article class="accountCourseCard">
+        <div class="accountCourseHead">
+          <div>
+            <span class="accountStatus ${h(item.status)}">${item.status === 'active' ? 'Activo' : item.status === 'cancelled' ? 'Cancelado' : 'Completado'}</span>
+            <h3>${h(meta.name || item.course_key)}</h3>
+          </div>
+          <strong>${details.progressPercent}%</strong>
+        </div>
+        <div class="progressbar accountCourseProgress" aria-label="Avance del curso"><div style="width:${details.progressPercent}%"></div></div>
+        <dl class="accountCourseMetrics">
+          <div><dt>Fecha de inicio</dt><dd>${h(formatDate(item.started_at))}</dd></div>
+          <div><dt>Última actividad</dt><dd>${h(formatDate(item.last_activity_at))}</dd></div>
+          <div><dt>Tiempo estudiado</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
+          <div><dt>Duración estimada</dt><dd>${number(item.estimated_hours)} h</dd></div>
+          <div><dt>Simulacros</dt><dd>${number(item.simulator_attempts)}</dd></div>
+          <div><dt>Mejor simulacro</dt><dd>${number(item.best_simulator_score)}%</dd></div>
+          <div><dt>Exámenes finales</dt><dd>${number(item.final_exam_attempts)}</dd></div>
+          <div><dt>Mejor examen final</dt><dd>${number(item.best_final_exam_score)}%</dd></div>
+          <div><dt>Respuestas registradas</dt><dd>${number(item.practice_answers)}</dd></div>
+        </dl>
+        <div class="${isCompleted ? 'okbox' : 'note'} accountFinalStatus"><b>Examen final:</b> ${isCompleted
+          ? `Aprobado · ${number(item.best_final_exam_score)}% · curso al 100%`
+          : details.finalExamEligible ? 'Habilitado · ya alcanzaste el 95%' : `Bloqueado hasta el 95% · avance actual ${details.progressPercent}%`}</div>
+        <details class="accountChapterDetails">
+          <summary>Avance por capítulo</summary>
+          ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Aún no hay capítulos con actividad registrada.</p>'}
+        </details>
+        <div class="btnrow">
+          ${certificateAvailable
+            ? `<button class="btn good certificateAction" type="button" data-action="open-certificate-coming-soon" data-course="${h(item.course_key)}">Obtener certificado de curso</button>`
+            : '<button class="btn secondary certificateAction" type="button" disabled aria-disabled="true">Certificado disponible al 100%</button>'}
+          ${isEnrolled
+            ? `<a class="btn" href="${h(coursePath(item.course_key))}" data-action="select-course" data-course="${h(item.course_key)}">Continuar curso</a>
+               <button class="btn secondary dangerAction" type="button" data-action="cancel-enrollment" data-course="${h(item.course_key)}">Cancelar curso</button>`
+            : `<button class="btn" type="button" data-action="reactivate-enrollment" data-course="${h(item.course_key)}">Reactivar curso</button>`}
+        </div>
+      </article>`;
+    }).join('');
+
+    return `<div class="publicHome publicPage accountPage" id="mi-cuenta">
+      <section class="accountHeader" aria-labelledby="accountTitle">
+        <span class="sectionKicker">Mi cuenta</span>
+        <h1 id="accountTitle">Hola, ${h(authUserName())}</h1>
+        <p>${h(profile.email || user?.email || '')}</p>
+        <div class="grid3 accountTotals">
+          <div class="metric"><span>Cursos inscritos</span><strong>${active}</strong></div>
+          <div class="metric"><span>Progreso general</span><strong>${overallProgress}%</strong></div>
+          <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(studySecondsTotal))}</strong></div>
+          <div class="metric"><span>Horas estimadas</span><strong>${hoursTotal}</strong></div>
+          <div class="metric"><span>Simulacros realizados</span><strong>${simulatorTotal}</strong></div>
+          <div class="metric"><span>Exámenes finales</span><strong>${finalExamTotal}</strong></div>
+        </div>
+      </section>
+      ${state.accountLoading ? '<div class="card accountLoading" role="status">Consultando tu información en la nube...</div>' : ''}
+      ${state.accountError ? `<div class="badbox">${h(state.accountError)}</div>` : ''}
+      <section class="accountCourses" aria-labelledby="accountCoursesTitle">
+        <div class="sectionIntro">
+          <h2 id="accountCoursesTitle">Mis cursos</h2>
+          <p>Las horas son una estimación de estudio y práctica; pueden variar según tu experiencia.</p>
+        </div>
+        ${enrollmentCards || (!state.accountLoading ? '<div class="card"><p>Aún no te has inscrito en un curso.</p><a class="btn" href="/cursos/" data-view="courses">Explorar cursos</a></div>' : '')}
+      </section>
+    </div>`;
+  }
+
   function renderLegalPage() {
     return `<div class="publicHome publicPage legalPage" id="legal">
       <section class="homeSection" aria-labelledby="legalTitle">
@@ -1607,14 +2220,16 @@
         <div class="legalGrid">
           <article class="legalCard" id="privacidad">
             <h3>Política de privacidad</h3>
-            <p>AcademiaQA no solicita cuentas, contraseñas ni datos de tarjeta. El progreso se guarda localmente en tu navegador mediante almacenamiento local y puede borrarse desde las opciones del curso.</p>
+            <p>AcademiaQA utiliza inicio de sesión con Google mediante Supabase Auth para acceder a los cursos. Al ingresar se procesan el identificador de cuenta, nombre y correo proporcionados por Google para mantener la sesión y asociar tus matrículas. AcademiaQA no recibe tu contraseña de Google.</p>
+            <p>Las matrículas, fechas de inicio, avance por capítulo, tiempo activo de estudio, respuestas acumuladas y resultados de simulacros o exámenes finales se guardan en Supabase para recuperar el aprendizaje entre dispositivos y generar métricas de uso. El navegador conserva una copia local para dar continuidad a la experiencia.</p>
+            <p>Cancelar un curso detiene su estado activo, pero no elimina automáticamente el historial ni las métricas. Puedes borrar el avance desde el curso; para solicitar eliminación de cuenta o datos personales usa el formulario de contacto.</p>
             <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
             <p>El botón de aportes abre Wompi como servicio externo. Los enlaces a exámenes y canales externos abren sitios de terceros con sus propias políticas.</p>
           </article>
           <article class="legalCard" id="terminos">
             <h3>Términos y condiciones</h3>
             <p>El contenido se ofrece para estudio personal. No garantiza aprobación de certificaciones, no emite certificados y no sustituye materiales, reglas o exámenes oficiales.</p>
-            <p>Los cursos, preguntas y simulacros son herramientas educativas. Los exámenes externos, certificados, insignias y condiciones dependen de cada entidad certificadora.</p>
+            <p>Los cursos, preguntas, simulacros y exámenes finales internos son herramientas educativas. Aprobar un curso en AcademiaQA no equivale a aprobar una certificación oficial. Los exámenes externos, certificados, insignias y condiciones dependen de cada entidad certificadora.</p>
           </article>
           <article class="legalCard">
             <h3>Aviso independiente</h3>
@@ -1714,6 +2329,10 @@
 
   function renderCourseIntro() {
     const blueprint = course.blueprint || {};
+    const details = courseProgressDetails(activeCourseKey, course);
+    const finalExamAction = details.finalExamEligible
+      ? `<a class="courseAction courseFinalExamAction" href="${h(coursePath(activeCourseKey, 'finalExam'))}" role="button" tabindex="0" data-view="finalExam"><b>🎓 Examen final</b><span class="small">${details.finalExamPassed ? 'Curso aprobado' : 'Habilitado al 95%'}</span></a>`
+      : `<button class="courseAction courseFinalExamAction locked" type="button" disabled aria-disabled="true"><b>🎓 Examen final</b><span class="small">Se habilita al 95% · actual ${details.progressPercent}%</span></button>`;
     return `<div class="courseHero">
       <span class="pill">${h(course.meta?.code || activeCourseKey.toUpperCase())}</span>
       <h2>${h(courseLabel())}</h2>
@@ -1730,6 +2349,7 @@
         <a class="courseAction" href="${h(coursePath(activeCourseKey, 'objectives'))}" role="button" tabindex="0" data-view="objectives"><b>🎯 Objetivos LO</b><span class="small">Mapa de aprendizaje</span></a>
         <a class="courseAction" href="${h(coursePath(activeCourseKey, 'practice'))}" role="button" tabindex="0" data-view="practice"><b>📝 Practicar</b><span class="small">Por capítulo, LO y nivel</span></a>
         <a class="courseAction" href="${h(coursePath(activeCourseKey, 'exam'))}" role="button" tabindex="0" data-view="exam"><b>⏱️ Simulacro</b><span class="small">Modo examen</span></a>
+        ${finalExamAction}
         ${course.meta?.examUrl ? `<a class="courseAction courseExternalExam" href="${h(course.meta.examUrl)}" target="_blank" rel="noopener noreferrer"><b>CertiProf Open</b><span class="small">${h(course.meta.certificationNote || 'Examen externo disponible.')}</span></a>` : ''}
       </div>
       ${renderAcademicTraceability()}
@@ -1741,7 +2361,7 @@
     const attempts = progress.attempts || [];
     const best = attempts.length ? Math.max(...attempts.map((attempt) => number(attempt.scorePct))) : 0;
     const last = attempts.at(-1);
-    const totalDone = Object.values(progress.byLo || {}).reduce((sum, item) => sum + number(item.ok) + number(item.bad), 0);
+    const details = courseProgressDetails(activeCourseKey, course);
     const weak = Object.entries(progress.byLo || {})
       .filter(([, item]) => number(item.bad) > 0)
       .sort((left, right) => number(right[1].bad) - number(left[1].bad))
@@ -1750,11 +2370,13 @@
     return `${renderCourseIntro()}<div class="card">
       <h2>Panel de estudio · ${h(courseLabel())}</h2>
       <div class="grid3">
-        <div class="metric"><span>Preguntas activas</span><strong>${questions.length}</strong></div>
+        <div class="metric"><span>Avance del curso</span><strong>${details.progressPercent}%</strong></div>
+        <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(details.studySeconds))}</strong></div>
         <div class="metric"><span>Mejor simulacro</span><strong>${best}%</strong></div>
-        <div class="metric"><span>Preguntas respondidas</span><strong>${totalDone}</strong></div>
+        <div class="metric"><span>Examen final</span><strong>${details.finalExamPassed ? 'Aprobado' : details.finalExamEligible ? 'Habilitado' : `Bloqueado · ${FINAL_EXAM_UNLOCK_PROGRESS}%`}</strong></div>
       </div>
-      <div class="okbox"><b>Ruta recomendada:</b> 1) selecciona certificación → 2) lee capítulo → 3) practica por LO → 4) entrena aplicación → 5) simulacro → 6) refuerza errores.</div>
+      <div class="progressbar accountCourseProgress" aria-label="Avance del curso"><div style="width:${details.progressPercent}%"></div></div>
+      <div class="okbox"><b>Ruta recomendada:</b> 1) estudia cada capítulo → 2) practica por LO → 3) refuerza errores → 4) realiza simulacros → 5) presenta el examen final.</div>
       ${last ? `<p><b>Último intento:</b> ${number(last.correct)}/${number(last.total)} (${number(last.scorePct)}%) · ${h(formatDate(last.date))}</p>` : ''}
       <div class="grid2">
         <div><h3>Distribución del simulacro</h3>${renderBlueprintTable()}</div>
@@ -1764,6 +2386,9 @@
         <a class="btn" href="${h(coursePath(activeCourseKey, 'study'))}" data-view="study">Empezar a estudiar</a>
         <a class="btn secondary" href="${h(coursePath(activeCourseKey, 'practice'))}" data-view="practice">Practicar por tema</a>
         <a class="btn good" href="${h(coursePath(activeCourseKey, 'exam'))}" data-view="exam">Simulacro</a>
+        ${details.finalExamEligible
+          ? `<a class="btn warn" href="${h(coursePath(activeCourseKey, 'finalExam'))}" data-view="finalExam">Examen final</a>`
+          : `<button class="btn warn" type="button" disabled aria-disabled="true">Examen final · requiere ${FINAL_EXAM_UNLOCK_PROGRESS}%</button>`}
       </div>
     </div>`;
   }
@@ -1823,30 +2448,15 @@
   }
 
   function chapterProgressDetails(chapterId) {
-    const objectives = course.objectives.filter((objective) => Number(objective.chapter) === Number(chapterId));
     const questionCount = questions.filter((question) => Number(question.chapter) === Number(chapterId)).length;
-    const totals = objectives.reduce((summary, objective) => {
-      const progress = objectiveProgress(objective.lo);
-      summary.ok += progress.ok;
-      summary.bad += progress.bad;
-      summary.answered += progress.total;
-      if (progress.total > 0) summary.touched += 1;
-      return summary;
-    }, { ok: 0, bad: 0, answered: 0, touched: 0 });
-
     return {
-      objectiveCount: objectives.length,
       questionCount,
-      touched: totals.touched,
-      answered: totals.answered,
-      ok: totals.ok,
-      bad: totals.bad,
-      coverage: pct(totals.touched, objectives.length),
-      accuracy: pct(totals.ok, totals.ok + totals.bad)
+      ...chapterProgressForCourse(course, getProgress(), chapterId)
     };
   }
 
   function renderStudy() {
+    const courseDetails = courseProgressDetails(activeCourseKey, course);
     const cards = course.chapters.map((chapter) => {
       const objectiveCount = course.objectives.filter((objective) => Number(objective.chapter) === Number(chapter.id)).length;
       const questionCount = questions.filter((question) => Number(question.chapter) === Number(chapter.id)).length;
@@ -1859,6 +2469,7 @@
           <b>Avance real ${chapterProgress.coverage}%</b>
           <span>${chapterProgress.touched}/${chapterProgress.objectiveCount} LO practicados</span>
           <span>${chapterProgress.answered} respuestas</span>
+          <span>${h(formatStudyDuration(chapterProgress.studySeconds))} estudiando</span>
           <span>Dominio ${chapterProgress.accuracy}%</span>
         </div>
         <div class="progressbar" aria-label="Avance real del capítulo"><div style="width:${chapterProgress.coverage}%"></div></div>
@@ -1866,7 +2477,22 @@
       </a>`;
     }).join('');
 
-    return `<div class="card"><h2>Estudiar syllabus por capítulo</h2><p>Selecciona un capítulo. Cada bloque incluye teoría resumida y el texto evaluable cargado para ese capítulo.</p><div class="grid2">${cards}</div></div><div id="chapterDetail"></div>`;
+    const finalExamCard = courseDetails.finalExamEligible
+      ? `<a class="chapterCard finalExamMilestone ready" href="${h(coursePath(activeCourseKey, 'finalExam'))}" data-view="finalExam">
+          <span class="sectionKicker">Paso final</span>
+          <h3>Examen final del curso</h3>
+          <p>${courseDetails.finalExamPassed ? 'Curso aprobado. Puedes volver a presentar el examen para reforzar tus conocimientos.' : `Ya alcanzaste el ${FINAL_EXAM_UNLOCK_PROGRESS}% requerido. Presenta el examen final para completar el curso.`}</p>
+          <span class="finalExamMilestoneAction">${courseDetails.finalExamPassed ? 'Repasar examen final' : 'Ingresar al examen final'}</span>
+        </a>`
+      : `<div class="chapterCard finalExamMilestone locked" aria-disabled="true">
+          <span class="sectionKicker">Paso final</span>
+          <h3>Examen final del curso</h3>
+          <p>Se habilita cuando alcances el ${FINAL_EXAM_UNLOCK_PROGRESS}% de avance. Tu progreso actual es ${courseDetails.progressPercent}%.</p>
+          <div class="progressbar" aria-label="Progreso para habilitar el examen final"><div style="width:${courseDetails.progressPercent}%"></div></div>
+          <span class="finalExamMilestoneAction">Bloqueado hasta ${FINAL_EXAM_UNLOCK_PROGRESS}%</span>
+        </div>`;
+
+    return `<div class="card"><h2>Estudiar syllabus por capítulo</h2><p>Selecciona un capítulo. Cada bloque incluye teoría resumida y el texto evaluable cargado para ese capítulo.</p><div class="grid2">${cards}${finalExamCard}</div></div><div id="chapterDetail"></div>`;
   }
 
   function renderTheorySection(section) {
@@ -1888,6 +2514,20 @@
     const chapter = course.chapters.find((item) => Number(item.id) === Number(id));
     const host = $('chapterDetail');
     if (!chapter || !host) return;
+    accumulateStudyTime();
+    state.studyChapter = Number(id);
+
+    const chapterActivityProgress = getProgress();
+    const chapterKey = String(id);
+    if (!chapterActivityProgress.chapterActivity?.[chapterKey]?.visitedAt) {
+      chapterActivityProgress.chapterActivity = chapterActivityProgress.chapterActivity || {};
+      chapterActivityProgress.chapterActivity[chapterKey] = {
+        studySeconds: number(chapterActivityProgress.chapterActivity[chapterKey]?.studySeconds),
+        visitedAt: new Date().toISOString(),
+        lastStudiedAt: chapterActivityProgress.chapterActivity[chapterKey]?.lastStudiedAt || ''
+      };
+      saveProgress(chapterActivityProgress);
+    }
 
     const objectives = course.objectives.filter((objective) => Number(objective.chapter) === Number(id));
     const progress = chapterProgressDetails(id);
@@ -1901,7 +2541,6 @@
     </tr>`;
     }).join('');
 
-    state.studyChapter = Number(id);
     if (options.updateRoute !== false) {
       pushRoute(chapterPath(activeCourseKey, id));
       updateDocumentMetadata();
@@ -1912,7 +2551,7 @@
       <div class="grid3 chapterProgressGrid">
         <div class="metric"><span>Avance real</span><strong>${progress.coverage}%</strong></div>
         <div class="metric"><span>LO practicados</span><strong>${progress.touched}/${progress.objectiveCount}</strong></div>
-        <div class="metric"><span>Dominio</span><strong>${progress.accuracy}%</strong></div>
+        <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(progress.studySeconds))}</strong></div>
       </div>
       <h3>Teoría del syllabus resumida</h3>${(chapter.theorySections || []).map(renderTheorySection).join('')}
       <details open class="contentDetails"><summary>Texto completo evaluable · páginas ${h(chapter.completeSyllabusPages || 'N/D')}</summary><div class="prebox small">${h(chapter.completeSyllabusText || 'No hay texto ampliado cargado para este capítulo.')}</div></details>
@@ -2155,6 +2794,7 @@
 
   function finishSession() {
     if (!state.session.length) return;
+    const durationSeconds = Math.max(0, Math.floor((Date.now() - number(state.startTime, Date.now())) / 1_000));
     clearRuntimeTimers();
 
     let correct = 0;
@@ -2172,6 +2812,9 @@
     });
 
     const scorePct = pct(earned, totalPoints);
+    const passingScore = number(course.blueprint.passingScore, Math.ceil(totalPoints * 0.65));
+    const passed = earned >= passingScore;
+    const completedFullExam = state.session.length === number(course.blueprint.totalQuestions);
     const progress = getProgress();
     progress.attempts.push({
       date: new Date().toISOString(),
@@ -2181,14 +2824,44 @@
       correct,
       scorePct,
       mode: state.mode,
-      cert: activeCourseKey
+      cert: activeCourseKey,
+      durationSeconds,
+      passed: completedFullExam && passed
     });
     progress.attempts = progress.attempts.slice(-30);
     saveProgress(progress);
+    const completedSimulator = state.mode === 'exam'
+      && completedFullExam;
+    if (completedSimulator && Auth?.isAuthenticated?.()) {
+      Promise.resolve(Cloud.flushProgress(activeCourseKey))
+        .then(() => Cloud.recordSimulatorCompletion(activeCourseKey, scorePct))
+        .then((enrollment) => updateEnrollmentSnapshot(enrollment))
+        .catch((error) => {
+          console.error(error);
+          notify('El resultado se guardó localmente, pero la métrica del simulacro no llegó a la nube.', 'warning');
+        });
+    }
 
-    const passingScore = number(course.blueprint.passingScore, Math.ceil(totalPoints * 0.65));
-    const passed = earned >= passingScore;
-    const resultLabel = state.session.length === number(course.blueprint.totalQuestions)
+    const completedFinalExam = state.mode === 'final-exam' && completedFullExam;
+    if (completedFinalExam && Auth?.isAuthenticated?.()) {
+      Promise.resolve(Cloud.flushProgress(activeCourseKey))
+        .then(() => Cloud.recordFinalExamCompletion(activeCourseKey, {
+          score: scorePct,
+          earnedPoints: earned,
+          totalPoints,
+          passingPoints: passingScore,
+          correctAnswers: correct,
+          totalQuestions: state.session.length,
+          durationSeconds
+        }))
+        .then((enrollment) => updateEnrollmentSnapshot(enrollment))
+        .catch((error) => {
+          console.error(error);
+          notify('El resultado se guardó localmente, pero el examen final no llegó a la nube.', 'warning');
+        });
+    }
+
+    const resultLabel = completedFullExam
       ? (passed ? 'Aprobado' : 'No aprobado')
       : (scorePct >= 65 ? 'Bien' : 'Refuerzo');
 
@@ -2204,10 +2877,17 @@
       <td>${h(item.question.explanation)}</td>
     </tr>`).join('');
 
-    dom.app.innerHTML = `<div class="card"><h2>Resultado</h2>
+    const review = state.mode === 'final-exam'
+      ? `<div class="${passed ? 'okbox' : 'badbox'}"><b>${passed ? 'Curso aprobado' : 'Aún no alcanzas la aprobación'}</b><br>${passed ? 'El resultado quedó registrado en tu cuenta.' : 'Revisa las estadísticas por capítulo, refuerza tus temas débiles y vuelve a intentarlo.'}</div>`
+      : `<h3>Revisión</h3><table class="table"><tr><th>#</th><th>LO</th><th>Resultado</th><th>Respuesta correcta</th><th>Explicación</th></tr>${rows}</table>`;
+    const resultActions = state.mode === 'final-exam'
+      ? `<a class="btn" href="${h(publicPath('account'))}" data-view="account">Ver mi cuenta</a><button class="btn secondary" type="button" data-view="analytics">Revisar estadísticas</button><button class="btn warn" type="button" data-view="finalExam">Volver al examen final</button>`
+      : '<button class="btn" type="button" data-view="practice">Nueva práctica</button><button class="btn secondary" type="button" data-view="analytics">Ver estadísticas</button>';
+
+    dom.app.innerHTML = `<div class="card"><h2>${state.mode === 'final-exam' ? 'Resultado del examen final' : 'Resultado'}</h2>
       <div class="grid3"><div class="metric"><span>Correctas</span><strong>${correct}/${state.session.length}</strong></div><div class="metric"><span>Puntos</span><strong>${earned}/${totalPoints}</strong></div><div class="metric"><span>Estado</span><strong>${h(resultLabel)}</strong></div></div>
-      <h3>Revisión</h3><table class="table"><tr><th>#</th><th>LO</th><th>Resultado</th><th>Respuesta correcta</th><th>Explicación</th></tr>${rows}</table>
-      <div class="btnrow"><button class="btn" type="button" data-view="practice">Nueva práctica</button><button class="btn secondary" type="button" data-view="analytics">Ver estadísticas</button></div>
+      ${review}
+      <div class="btnrow">${resultActions}</div>
     </div>`;
     state.session = [];
   }
@@ -2228,6 +2908,43 @@
     </div><div id="sessionHost"></div>`;
   }
 
+  function renderFinalExam() {
+    const blueprint = course.blueprint;
+    const enrollment = enrollmentForCourse(activeCourseKey) || {};
+    const details = courseProgressDetails(activeCourseKey, course);
+    const attempts = getProgress().attempts.filter((attempt) => attempt.mode === 'final-exam');
+    const bestLocal = attempts.length ? Math.max(...attempts.map((attempt) => number(attempt.scorePct))) : 0;
+    const best = Math.max(bestLocal, number(enrollment.best_final_exam_score));
+    const passed = Boolean(enrollment.final_exam_passed || attempts.some((attempt) => attempt.passed));
+
+    if (state.examFocus && state.session.length) {
+      return `<div class="examFocusShell" role="region" aria-label="Examen final en curso"><div id="sessionHost"></div></div>`;
+    }
+
+    if (!details.finalExamEligible) {
+      return `<div class="card finalExamIntro finalExamLocked"><span class="sectionKicker">Examen final bloqueado</span>
+        <h2>Completa primero el ${FINAL_EXAM_UNLOCK_PROGRESS}% del curso</h2>
+        <p>Tu avance actual es ${details.progressPercent}%. Estudia todos los capítulos, cumple el tiempo sugerido y practica sus objetivos de aprendizaje para habilitar el examen final.</p>
+        <div class="progressbar accountCourseProgress" aria-label="Progreso para habilitar el examen final"><div style="width:${details.progressPercent}%"></div></div>
+        <div class="note"><b>Requisito:</b> alcanza el ${FINAL_EXAM_UNLOCK_PROGRESS}% de avance antes de presentar el examen final.</div>
+        <div class="btnrow"><a class="btn" href="${h(coursePath(activeCourseKey, 'study'))}" data-view="study">Continuar capítulos</a><a class="btn secondary" href="${h(coursePath(activeCourseKey, 'practice'))}" data-view="practice">Practicar objetivos LO</a></div>
+      </div>`;
+    }
+
+    return `<div class="card finalExamIntro"><span class="sectionKicker">Aprobación del curso</span>
+      <h2>Examen final · ${h(courseLabel())}</h2>
+      <p>Este examen interno usa el banco de preguntas del curso y genera una selección aleatoria alineada con su matriz. No sustituye un examen oficial de certificación.</p>
+      ${renderBlueprintTable()}
+      <div class="grid3 examMetricsGrid">
+        <div class="metric"><span>Intentos realizados</span><strong>${Math.max(number(enrollment.final_exam_attempts), attempts.length)}</strong></div>
+        <div class="metric"><span>Mejor resultado</span><strong>${best}%</strong></div>
+        <div class="metric"><span>Estado</span><strong>${passed ? 'Aprobado' : 'Pendiente'}</strong></div>
+      </div>
+      <div class="${passed ? 'okbox' : 'note'}"><b>${passed ? 'Curso aprobado al 100%.' : 'Condición de aprobación:'}</b> ${passed ? 'El certificado del curso ya está habilitado en Mi cuenta.' : `alcanza ${number(blueprint.passingScore)}/${number(blueprint.totalPoints || blueprint.totalQuestions)} puntos.`}</div>
+      <div class="btnrow examActionRow"><button class="btn warn" type="button" data-action="start-final-exam">Iniciar examen final</button><a class="btn secondary" href="${h(coursePath(activeCourseKey, 'analytics'))}" data-view="analytics">Revisar estadísticas</a></div>
+    </div><div id="sessionHost"></div>`;
+  }
+
   function startOfficialExam() {
     clearRuntimeTimers();
     state.session = buildOfficialSelection();
@@ -2235,7 +2952,7 @@
       notify('No fue posible construir el simulacro.', 'error');
       return;
     }
-    rememberSessionQuestions(state.session, 'official-exam');
+    rememberSessionQuestions(state.session, 'simulator');
     state.current = 0;
     state.answers = {};
     state.orders = {};
@@ -2245,6 +2962,34 @@
     state.view = 'exam';
     setExamFocus(true);
     dom.app.innerHTML = renderExam();
+    global.scrollTo({ top: 0, behavior: 'smooth' });
+    renderSession();
+    startCountdown(number(course.blueprint.minutes) * 60);
+  }
+
+  function startFinalExam() {
+    const details = courseProgressDetails(activeCourseKey, course);
+    if (!details.finalExamEligible) {
+      notify(`El examen final se habilita cuando alcances el ${FINAL_EXAM_UNLOCK_PROGRESS}% del curso. Tu avance actual es ${details.progressPercent}%.`, 'warning', 8_000);
+      render();
+      return;
+    }
+    clearRuntimeTimers();
+    state.session = buildOfficialSelection();
+    if (!state.session.length) {
+      notify('No fue posible construir el examen final.', 'error');
+      return;
+    }
+    rememberSessionQuestions(state.session, 'final-exam');
+    state.current = 0;
+    state.answers = {};
+    state.orders = {};
+    state.mode = 'final-exam';
+    state.startTime = Date.now();
+    state.questionLocked = false;
+    state.view = 'finalExam';
+    setExamFocus(true);
+    dom.app.innerHTML = renderFinalExam();
     global.scrollTo({ top: 0, behavior: 'smooth' });
     renderSession();
     startCountdown(number(course.blueprint.minutes) * 60);
@@ -2330,12 +3075,25 @@
     return Number.isNaN(date.getTime()) ? 'Fecha no disponible' : date.toLocaleString('es-CO');
   }
 
+  function formatStudyDuration(value) {
+    const totalSeconds = Math.max(0, Math.trunc(number(value)));
+    if (totalSeconds <= 0) return '0 min';
+    if (totalSeconds < 60) return '<1 min';
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (!hours) return `${minutes} min`;
+    return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
+  }
+
   async function bootstrap() {
     bindDom();
     bindEvents();
 
     try {
+      await Auth?.whenReady?.();
       await loadCourses();
+      if (Auth?.isAuthenticated?.()) await refreshLearningSnapshot();
       const initialRoute = routeFromLocation();
       const requestedKey = initialRoute.course || Storage.getActiveCourse();
       const initialKey = catalogEntry(requestedKey)?.src ? requestedKey : firstCatalogKey();
@@ -2346,9 +3104,18 @@
       } else {
         state = createState(initialRoute.view);
         render();
+        if (initialRoute.view === 'account' && Auth?.isAuthenticated?.()) await refreshAccount();
       }
 
       scrollToAnchor(initialRoute.anchor);
+      try {
+        if (global.sessionStorage?.getItem(SESSION_CLOSED_KEY) === '1') {
+          global.sessionStorage.removeItem(SESSION_CLOSED_KEY);
+          notify('Sesión cerrada correctamente.', 'success', 6_000);
+        }
+      } catch (error) {
+        console.warn('No fue posible mostrar la confirmación de cierre de sesión.', error);
+      }
       if (!Storage.available()) notify('El navegador no permite guardar progreso local. La academia seguirá funcionando sin persistencia.', 'warning', 10_000);
     } catch (error) {
       showFatalError(error);
