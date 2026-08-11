@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-F5VK3VZYR0"></script>
+  <script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-F5VK3VZYR0');
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
+  <meta name="robots" content="index, follow">
+  <meta name="description" content="Capítulo 6 de CT-AI 2.0: Integra riesgos de modelos, documentación, rendimiento funcional, pruebas adversariales, metamórficas, deriva...">
+  <link rel="canonical" href="https://academiaqaoficial.com/curso/ctai/capitulo/6/">
+  <link rel="alternate" hreflang="es-CO" href="https://academiaqaoficial.com/curso/ctai/capitulo/6/">
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/img/favicon-48.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/apple-touch-icon.png">
+  <base href="/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_CO">
+  <meta property="og:site_name" content="AcademiaQA">
+  <meta property="og:title" content="Capítulo 6 CT-AI 2.0 | AcademiaQA">
+  <meta property="og:description" content="Capítulo 6 de CT-AI 2.0: Integra riesgos de modelos, documentación, rendimiento funcional, pruebas adversariales, metamórficas, deriva...">
+  <meta property="og:url" content="https://academiaqaoficial.com/curso/ctai/capitulo/6/">
+  <meta property="og:image" content="https://academiaqaoficial.com/assets/img/academiaqa-social.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Capítulo 6 CT-AI 2.0 | AcademiaQA">
+  <meta name="twitter:description" content="Capítulo 6 de CT-AI 2.0: Integra riesgos de modelos, documentación, rendimiento funcional, pruebas adversariales, metamórficas, deriva...">
+  <meta name="twitter:image" content="https://academiaqaoficial.com/assets/img/academiaqa-social.jpg">
+  <meta name="twitter:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
+  <title>Capítulo 6 CT-AI 2.0 | AcademiaQA</title>
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LearningResource",
+      "@id": "https://academiaqaoficial.com/curso/ctai/capitulo/6/#chapter",
+      "name": "Capítulo 6: Pruebas de Modelos para Sistemas de Aprendizaje Automático",
+      "description": "Integra riesgos de modelos, documentación, rendimiento funcional, pruebas adversariales, metamórficas, deriva, sobreajuste/subajuste, A/B testing y pruebas comparativas back-to-back.",
+      "url": "https://academiaqaoficial.com/curso/ctai/capitulo/6/",
+      "inLanguage": "es-CO",
+      "isAccessibleForFree": true,
+      "learningResourceType": "Capítulo de curso",
+      "timeRequired": "PT225M",
+      "dateModified": "2026-08-06",
+      "provider": {
+        "@type": "EducationalOrganization",
+        "@id": "https://academiaqaoficial.com/#organization",
+        "name": "AcademiaQA",
+        "url": "https://academiaqaoficial.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://academiaqaoficial.com/assets/img/academiaqa-logo-660.webp",
+          "width": 660,
+          "height": 175
+        }
+      },
+      "teaches": [
+        "Dar ejemplos de enfoques de prueba para mitigar riesgos de modelos de aprendizaje automático",
+        "Explicar el propósito y foco de revisar documentación de modelos de aprendizaje automático",
+        "Explicar cómo se realiza la prueba de rendimiento funcional aprendizaje automático en sistemas probabilísticos",
+        "Resumir la prueba adversarial de sistemas de aprendizaje automático",
+        "Usar pruebas metamórficas para derivar casos de prueba en un escenario dado",
+        "Explicar cómo se usa la prueba de deriva en sistemas de aprendizaje automático operacionales",
+        "Explicar cómo detectar sobreajuste y subajuste mediante pruebas",
+        "Explicar cómo se usa pruebas A/B en sistemas de aprendizaje automático",
+        "Explicar cómo se usa pruebas comparativas en sistemas de aprendizaje automático"
+      ],
+      "about": [
+        {
+          "@type": "Thing",
+          "name": "pruebas de modelo ML"
+        },
+        {
+          "@type": "Thing",
+          "name": "rendimiento funcional ML"
+        },
+        {
+          "@type": "Thing",
+          "name": "pruebas adversariales"
+        },
+        {
+          "@type": "Thing",
+          "name": "pruebas metamórficas"
+        },
+        {
+          "@type": "Thing",
+          "name": "pruebas de deriva"
+        },
+        {
+          "@type": "Thing",
+          "name": "deriva de datos"
+        },
+        {
+          "@type": "Thing",
+          "name": "deriva de concepto"
+        },
+        {
+          "@type": "Thing",
+          "name": "sobreajuste"
+        },
+        {
+          "@type": "Thing",
+          "name": "subajuste"
+        },
+        {
+          "@type": "Thing",
+          "name": "A/B testing"
+        },
+        {
+          "@type": "Thing",
+          "name": "back-to-back testing"
+        },
+        {
+          "@type": "Thing",
+          "name": "relación metamórfica"
+        }
+      ],
+      "isPartOf": {
+        "@type": "Course",
+        "@id": "https://academiaqaoficial.com/curso/ctai/#course",
+        "name": "ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI)",
+        "url": "https://academiaqaoficial.com/curso/ctai/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Inicio",
+          "item": "https://academiaqaoficial.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Cursos",
+          "item": "https://academiaqaoficial.com/cursos/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Certificado en Pruebas de IA v2.0 (CT-AI)",
+          "item": "https://academiaqaoficial.com/curso/ctai/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "name": "Capítulo 6",
+          "item": "https://academiaqaoficial.com/curso/ctai/capitulo/6/"
+        }
+      ]
+    }
+  ]
+}</script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=2026-08-11-seo-analytics">
+  <script defer src="/assets/js/core/security.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/registry.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/storage.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/question-selection.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/config.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/courses/catalog.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/app-loader.js?v=2026-08-11-seo-analytics"></script>
+</head>
+<body>
+  <header id="inicio">
+    <div class="wrap siteTopbar">
+      <a class="brandMark" href="/" data-home-anchor="inicio" aria-label="Ir al inicio">
+        <picture><source type="image/webp" srcset="/assets/img/academiaqa-logo-660.webp"><img class="brandLogo" src="/assets/img/academiaqa-logo.png" width="660" height="175" alt="AcademiaQA - QA &amp; Testing Academia" decoding="async"></picture>
+      </a>
+      <button class="menuToggle" type="button" data-action="toggle-site-menu" aria-controls="siteMenu" aria-expanded="false">
+        <span class="srOnly">Abrir menú principal</span>
+        <span aria-hidden="true">☰</span>
+      </button>
+      <nav class="siteNav" id="siteMenu" aria-label="Menú principal">
+        <a href="/" data-view="home" data-view-anchor="inicio">Inicio</a>
+        <a href="/cursos/" data-view="courses" data-view-anchor="cursos-disponibles">Cursos</a>
+        <a href="/ruta-aprendizaje/" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
+        <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
+        <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
+        <button class="coffeeLink" type="button">Invítame un café</button>
+      </nav>
+    </div>
+    <div class="wrap hero">
+      <div>
+        <h1 id="heroTitle">ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI)</h1>
+        <p class="subtitle" id="heroSubtitle">Menú de estudio de ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI): teoría, objetivos, práctica, flashcards, estadísticas y simulacro.</p>
+        <div class="topbadges">
+          <span class="badge" id="topChapters">📘 7 capítulos</span>
+          <span class="badge">🧠 Preguntas: <b id="topBank">133</b></span>
+          <span class="badge" id="topExam">⏱️ Simulacro 60 min / aprueba 29/44</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div id="appNotice" class="appNotice info" role="status" aria-live="polite" hidden></div>
+
+  <div class="coffeeModal" id="coffeeModal" role="dialog" aria-modal="true" aria-labelledby="coffeeModalTitle" hidden>
+    <div class="coffeeDialog">
+      <button class="modalClose" type="button" data-action="close-coffee-modal" aria-label="Cerrar">X</button>
+      <div class="coffeeDialogHead">
+        <span class="coffeeIcon" aria-hidden="true">☕</span>
+        <div>
+          <h2 id="coffeeModalTitle">Invítame un café</h2>
+          <p>Tu aporte ayuda a mantener cursos gratuitos, servidores y nuevas herramientas.</p>
+        </div>
+      </div>
+      <div class="coffeeOptions" role="group" aria-label="Opciones de aporte">
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 5" data-usd="5"><strong>USD 5</strong><span>Un café</span><em></em></button>
+        <button class="coffeeOption active" type="button" data-action="select-coffee-tier" data-tier="USD 10" data-usd="10"><small>Elegido</small><strong>USD 10</strong><span>Dos cafés</span><em></em></button>
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 15" data-usd="15"><strong>USD 15</strong><span>Gran apoyo</span><em></em></button>
+      </div>
+      <div class="coffeeSecure">
+        <b>Cobro seguro mediante Wompi</b>
+        <span id="coffeeCopHint" aria-live="polite">Wompi procesa en COP; antes de pagar confirma el valor final.</span>
+      </div>
+      <button class="btn coffeeCheckout" type="button" data-action="continue-wompi">Continuar con Wompi</button>
+      <p class="coffeeFineprint">Aporte voluntario y único. No compra ni desbloquea cursos. La confirmación depende del proceso aprobado por Wompi.</p>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <div class="layout" id="mainLayout">
+      <aside class="sidebar" id="studySidebar" aria-label="Menú del curso">
+        <button class="navbtn" type="button" data-view="home">🏠 Todos los cursos <small>inicio</small></button>
+        <div class="sideDivider"></div>
+        <div class="sideSectionTitle">Menú del curso</div>
+        <button class="navbtn active" type="button" data-view="dashboard">📌 Panel del curso <small>avance</small></button>
+        <button class="navbtn" type="button" data-view="study">📚 Estudiar syllabus <small id="navCaps">caps</small></button>
+        <button class="navbtn" type="button" data-view="objectives">🎯 Objetivos LO <small>mapa</small></button>
+        <button class="navbtn" type="button" data-view="practice">📝 Practicar <small>filtros</small></button>
+        <button class="navbtn" type="button" data-view="exam">⏱️ Simulacro <small id="navExamCount">40</small></button>
+        <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3 <small>técnicas</small></button>
+        <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards <small>glosario</small></button>
+        <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas <small>errores</small></button>
+        <div class="note small"><b>Nota:</b> cada certificación conserva progreso independiente. Las preguntas de práctica están alineadas al temario y no duplican literalmente el examen oficial.</div>
+        <div class="btnrow"><button class="btn secondary" type="button" id="resetProgress">Borrar avance</button></div>
+      </aside>
+
+      <section id="app" aria-label="Contenido del curso">
+        <article class="card seoChapterFallback">
+          <span class="sectionKicker">CT-AI 2.0 · Capítulo 6</span>
+          <h2>Pruebas de Modelos para Sistemas de Aprendizaje Automático</h2>
+          <p class="seoChapterLead">Integra riesgos de modelos, documentación, rendimiento funcional, pruebas adversariales, metamórficas, deriva, sobreajuste/subajuste, A/B testing y pruebas comparativas back-to-back.</p>
+          <div class="certBadgeLine"><span>9 objetivos LO</span><span>225 min</span><span>12 términos clave</span></div>
+          <section class="seoTheorySection"><h3>6.1 Pruebas de modelos ML</h3><p>Las pruebas de modelos verifican si el modelo cumple su propósito, generaliza, resiste perturbaciones, no presenta sesgos inaceptables y mantiene rendimiento en operación. Incluyen revisión documental, métricas, pruebas adversariales, metamórficas, drift, overfitting, A/B y comparación contra otros modelos.</p><ul><li>El modelo es un artefacto de prueba con riesgos propios.</li><li>La evidencia debe incluir datos usados, métricas y limitaciones.</li></ul></section><section class="seoTheorySection"><h3>6.1.1 Riesgos y mitigaciones de modelos ML</h3><p>Riesgos: baja generalización, sobreajuste, subajuste, sesgo, mala calibración, falta de explicabilidad, vulnerabilidad adversarial, degradación por deriva, dependencia de hiperparámetros y uso fuera del dominio. Mitigaciones: pruebas independientes, revisión, monitoreo, restricciones, robustez y actualización controlada.</p><ul><li>La mitigación elegida depende del impacto de negocio y seguridad.</li><li>Un modelo de alto riesgo exige más controles y monitoreo.</li></ul></section><section class="seoTheorySection"><h3>6.1.2 Documentación y revisión del modelo</h3><p>La documentación debe explicar propósito, datos, supuestos, algoritmo, versión, entrenamiento, métricas, limitaciones, grupos afectados, sesgos conocidos, entorno y restricciones de uso. La revisión permite detectar incoherencias antes de ejecutar pruebas costosas.</p><ul><li>Sin documentación no hay trazabilidad ni evaluación confiable.</li><li>Revisar si la métrica elegida corresponde al objetivo real.</li></ul></section><section class="seoTheorySection"><h3>6.1.3 Rendimiento funcional en sistemas probabilísticos</h3><p>La prueba de rendimiento funcional usa datasets independientes y métricas adecuadas para evaluar si el modelo cumple criterios. Como el comportamiento puede ser probabilístico, se consideran intervalos, umbrales, repetición, distribución de resultados y análisis por segmentos.</p><ul><li>No evaluar solo el promedio global.</li><li>Comparar contra baseline y contra criterios de aceptación.</li></ul></section><section class="seoTheorySection"><h3>6.1.4 Pruebas adversariales</h3><p>Las pruebas adversariales usan entradas perturbadas o maliciosas para revelar fragilidad. Una pequeña modificación en imagen, texto o dato puede hacer fallar al modelo. Se evalúa robustez, seguridad y comportamiento fuera de distribución.</p><ul><li>Adversarial no es solo ciberseguridad: también prueba robustez del modelo.</li><li>Registrar perturbación, salida esperada, salida real y severidad.</li></ul></section><section class="seoTheorySection"><h3>6.1.5 Pruebas metamórficas</h3><p>Las pruebas metamórficas se usan cuando no hay oráculo exacto. Se define una relación que debe mantenerse entre una entrada fuente y entradas derivadas. Ejemplo: cambiar brillo de una imagen no debería cambiar la clase; reordenar campos irrelevantes no debería cambiar predicción.</p><ul><li>K3: identificar relación metamórfica y derivar casos de seguimiento.</li><li>Si la relación se rompe, puede haber defecto o supuesto inválido.</li></ul></section><section class="seoTheorySection"><h3>6.1.6 Ejercicio práctico de pruebas metamórficas</h3><p>El ejercicio busca transformar casos fuente y verificar relaciones esperadas. Se documenta la transformación, relación, resultado y conclusión. Esto entrena pensamiento de oráculo alternativo para modelos difíciles de evaluar.</p><ul><li>Definir precondiciones de la relación.</li><li>Evitar relaciones que no sean realmente válidas para el dominio.</li></ul></section><section class="seoTheorySection"><h3>6.1.7 Pruebas de deriva</h3><p>La deriva de datos ocurre cuando cambia la distribución de entradas. La deriva de concepto ocurre cuando cambia la relación entre entrada y salida esperada. Ambas pueden degradar el rendimiento en producción y requieren monitoreo, alertas, reentrenamiento o rollback.</p><ul><li>Drift testing compara datos actuales contra referencia.</li><li>La deriva puede aparecer sin cambios de código.</li></ul></section><section class="seoTheorySection"><h3>6.1.8 Sobreajuste y subajuste</h3><p>Sobreajuste: el modelo aprende demasiado el conjunto de entrenamiento y falla en datos nuevos. Subajuste: el modelo no aprende el patrón suficiente y rinde mal incluso en entrenamiento. Se detectan comparando métricas entre entrenamiento, validación y prueba.</p><ul><li>Alta métrica en entrenamiento + baja en prueba = posible sobreajuste.</li><li>Baja métrica en todos los conjuntos = posible subajuste.</li></ul></section><section class="seoTheorySection"><h3>6.1.9 Pruebas A/B</h3><p>Las pruebas A/B comparan versiones de un modelo o sistema con usuarios reales o tráfico controlado. Se definen métricas, grupos, duración, tamaño de muestra, criterios de parada y monitoreo de riesgos. Deben controlar sesgos y proteger a usuarios.</p><ul><li>Útil para validar impacto real, pero requiere cuidado ético y estadístico.</li><li>No desplegar variante riesgosa sin límites o rollback.</li></ul></section><section class="seoTheorySection"><h3>6.1.10 Pruebas comparativas back-to-back</h3><p>Back-to-back compara salidas del sistema bajo prueba contra otro modelo, implementación, versión previa o pseudo-oráculo. Ayuda cuando no hay respuesta exacta, pero la discrepancia debe analizarse: no siempre significa que el sistema nuevo esté mal.</p><ul><li>Usar como señal de investigación, no como verdad absoluta.</li><li>Combinar con reglas, métricas y análisis experto.</li></ul></section>
+          <section><h3>Términos clave</h3><div><span class="pill">pruebas de modelo ML</span><span class="pill">rendimiento funcional ML</span><span class="pill">pruebas adversariales</span><span class="pill">pruebas metamórficas</span><span class="pill">pruebas de deriva</span><span class="pill">deriva de datos</span><span class="pill">deriva de concepto</span><span class="pill">sobreajuste</span><span class="pill">subajuste</span><span class="pill">A/B testing</span><span class="pill">back-to-back testing</span><span class="pill">relación metamórfica</span></div></section>
+          <section><h3>Objetivos de aprendizaje</h3><ol class="seoObjectiveList"><li><b>AI-6.1.1 · K2</b><span>Dar ejemplos de enfoques de prueba para mitigar riesgos de modelos de aprendizaje automático</span><p>Los riesgos de modelos de aprendizaje automático se mitigan con pruebas de sesgo, rendimiento funcional, adversariales, sobreajuste/subajuste, deriva, metamórficas, comparativas, A/B y revisiones.</p></li><li><b>AI-6.1.2 · K2</b><span>Explicar el propósito y foco de revisar documentación de modelos de aprendizaje automático</span><p>La documentación del modelo debe revisarse para entender propósito, datos, métricas, rendimiento, limitaciones, sesgos, supuestos, versión, entorno, uso previsto y restricciones.</p></li><li><b>AI-6.1.3 · K2</b><span>Explicar cómo se realiza la prueba de rendimiento funcional aprendizaje automático en sistemas probabilísticos</span><p>La prueba de rendimiento funcional aprendizaje automático usa datos de prueba independientes, métricas relevantes, criterios aceptables, análisis estadístico y confianza para evaluar modelos probabilísticos.</p></li><li><b>AI-6.1.4 · K2</b><span>Resumir la prueba adversarial de sistemas de aprendizaje automático</span><p>La prueba adversarial crea o usa entradas mínimamente perturbadas o maliciosas para revelar vulnerabilidades, errores de clasificación o falta de robustez del modelo.</p></li><li><b>AI-6.1.5 · K3</b><span>Usar pruebas metamórficas para derivar casos de prueba en un escenario dado</span><p>Las pruebas metamórficas definen relaciones esperadas entre una prueba fuente y pruebas de seguimiento cuando el oráculo exacto no existe o es costoso.</p></li><li><b>AI-6.1.7 · K2</b><span>Explicar cómo se usa la prueba de deriva en sistemas de aprendizaje automático operacionales</span><p>La prueba de deriva detecta cambios en distribución de datos o concepto después del despliegue, usando monitoreo estático o dinámico y comparación con umbrales.</p></li><li><b>AI-6.1.8 · K2</b><span>Explicar cómo detectar sobreajuste y subajuste mediante pruebas</span><p>El sobreajuste aparece cuando el modelo rinde muy bien en entrenamiento/validación pero mal en datos independientes; el subajuste ocurre cuando no aprende suficiente y rinde mal incluso en entrenamiento.</p></li><li><b>AI-6.1.9 · K2</b><span>Explicar cómo se usa pruebas A/B en sistemas de aprendizaje automático</span><p>pruebas A/B compara variantes de un sistema de aprendizaje automático en producción o contexto controlado usando métricas y estadística para decidir si una versión mejora a otra.</p></li><li><b>AI-6.1.10 · K2</b><span>Explicar cómo se usa pruebas comparativas en sistemas de aprendizaje automático</span><p>Las pruebas comparativas compara salidas del sistema bajo prueba contra un pseudo-oráculo independiente para detectar defectos, sin requerir resultados esperados manuales para cada caso.</p></li></ol></section>
+          <section><h3>Errores frecuentes</h3><ul><li>No confundir deriva de datos con deriva de concepto.</li><li>No usar solo validación interna para concluir que no hay sobreajuste.</li><li>No creer que pruebas comparativas requiere expected result manual.</li></ul></section>
+          <section><h3>Ejemplos aplicados</h3><ul><li>Un modelo que rinde excelente en validación pero mal en test independiente probablemente está sobreajustado.</li></ul></section>
+          <div class="btnrow"><a class="btn" href="/curso/ctai/">Entrar al curso</a><a class="btn secondary" href="/curso/ctai/simulacro/">Ver simulacro</a></div>
+          <aside class="seoSourcePanel" aria-label="Trazabilidad académica">
+            <h3>Información académica</h3>
+            <dl>
+              <div><dt>Versión</dt><dd>CT-AI v2.0 · Banco original ampliado</dd></div>
+              <div><dt>Fuente de referencia</dt><dd>ISTQB CT-AI Syllabus v2.0 y matriz de cobertura del Sample Exam v2.1</dd></div>
+              <div><dt>Última actualización</dt><dd>2026-08-06</dd></div>
+              <div><dt>Responsable de publicación</dt><dd>AcademiaQA</dd></div>
+            </dl>
+            <p>Plataforma educativa independiente. Consulta siempre las reglas y fuentes vigentes de la entidad certificadora.</p>
+          </aside>
+        </article>
+      </section>
+    </div>
+    <div class="footer" id="footerText"></div>
+  </main>
+</body>
+</html>

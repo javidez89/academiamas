@@ -1,6 +1,6 @@
 {
   "name": "academiaqa",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
     "check:version": "node tools/check-version.mjs",
     "check": "npm run check:syntax && npm run check:version",
     "generate:seo": "node tools/generate-seo.mjs",
+    "generate:brand": "node tools/generate-brand-assets.mjs",
     "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs",
     "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs",
     "test:integration": "node tools/catalog-smoke.mjs",

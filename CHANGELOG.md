@@ -1,5 +1,29 @@
 # Changelog
 
+## [v0.8.0] - 2026-08-11
+
+### Added
+
+- 58 páginas indexables por capítulo con objetivos LO, términos, ejemplos y enlaces internos.
+- Favicon, icono para dispositivos Apple e imagen social de 1200 × 630.
+- Trazabilidad pública de versión, fuente de referencia, fecha y responsable de publicación.
+- Guía operativa para envío y seguimiento de indexación en Google Search Console.
+- Medición global con Google Analytics 4 (`G-F5VK3VZYR0`) para páginas públicas, cursos, capítulos y simulacros.
+
+### Changed
+
+- Logotipo del encabezado optimizado de 542 KB a 16 KB mediante WebP.
+- Títulos y descripciones orientados a búsquedas de cursos gratis y simulacros por certificación.
+- Primer render conserva el título principal para reducir la demora de LCP.
+- Navegación por capítulos con URLs limpias, metadatos dinámicos y compatibilidad con hashes existentes.
+- Controles del carrusel, contraste y atributos ARIA ajustados para accesibilidad móvil.
+- Medición mejorada compatible con los cambios de historial de la navegación SPA, sin eventos manuales duplicados.
+
+### Validation
+
+- 79 URLs canónicas previstas en sitemap, sin hashes ni referencias a `github.io`.
+- Sin cambios en preguntas, bancos, selección aleatoria, progreso, pagos ni PDF oficiales.
+
 ## [v0.7.0] - 2026-08-06
 
 ### Added

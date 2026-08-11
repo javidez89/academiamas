@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-F5VK3VZYR0"></script>
+  <script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-F5VK3VZYR0');
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
+  <meta name="robots" content="index, follow">
+  <meta name="description" content="Capítulo 7 de CT-AI 2.0: Resume riesgos del desarrollo ML y pruebas de despliegue: framework, APIs, instalación, eficiencia, conversión de modelo...">
+  <link rel="canonical" href="https://academiaqaoficial.com/curso/ctai/capitulo/7/">
+  <link rel="alternate" hreflang="es-CO" href="https://academiaqaoficial.com/curso/ctai/capitulo/7/">
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/img/favicon-48.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/apple-touch-icon.png">
+  <base href="/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_CO">
+  <meta property="og:site_name" content="AcademiaQA">
+  <meta property="og:title" content="Capítulo 7 CT-AI 2.0 | AcademiaQA">
+  <meta property="og:description" content="Capítulo 7 de CT-AI 2.0: Resume riesgos del desarrollo ML y pruebas de despliegue: framework, APIs, instalación, eficiencia, conversión de modelo...">
+  <meta property="og:url" content="https://academiaqaoficial.com/curso/ctai/capitulo/7/">
+  <meta property="og:image" content="https://academiaqaoficial.com/assets/img/academiaqa-social.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Capítulo 7 CT-AI 2.0 | AcademiaQA">
+  <meta name="twitter:description" content="Capítulo 7 de CT-AI 2.0: Resume riesgos del desarrollo ML y pruebas de despliegue: framework, APIs, instalación, eficiencia, conversión de modelo...">
+  <meta name="twitter:image" content="https://academiaqaoficial.com/assets/img/academiaqa-social.jpg">
+  <meta name="twitter:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
+  <title>Capítulo 7 CT-AI 2.0 | AcademiaQA</title>
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LearningResource",
+      "@id": "https://academiaqaoficial.com/curso/ctai/capitulo/7/#chapter",
+      "name": "Capítulo 7: Pruebas del Desarrollo y Despliegue de Aprendizaje Automático",
+      "description": "Resume riesgos del desarrollo ML y pruebas de despliegue: framework, APIs, instalación, eficiencia, conversión de modelo, smoke test, shadow testing, canary release y compatibilidad de producción.",
+      "url": "https://academiaqaoficial.com/curso/ctai/capitulo/7/",
+      "inLanguage": "es-CO",
+      "isAccessibleForFree": true,
+      "learningResourceType": "Capítulo de curso",
+      "timeRequired": "PT30M",
+      "dateModified": "2026-08-06",
+      "provider": {
+        "@type": "EducationalOrganization",
+        "@id": "https://academiaqaoficial.com/#organization",
+        "name": "AcademiaQA",
+        "url": "https://academiaqaoficial.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://academiaqaoficial.com/assets/img/academiaqa-logo-660.webp",
+          "width": 660,
+          "height": 175
+        }
+      },
+      "teaches": [
+        "Dar ejemplos de enfoques de prueba para mitigar riesgos del desarrollo de aprendizaje automático",
+        "Explicar las distintas formas de prueba de despliegue de sistemas de aprendizaje automático"
+      ],
+      "about": [
+        {
+          "@type": "Thing",
+          "name": "pruebas del desarrollo ML"
+        },
+        {
+          "@type": "Thing",
+          "name": "pruebas de API"
+        },
+        {
+          "@type": "Thing",
+          "name": "pruebas de humo"
+        },
+        {
+          "@type": "Thing",
+          "name": "shadow testing"
+        },
+        {
+          "@type": "Thing",
+          "name": "canary testing"
+        },
+        {
+          "@type": "Thing",
+          "name": "pruebas de despliegue"
+        },
+        {
+          "@type": "Thing",
+          "name": "conversión del modelo"
+        },
+        {
+          "@type": "Thing",
+          "name": "instalabilidad"
+        },
+        {
+          "@type": "Thing",
+          "name": "compatibilidad de dispositivos"
+        }
+      ],
+      "isPartOf": {
+        "@type": "Course",
+        "@id": "https://academiaqaoficial.com/curso/ctai/#course",
+        "name": "ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI)",
+        "url": "https://academiaqaoficial.com/curso/ctai/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Inicio",
+          "item": "https://academiaqaoficial.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Cursos",
+          "item": "https://academiaqaoficial.com/cursos/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Certificado en Pruebas de IA v2.0 (CT-AI)",
+          "item": "https://academiaqaoficial.com/curso/ctai/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "name": "Capítulo 7",
+          "item": "https://academiaqaoficial.com/curso/ctai/capitulo/7/"
+        }
+      ]
+    }
+  ]
+}</script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=2026-08-11-seo-analytics">
+  <script defer src="/assets/js/core/security.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/registry.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/storage.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/question-selection.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/config.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/courses/catalog.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/app-loader.js?v=2026-08-11-seo-analytics"></script>
+</head>
+<body>
+  <header id="inicio">
+    <div class="wrap siteTopbar">
+      <a class="brandMark" href="/" data-home-anchor="inicio" aria-label="Ir al inicio">
+        <picture><source type="image/webp" srcset="/assets/img/academiaqa-logo-660.webp"><img class="brandLogo" src="/assets/img/academiaqa-logo.png" width="660" height="175" alt="AcademiaQA - QA &amp; Testing Academia" decoding="async"></picture>
+      </a>
+      <button class="menuToggle" type="button" data-action="toggle-site-menu" aria-controls="siteMenu" aria-expanded="false">
+        <span class="srOnly">Abrir menú principal</span>
+        <span aria-hidden="true">☰</span>
+      </button>
+      <nav class="siteNav" id="siteMenu" aria-label="Menú principal">
+        <a href="/" data-view="home" data-view-anchor="inicio">Inicio</a>
+        <a href="/cursos/" data-view="courses" data-view-anchor="cursos-disponibles">Cursos</a>
+        <a href="/ruta-aprendizaje/" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
+        <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
+        <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
+        <button class="coffeeLink" type="button">Invítame un café</button>
+      </nav>
+    </div>
+    <div class="wrap hero">
+      <div>
+        <h1 id="heroTitle">ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI)</h1>
+        <p class="subtitle" id="heroSubtitle">Menú de estudio de ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI): teoría, objetivos, práctica, flashcards, estadísticas y simulacro.</p>
+        <div class="topbadges">
+          <span class="badge" id="topChapters">📘 7 capítulos</span>
+          <span class="badge">🧠 Preguntas: <b id="topBank">133</b></span>
+          <span class="badge" id="topExam">⏱️ Simulacro 60 min / aprueba 29/44</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div id="appNotice" class="appNotice info" role="status" aria-live="polite" hidden></div>
+
+  <div class="coffeeModal" id="coffeeModal" role="dialog" aria-modal="true" aria-labelledby="coffeeModalTitle" hidden>
+    <div class="coffeeDialog">
+      <button class="modalClose" type="button" data-action="close-coffee-modal" aria-label="Cerrar">X</button>
+      <div class="coffeeDialogHead">
+        <span class="coffeeIcon" aria-hidden="true">☕</span>
+        <div>
+          <h2 id="coffeeModalTitle">Invítame un café</h2>
+          <p>Tu aporte ayuda a mantener cursos gratuitos, servidores y nuevas herramientas.</p>
+        </div>
+      </div>
+      <div class="coffeeOptions" role="group" aria-label="Opciones de aporte">
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 5" data-usd="5"><strong>USD 5</strong><span>Un café</span><em></em></button>
+        <button class="coffeeOption active" type="button" data-action="select-coffee-tier" data-tier="USD 10" data-usd="10"><small>Elegido</small><strong>USD 10</strong><span>Dos cafés</span><em></em></button>
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 15" data-usd="15"><strong>USD 15</strong><span>Gran apoyo</span><em></em></button>
+      </div>
+      <div class="coffeeSecure">
+        <b>Cobro seguro mediante Wompi</b>
+        <span id="coffeeCopHint" aria-live="polite">Wompi procesa en COP; antes de pagar confirma el valor final.</span>
+      </div>
+      <button class="btn coffeeCheckout" type="button" data-action="continue-wompi">Continuar con Wompi</button>
+      <p class="coffeeFineprint">Aporte voluntario y único. No compra ni desbloquea cursos. La confirmación depende del proceso aprobado por Wompi.</p>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <div class="layout" id="mainLayout">
+      <aside class="sidebar" id="studySidebar" aria-label="Menú del curso">
+        <button class="navbtn" type="button" data-view="home">🏠 Todos los cursos <small>inicio</small></button>
+        <div class="sideDivider"></div>
+        <div class="sideSectionTitle">Menú del curso</div>
+        <button class="navbtn active" type="button" data-view="dashboard">📌 Panel del curso <small>avance</small></button>
+        <button class="navbtn" type="button" data-view="study">📚 Estudiar syllabus <small id="navCaps">caps</small></button>
+        <button class="navbtn" type="button" data-view="objectives">🎯 Objetivos LO <small>mapa</small></button>
+        <button class="navbtn" type="button" data-view="practice">📝 Practicar <small>filtros</small></button>
+        <button class="navbtn" type="button" data-view="exam">⏱️ Simulacro <small id="navExamCount">40</small></button>
+        <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3 <small>técnicas</small></button>
+        <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards <small>glosario</small></button>
+        <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas <small>errores</small></button>
+        <div class="note small"><b>Nota:</b> cada certificación conserva progreso independiente. Las preguntas de práctica están alineadas al temario y no duplican literalmente el examen oficial.</div>
+        <div class="btnrow"><button class="btn secondary" type="button" id="resetProgress">Borrar avance</button></div>
+      </aside>
+
+      <section id="app" aria-label="Contenido del curso">
+        <article class="card seoChapterFallback">
+          <span class="sectionKicker">CT-AI 2.0 · Capítulo 7</span>
+          <h2>Pruebas del Desarrollo y Despliegue de Aprendizaje Automático</h2>
+          <p class="seoChapterLead">Resume riesgos del desarrollo ML y pruebas de despliegue: framework, APIs, instalación, eficiencia, conversión de modelo, smoke test, shadow testing, canary release y compatibilidad de producción.</p>
+          <div class="certBadgeLine"><span>2 objetivos LO</span><span>30 min</span><span>9 términos clave</span></div>
+          <section class="seoTheorySection"><h3>7.1 Pruebas del desarrollo ML</h3><p>Además del modelo, se prueba el software que lo construye, empaqueta, sirve y monitorea. Los riesgos incluyen errores en frameworks, APIs, dependencias, configuración, serialización, conversión de modelos, infraestructura y automatización del pipeline.</p><ul><li>El pipeline ML puede fallar aunque el modelo sea bueno.</li><li>Controlar versiones de librerías, datos, modelo y entorno.</li></ul></section><section class="seoTheorySection"><h3>7.1.1 Riesgos y mitigaciones del desarrollo ML</h3><p>Se mitigan riesgos con pruebas unitarias, integración, API, instalación, compatibilidad, rendimiento, reproducibilidad, revisión de configuración, validación de dependencias y pruebas de conversión. También se revisa que la métrica calculada por el pipeline sea correcta.</p><ul><li>Un cambio de librería puede cambiar inferencia o rendimiento.</li><li>Probar carga/guardado del modelo y transformación de datos.</li></ul></section><section class="seoTheorySection"><h3>7.1.2 Pruebas de despliegue del sistema ML</h3><p>Las pruebas de despliegue verifican que el sistema funcione al pasar a producción. Incluyen pruebas de humo, shadow testing, canary testing, pruebas de API, compatibilidad de dispositivos, monitoreo, rollback, latencia, capacidad y seguridad. Shadow testing ejecuta el nuevo modelo sin impactar decisiones reales; canary libera a un pequeño porcentaje de usuarios.</p><ul><li>Smoke test: confirma funcionamiento básico rápido.</li><li>Shadow: observa sin afectar producción.</li><li>Canary: despliegue gradual con métricas y rollback.</li></ul></section>
+          <section><h3>Términos clave</h3><div><span class="pill">pruebas del desarrollo ML</span><span class="pill">pruebas de API</span><span class="pill">pruebas de humo</span><span class="pill">shadow testing</span><span class="pill">canary testing</span><span class="pill">pruebas de despliegue</span><span class="pill">conversión del modelo</span><span class="pill">instalabilidad</span><span class="pill">compatibilidad de dispositivos</span></div></section>
+          <section><h3>Objetivos de aprendizaje</h3><ol class="seoObjectiveList"><li><b>AI-7.1.1 · K2</b><span>Dar ejemplos de enfoques de prueba para mitigar riesgos del desarrollo de aprendizaje automático</span><p>Los riesgos del desarrollo de aprendizaje automático incluyen marcos de trabajo defectuosos, APIs mal usadas, instalaciones incorrectas, selección subóptima de herramientas, rendimiento pobre y problemas de evaluación.</p></li><li><b>AI-7.1.2 · K2</b><span>Explicar las distintas formas de prueba de despliegue de sistemas de aprendizaje automático</span><p>Las pruebas de despliegue de aprendizaje automático incluyen pruebas de humo, pruebas de API, compatibilidad, instalación, pruebas canario y pruebas en sombra para validar la transición a producción.</p></li></ol></section>
+          <section><h3>Errores frecuentes</h3><ul><li>No tratar el marco de trabajo como caja negra confiable sin pruebas de API, instalación y evaluación.</li><li>No confundir pruebas en sombra con pruebas canario: las pruebas en sombra no impactan usuarios; las pruebas canario sí entregan respuestas a un subconjunto.</li></ul></section>
+          <section><h3>Ejemplos aplicados</h3><ul><li>Un modelo nuevo se puede ejecutar en sombra con tráfico real sin que el usuario reciba su respuesta; en canario sí se expone a pocos usuarios.</li></ul></section>
+          <div class="btnrow"><a class="btn" href="/curso/ctai/">Entrar al curso</a><a class="btn secondary" href="/curso/ctai/simulacro/">Ver simulacro</a></div>
+          <aside class="seoSourcePanel" aria-label="Trazabilidad académica">
+            <h3>Información académica</h3>
+            <dl>
+              <div><dt>Versión</dt><dd>CT-AI v2.0 · Banco original ampliado</dd></div>
+              <div><dt>Fuente de referencia</dt><dd>ISTQB CT-AI Syllabus v2.0 y matriz de cobertura del Sample Exam v2.1</dd></div>
+              <div><dt>Última actualización</dt><dd>2026-08-06</dd></div>
+              <div><dt>Responsable de publicación</dt><dd>AcademiaQA</dd></div>
+            </dl>
+            <p>Plataforma educativa independiente. Consulta siempre las reglas y fuentes vigentes de la entidad certificadora.</p>
+          </aside>
+        </article>
+      </section>
+    </div>
+    <div class="footer" id="footerText"></div>
+  </main>
+</body>
+</html>

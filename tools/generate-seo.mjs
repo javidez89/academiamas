@@ -6,6 +6,14 @@ const ROOT = process.cwd();
 const DOMAIN = 'https://academiaqaoficial.com';
 const cleanDomain = DOMAIN.replace(/\/$/, '');
 const rootPath = (...parts) => path.join(ROOT, ...parts);
+const BRAND_LOGO = '/assets/img/academiaqa-logo-660.webp';
+const SOCIAL_IMAGE = '/assets/img/academiaqa-social.jpg';
+const GOOGLE_TAG_ID = 'G-F5VK3VZYR0';
+const GOOGLE_TAG_SCRIPT = `  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '${GOOGLE_TAG_ID}');`;
 
 function h(value = '') {
   return String(value)
@@ -54,9 +62,9 @@ function organization() {
     url: urlFor('/'),
     logo: {
       '@type': 'ImageObject',
-      url: urlFor('/assets/img/academiaqa-logo.png'),
-      width: 1640,
-      height: 435
+      url: urlFor(BRAND_LOGO),
+      width: 660,
+      height: 175
     }
   };
 }
@@ -78,6 +86,10 @@ function coursePath(key, view = 'panel') {
   return view === 'simulacro' ? `${base}simulacro/` : base;
 }
 
+function chapterPath(key, chapterId) {
+  return `/curso/${encodeURIComponent(key)}/capitulo/${encodeURIComponent(chapterId)}/`;
+}
+
 async function loadCatalog() {
   const source = await fs.readFile(rootPath('courses', 'catalog.js'), 'utf8');
   const sandbox = { window: {} };
@@ -88,9 +100,34 @@ async function loadCatalog() {
   return catalog;
 }
 
+async function loadCourseData(catalog) {
+  const entries = await Promise.all(catalog.map(async (entry) => {
+    const source = await fs.readFile(rootPath(...entry.src.split('/')), 'utf8');
+    let registered = null;
+    const sandbox = {
+      AcademyRegistry: {
+        register(key, data) {
+          registered = { key, data };
+        }
+      }
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(source, sandbox, { filename: entry.src });
+    if (!registered || registered.key !== entry.key) {
+      throw new Error(`No se pudo cargar el contenido de ${entry.key}.`);
+    }
+    return [entry.key, registered.data];
+  }));
+
+  return new Map(entries);
+}
+
 async function assetVersion() {
-  const html = await fs.readFile(rootPath('index.html'), 'utf8');
-  return html.match(/assets\/js\/app\.js\?v=([^"]+)/)?.[1] || '2026-08-05-exam-focus';
+  const source = await fs.readFile(rootPath('assets', 'js', 'config.js'), 'utf8');
+  const sandbox = { window: {} };
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox, { filename: 'assets/js/config.js' });
+  return sandbox.window.ACADEMY_CONFIG?.assetVersion || '2026-08-11-seo-analytics';
 }
 
 function countsOf(course) {
@@ -111,11 +148,34 @@ function seoCourseName(course) {
   return shortName.length <= 32 ? shortName : meta.code || shortName;
 }
 
+function seoCourseLabel(course) {
+  if (course.key === 'ctfl') return 'CTFL 4.0';
+  if (course.key === 'ctai') return 'CT-AI 2.0';
+  return metaOf(course).code || seoCourseName(course);
+}
+
+function courseTitle(course) {
+  const prefix = course.family === 'ISTQB' ? 'Curso ISTQB' : 'Curso';
+  return clip(`${prefix} ${seoCourseLabel(course)} gratis y simulador | AcademiaQA`, 65);
+}
+
+function examTitle(course) {
+  const prefix = course.family === 'ISTQB' ? 'Simulacro ISTQB' : 'Simulacro';
+  return clip(`${prefix} ${seoCourseLabel(course)} gratis | AcademiaQA`, 65);
+}
+
+function chapterTitle(course, chapter) {
+  const detailed = `C${chapter.id}: ${chapter.title} | ${seoCourseLabel(course)} - AcademiaQA`;
+  return detailed.length <= 65
+    ? detailed
+    : `Capítulo ${chapter.id} ${seoCourseLabel(course)} | AcademiaQA`;
+}
+
 function courseSummary(course) {
   const counts = countsOf(course);
   const blueprint = blueprintOf(course);
   return [
-    `${counts.chapters || 0} capitulos`,
+    `${counts.chapters || 0} capítulos`,
     `${counts.objectives || 0} objetivos LO`,
     `${counts.questions || 0} preguntas`,
     `simulacro ${blueprint.totalQuestions || 0}`,
@@ -140,10 +200,11 @@ function examDescription(course) {
   return `Practica con el simulacro de ${name}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${points}. Acceso gratis en AcademiaQA.`;
 }
 
-function courseEntity(course) {
+function courseEntity(course, courseData = {}) {
   const meta = metaOf(course);
   const tags = [...new Set([course.family, ...(course.areas || []), ...(course.tags || [])].filter(Boolean))];
   const routePath = coursePath(course.key);
+  const source = courseSourceDetails(course, courseData);
   return {
     '@type': 'Course',
     '@id': `${urlFor(routePath)}#course`,
@@ -152,12 +213,14 @@ function courseEntity(course) {
     url: urlFor(routePath),
     inLanguage: 'es-CO',
     isAccessibleForFree: course.access === 'free',
+    dateModified: source.updatedAt,
+    version: source.version,
     provider: organization(),
     about: tags.map((name) => ({ '@type': 'Thing', name }))
   };
 }
 
-function courseList(catalog) {
+function courseList(catalog, courseDataByKey = new Map()) {
   return {
     '@type': 'ItemList',
     name: 'Cursos disponibles en AcademiaQA',
@@ -166,7 +229,7 @@ function courseList(catalog) {
       '@type': 'ListItem',
       position: index + 1,
       url: urlFor(coursePath(course.key)),
-      item: courseEntity(course)
+      item: courseEntity(course, courseDataByKey.get(course.key))
     }))
   };
 }
@@ -190,6 +253,45 @@ function examEntity(course) {
       name: meta.name || course.key,
       url: urlFor(coursePath(course.key))
     }
+  };
+}
+
+function chapterEntity(course, courseData, chapter) {
+  const routePath = chapterPath(course.key, chapter.id);
+  const source = courseSourceDetails(course, courseData);
+  const objectives = (courseData.objectives || []).filter((item) => Number(item.chapter) === Number(chapter.id));
+  return {
+    '@type': 'LearningResource',
+    '@id': `${urlFor(routePath)}#chapter`,
+    name: `Capítulo ${chapter.id}: ${chapter.title}`,
+    description: plain(chapter.summary),
+    url: urlFor(routePath),
+    inLanguage: 'es-CO',
+    isAccessibleForFree: course.access === 'free',
+    learningResourceType: 'Capítulo de curso',
+    timeRequired: chapter.minutes ? `PT${chapter.minutes}M` : undefined,
+    dateModified: source.updatedAt,
+    provider: organization(),
+    teaches: objectives.map((objective) => objective.text).filter(Boolean),
+    about: (chapter.terms || []).slice(0, 20).map((name) => ({ '@type': 'Thing', name })),
+    isPartOf: {
+      '@type': 'Course',
+      '@id': `${urlFor(coursePath(course.key))}#course`,
+      name: metaOf(course).name || course.key,
+      url: urlFor(coursePath(course.key))
+    }
+  };
+}
+
+function courseSourceDetails(course, courseData = {}) {
+  const coverage = courseData.syllabusCoverageNote || {};
+  const validation = courseData.qaValidation || {};
+  const dataMeta = courseData.meta || {};
+  return {
+    version: dataMeta.versionLabel || metaOf(course).code || course.key,
+    source: coverage.source || validation.sourceSyllabus || metaOf(course).subtitle || 'Contenido académico de AcademiaQA',
+    updatedAt: String(coverage.updatedAt || validation.validatedAt || courseData.generatedAt || course.generatedAt || '').slice(0, 10),
+    responsible: 'AcademiaQA'
   };
 }
 
@@ -221,8 +323,16 @@ function scriptTags(version) {
     `/assets/js/core/question-selection.js${suffix}`,
     `/assets/js/config.js${suffix}`,
     `/courses/catalog.js${suffix}`,
-    `/assets/js/app.js${suffix}`
+    `/assets/js/app-loader.js${suffix}`
   ].map((src) => `  <script defer src="${h(src)}"></script>`).join('\n');
+}
+
+function analyticsTags() {
+  return `  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG_ID}"></script>
+  <script>
+${GOOGLE_TAG_SCRIPT}
+  </script>`;
 }
 
 function head({ title, description, path: routePath, schema }, version) {
@@ -231,15 +341,18 @@ function head({ title, description, path: routePath, schema }, version) {
   return `<!DOCTYPE html>
 <html lang="es-CO">
 <head>
+${analyticsTags()}
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://www.datos.gov.co; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
   <meta name="robots" content="index, follow">
   <meta name="description" content="${h(cleanDescription)}">
   <link rel="canonical" href="${h(canonical)}">
   <link rel="alternate" hreflang="es-CO" href="${h(canonical)}">
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/img/favicon-48.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/apple-touch-icon.png">
   <base href="/">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="es_CO">
@@ -247,15 +360,15 @@ function head({ title, description, path: routePath, schema }, version) {
   <meta property="og:title" content="${h(title)}">
   <meta property="og:description" content="${h(cleanDescription)}">
   <meta property="og:url" content="${h(canonical)}">
-  <meta property="og:image" content="${h(urlFor('/assets/img/academiaqa-logo.png'))}">
-  <meta property="og:image:type" content="image/png">
-  <meta property="og:image:width" content="1640">
-  <meta property="og:image:height" content="435">
+  <meta property="og:image" content="${h(urlFor(SOCIAL_IMAGE))}">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${h(title)}">
   <meta name="twitter:description" content="${h(cleanDescription)}">
-  <meta name="twitter:image" content="${h(urlFor('/assets/img/academiaqa-logo.png'))}">
+  <meta name="twitter:image" content="${h(urlFor(SOCIAL_IMAGE))}">
   <meta name="twitter:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
   <title>${h(title)}</title>
   <script type="application/ld+json">${jsonLd({
@@ -270,42 +383,62 @@ ${scriptTags(version)}
 function topBadgeTotals(catalog) {
   const totals = catalogTotals(catalog);
   return {
-    chapters: `${totals.chapters} capitulos`,
+    chapters: `${totals.chapters} capítulos`,
     questions: totals.questions,
     courses: `${totals.courses} cursos gratis disponibles`
   };
 }
 
+function courseHeroProperties(course) {
+  const meta = metaOf(course);
+  const counts = countsOf(course);
+  const blueprint = blueprintOf(course);
+  return {
+    heroSubtitle: `Menú de estudio de ${meta.name || course.key}: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.`,
+    heroBadges: {
+      chapters: `📘 ${counts.chapters || 0} capítulos`,
+      questions: counts.questions || 0,
+      exam: `⏱️ Simulacro ${blueprint.minutes || 0} min / aprueba ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}`
+    }
+  };
+}
+
 function shell({ page, content, catalog }, version) {
   const totals = topBadgeTotals(catalog);
+  const heroBadges = page.heroBadges || {
+    chapters: `📘 ${totals.chapters}`,
+    questions: totals.questions,
+    exam: `🎓 ${totals.courses}`
+  };
+  const isPublicPage = ['/', '/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/'].includes(page.path);
   return `${head(page, version)}
 <body>
-  <header id="inicio">
+  <header id="inicio"${isPublicPage ? ' class="homeHeader"' : ''}>
     <div class="wrap siteTopbar">
       <a class="brandMark" href="/" data-home-anchor="inicio" aria-label="Ir al inicio">
-        <img class="brandLogo" src="/assets/img/academiaqa-logo.png" width="1640" height="435" alt="AcademiaQA - QA &amp; Testing Academia" decoding="async" fetchpriority="high">
+        <picture><source type="image/webp" srcset="/assets/img/academiaqa-logo-660.webp"><img class="brandLogo" src="/assets/img/academiaqa-logo.png" width="660" height="175" alt="AcademiaQA - QA &amp; Testing Academia" decoding="async"></picture>
       </a>
       <button class="menuToggle" type="button" data-action="toggle-site-menu" aria-controls="siteMenu" aria-expanded="false">
-        <span class="srOnly">Abrir menu principal</span>
+        <span class="srOnly">Abrir menú principal</span>
         <span aria-hidden="true">☰</span>
       </button>
-      <nav class="siteNav" id="siteMenu" aria-label="Menu principal">
+      <nav class="siteNav" id="siteMenu" aria-label="Menú principal">
         <a href="/" data-view="home" data-view-anchor="inicio">Inicio</a>
         <a href="/cursos/" data-view="courses" data-view-anchor="cursos-disponibles">Cursos</a>
         <a href="/ruta-aprendizaje/" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
-        <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contactanos</a>
-        <a href="/legal/" data-view="legal" data-view-anchor="legal">Informacion legal</a>
-        <button class="coffeeLink" type="button">Invitame un cafe</button>
+        <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
+        <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
+        <button class="coffeeLink" type="button">Invítame un café</button>
       </nav>
     </div>
     <div class="wrap hero">
       <div>
-        <h1 id="heroTitle">${h(page.heroTitle || 'AcademiaQA')}</h1>
+        ${isPublicPage ? `<span class="heroTitleText" id="heroTitle">${h(page.heroTitle || 'AcademiaQA')}</span>` : `<h1 id="heroTitle">${h(page.heroTitle || 'AcademiaQA')}</h1>`}
         <p class="subtitle" id="heroSubtitle">${h(page.heroSubtitle || page.description)}</p>
         <div class="topbadges">
-          <span class="badge" id="topChapters">📘 ${h(totals.chapters)}</span>
-          <span class="badge">🧠 Preguntas: <b id="topBank">${h(totals.questions)}</b></span>
-          <span class="badge" id="topExam">🎓 ${h(totals.courses)}</span>
+          <span class="badge" id="topChapters">${h(heroBadges.chapters)}</span>
+          <span class="badge">🧠 Preguntas: <b id="topBank">${h(heroBadges.questions)}</b></span>
+          <span class="badge" id="topExam">${h(heroBadges.exam)}</span>
         </div>
       </div>
     </div>
@@ -319,13 +452,13 @@ function shell({ page, content, catalog }, version) {
       <div class="coffeeDialogHead">
         <span class="coffeeIcon" aria-hidden="true">☕</span>
         <div>
-          <h2 id="coffeeModalTitle">Invitame un cafe</h2>
+          <h2 id="coffeeModalTitle">Invítame un café</h2>
           <p>Tu aporte ayuda a mantener cursos gratuitos, servidores y nuevas herramientas.</p>
         </div>
       </div>
       <div class="coffeeOptions" role="group" aria-label="Opciones de aporte">
-        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 5" data-usd="5"><strong>USD 5</strong><span>Un cafe</span><em></em></button>
-        <button class="coffeeOption active" type="button" data-action="select-coffee-tier" data-tier="USD 10" data-usd="10"><small>Elegido</small><strong>USD 10</strong><span>Dos cafes</span><em></em></button>
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 5" data-usd="5"><strong>USD 5</strong><span>Un café</span><em></em></button>
+        <button class="coffeeOption active" type="button" data-action="select-coffee-tier" data-tier="USD 10" data-usd="10"><small>Elegido</small><strong>USD 10</strong><span>Dos cafés</span><em></em></button>
         <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 15" data-usd="15"><strong>USD 15</strong><span>Gran apoyo</span><em></em></button>
       </div>
       <div class="coffeeSecure">
@@ -333,25 +466,25 @@ function shell({ page, content, catalog }, version) {
         <span id="coffeeCopHint" aria-live="polite">Wompi procesa en COP; antes de pagar confirma el valor final.</span>
       </div>
       <button class="btn coffeeCheckout" type="button" data-action="continue-wompi">Continuar con Wompi</button>
-      <p class="coffeeFineprint">Aporte voluntario y unico. No compra ni desbloquea cursos. La confirmacion depende del proceso aprobado por Wompi.</p>
+      <p class="coffeeFineprint">Aporte voluntario y único. No compra ni desbloquea cursos. La confirmación depende del proceso aprobado por Wompi.</p>
     </div>
   </div>
 
   <main class="wrap">
-    <div class="layout" id="mainLayout">
-      <aside class="sidebar" id="studySidebar" aria-label="Menu del curso">
+    <div class="layout${isPublicPage ? ' homeLayout' : ''}" id="mainLayout">
+      <aside class="sidebar" id="studySidebar" aria-label="Menú del curso">
         <button class="navbtn" type="button" data-view="home">🏠 Todos los cursos <small>inicio</small></button>
         <div class="sideDivider"></div>
-        <div class="sideSectionTitle">Menu del curso</div>
+        <div class="sideSectionTitle">Menú del curso</div>
         <button class="navbtn active" type="button" data-view="dashboard">📌 Panel del curso <small>avance</small></button>
         <button class="navbtn" type="button" data-view="study">📚 Estudiar syllabus <small id="navCaps">caps</small></button>
         <button class="navbtn" type="button" data-view="objectives">🎯 Objetivos LO <small>mapa</small></button>
         <button class="navbtn" type="button" data-view="practice">📝 Practicar <small>filtros</small></button>
         <button class="navbtn" type="button" data-view="exam">⏱️ Simulacro <small id="navExamCount">40</small></button>
-        <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3 <small>tecnicas</small></button>
+        <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3 <small>técnicas</small></button>
         <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards <small>glosario</small></button>
-        <button class="navbtn" type="button" data-view="analytics">📈 Estadisticas <small>errores</small></button>
-        <div class="note small"><b>Nota:</b> cada certificacion conserva progreso independiente. Las preguntas de practica estan alineadas al temario y no duplican literalmente el examen oficial.</div>
+        <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas <small>errores</small></button>
+        <div class="note small"><b>Nota:</b> cada certificación conserva progreso independiente. Las preguntas de práctica están alineadas al temario y no duplican literalmente el examen oficial.</div>
         <div class="btnrow"><button class="btn secondary" type="button" id="resetProgress">Borrar avance</button></div>
       </aside>
 
@@ -359,7 +492,7 @@ function shell({ page, content, catalog }, version) {
 ${content}
       </section>
     </div>
-    <div class="footer" id="footerText"></div>
+    <div class="footer${page.path === '/' ? ' homeFooter' : ''}" id="footerText"${isPublicPage && page.path !== '/' ? ' hidden' : ''}>${page.path === '/' ? 'AcademiaQA' : ''}</div>
   </main>
 </body>
 </html>
@@ -368,6 +501,20 @@ ${content}
 
 function badges(items) {
   return `<div class="certBadgeLine">${items.map((item) => `<span>${h(item)}</span>`).join('')}</div>`;
+}
+
+function sourcePanel(course, courseData) {
+  const source = courseSourceDetails(course, courseData);
+  return `<aside class="seoSourcePanel" aria-label="Trazabilidad académica">
+            <h3>Información académica</h3>
+            <dl>
+              <div><dt>Versión</dt><dd>${h(source.version)}</dd></div>
+              <div><dt>Fuente de referencia</dt><dd>${h(source.source)}</dd></div>
+              <div><dt>Última actualización</dt><dd>${h(source.updatedAt || 'Fecha no disponible')}</dd></div>
+              <div><dt>Responsable de publicación</dt><dd>${h(source.responsible)}</dd></div>
+            </dl>
+            <p>Plataforma educativa independiente. Consulta siempre las reglas y fuentes vigentes de la entidad certificadora.</p>
+          </aside>`;
 }
 
 function courseCard(course) {
@@ -381,7 +528,7 @@ function courseCard(course) {
             <p>${h(meta.subtitle || '')}</p>
             <div class="courseTaxonomy">${tags.map((tag) => `<span>${h(tag)}</span>`).join('')}</div>
             <div class="courseStatsLine">
-              <span>${h(counts.chapters || 0)} capitulos</span>
+              <span>${h(counts.chapters || 0)} capítulos</span>
               <span>${h(counts.objectives || 0)} LO</span>
               <span>${h(counts.questions || 0)} preguntas</span>
               <span>${h(summary[3])}</span>
@@ -390,16 +537,38 @@ function courseCard(course) {
           </a>`;
 }
 
+function homeContent(catalog) {
+  const freeCourses = catalog.filter((course) => course.access === 'free').length;
+  return `        <div class="publicHome" data-static-home="true">
+          <section class="landingHero" aria-labelledby="homeMainTitle">
+            <div class="landingCopy">
+              <span class="landingEyebrow">QA &amp; Testing Academia · ${h(freeCourses)} cursos gratis</span>
+              <h1 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h1>
+              <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
+              <div class="landingActions">
+                <a class="btn" href="/ruta-aprendizaje/">Ruta de aprendizaje</a>
+                <a class="btn secondary" href="/cursos/">Ver cursos gratis</a>
+              </div>
+            </div>
+          </section>
+          <section class="homeSection" aria-labelledby="homeFallbackCoursesTitle">
+            <span class="sectionKicker">Cursos disponibles</span>
+            <h2 id="homeFallbackCoursesTitle">Aprende QA, testing, IA, Scrum y gestión de proyectos.</h2>
+            <div class="availableCoursesGrid">${catalog.map(courseCard).join('\n')}</div>
+          </section>
+        </div>`;
+}
+
 function publicContent(kind, catalog) {
   const totals = catalogTotals(catalog);
   const tagList = allTags(catalog).slice(0, 18);
   const courseGrid = catalog.map(courseCard).join('\n');
-  const intro = `${totals.courses} cursos, ${totals.chapters} capitulos, ${totals.objectives} objetivos LO y ${totals.questions} preguntas.`;
+  const intro = `${totals.courses} cursos, ${totals.chapters} capítulos, ${totals.objectives} objetivos LO y ${totals.questions} preguntas.`;
 
   if (kind === 'courses') {
     return `        <div class="card">
           <span class="sectionKicker">AcademiaQA</span>
-          <h2 id="coursesTitle">Cursos disponibles</h2>
+          <h1 id="coursesTitle">Cursos disponibles</h1>
           <p>${h(intro)}</p>
           <div class="availableCoursesGrid">${courseGrid}</div>
         </div>`;
@@ -408,7 +577,7 @@ function publicContent(kind, catalog) {
   if (kind === 'routes') {
     return `        <div class="card">
           <span class="sectionKicker">AcademiaQA</span>
-          <h2 id="routesTitle">Ruta de aprendizaje</h2>
+          <h1 id="routesTitle">Ruta de aprendizaje</h1>
           <p>${h(intro)}</p>
           ${badges(tagList)}
           <div class="availableCoursesGrid">${courseGrid}</div>
@@ -418,7 +587,7 @@ function publicContent(kind, catalog) {
   if (kind === 'contact') {
     return `        <div class="card">
           <span class="sectionKicker">AcademiaQA</span>
-          <h2 id="contactTitle">Contactanos</h2>
+          <h1 id="contactTitle">Contáctanos</h1>
           <p>${h(intro)}</p>
           ${badges(tagList)}
         </div>`;
@@ -426,13 +595,14 @@ function publicContent(kind, catalog) {
 
   return `        <div class="card">
           <span class="sectionKicker">AcademiaQA</span>
-          <h2 id="legalTitle">Politica de privacidad y terminos de uso</h2>
+          <h1 id="legalTitle">Politica de privacidad y terminos de uso</h1>
           <p>${h(intro)}</p>
+          <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
           ${badges(tagList)}
         </div>`;
 }
 
-function courseContent(course, isExam = false) {
+function courseContent(course, courseData, isExam = false) {
   const meta = metaOf(course);
   const counts = countsOf(course);
   const blueprint = blueprintOf(course);
@@ -446,25 +616,73 @@ function courseContent(course, isExam = false) {
     ]
     : courseSummary(course);
 
-  return `        <div class="card">
+  const chapters = (courseData.chapters || []).map((chapter) => `<li><a href="${h(chapterPath(course.key, chapter.id))}"><b>Capítulo ${h(chapter.id)}:</b> ${h(chapter.title)}</a><span>${h(chapter.summary || '')}</span></li>`).join('');
+  const description = isExam ? examDescription(course) : meta.subtitle || courseDescription(course);
+
+  return `        <div class="card seoCourseFallback">
           <span class="sectionKicker">${h(meta.code || course.key)}</span>
           <h2>${h(title)}</h2>
-          <p>${h(meta.subtitle || '')}</p>
+          <p>${h(description)}</p>
           ${badges(stats)}
           <div class="courseTaxonomy">${tags.map((tag) => `<span>${h(tag)}</span>`).join('')}</div>
           <div class="courseStatsLine">
-            <span>${h(counts.chapters || 0)} capitulos</span>
+            <span>${h(counts.chapters || 0)} capítulos</span>
             <span>${h(counts.objectives || 0)} objetivos LO</span>
             <span>${h(counts.questions || 0)} preguntas</span>
             <span>Simulacro ${h(blueprint.totalQuestions || 0)}</span>
           </div>
+          ${isExam ? `<div class="seoExamSummary"><h3>Condiciones del simulacro</h3><p>Entrenamiento aleatorio con ${h(blueprint.totalQuestions || 0)} preguntas, ${h(blueprint.minutes || 0)} minutos y puntuación mínima de ${h(blueprint.passingScore || 0)}/${h(blueprint.totalPoints || blueprint.totalQuestions || 0)}.</p><a class="btn good" href="${h(coursePath(course.key, 'simulacro'))}">Abrir simulacro</a></div>` : `<h3>Temario por capítulos</h3><ol class="seoChapterList">${chapters}</ol>`}
+          ${sourcePanel(course, courseData)}
         </div>`;
 }
 
-function pageDefinitions(catalog) {
+function chapterContent(course, courseData, chapter) {
+  const objectives = (courseData.objectives || []).filter((item) => Number(item.chapter) === Number(chapter.id));
+  const sections = (chapter.theorySections || []).map((section) => `<section class="seoTheorySection"><h3>${h(section.title)}</h3><p>${h(section.body || '')}</p>${Array.isArray(section.bullets) ? `<ul>${section.bullets.map((item) => `<li>${h(item)}</li>`).join('')}</ul>` : ''}</section>`).join('');
+  const terms = (chapter.terms || []).map((term) => `<span class="pill">${h(term)}</span>`).join('');
+  const objectiveItems = objectives.map((objective) => `<li><b>${h(objective.lo)} · ${h(objective.k)}</b><span>${h(objective.text)}</span>${objective.theory ? `<p>${h(objective.theory)}</p>` : ''}</li>`).join('');
+  const pitfalls = (chapter.pitfalls || []).map((item) => `<li>${h(item)}</li>`).join('');
+  const examples = (chapter.examples || []).map((item) => `<li>${h(item)}</li>`).join('');
+
+  return `        <article class="card seoChapterFallback">
+          <span class="sectionKicker">${h(seoCourseLabel(course))} · Capítulo ${h(chapter.id)}</span>
+          <h2>${h(chapter.title)}</h2>
+          <p class="seoChapterLead">${h(chapter.summary || '')}</p>
+          ${badges([`${objectives.length} objetivos LO`, `${chapter.minutes || 0} min`, `${(chapter.terms || []).length} términos clave`])}
+          ${sections}
+          <section><h3>Términos clave</h3><div>${terms}</div></section>
+          <section><h3>Objetivos de aprendizaje</h3><ol class="seoObjectiveList">${objectiveItems}</ol></section>
+          ${pitfalls ? `<section><h3>Errores frecuentes</h3><ul>${pitfalls}</ul></section>` : ''}
+          ${examples ? `<section><h3>Ejemplos aplicados</h3><ul>${examples}</ul></section>` : ''}
+          <div class="btnrow"><a class="btn" href="${h(coursePath(course.key))}">Entrar al curso</a><a class="btn secondary" href="${h(coursePath(course.key, 'simulacro'))}">Ver simulacro</a></div>
+          ${sourcePanel(course, courseData)}
+        </article>`;
+}
+
+function website() {
+  return {
+    '@type': 'WebSite',
+    '@id': urlFor('/#website'),
+    url: urlFor('/'),
+    name: 'AcademiaQA',
+    inLanguage: 'es-CO',
+    publisher: { '@id': urlFor('/#organization') }
+  };
+}
+
+function pageDefinitions(catalog, courseDataByKey) {
   const totals = catalogTotals(catalog);
-  const catalogSchema = courseList(catalog);
+  const catalogSchema = courseList(catalog, courseDataByKey);
   const publicPages = [
+    {
+      key: 'home',
+      path: '/',
+      title: 'Cursos QA gratis y simulacros ISTQB | AcademiaQA',
+      heroTitle: 'AcademiaQA',
+      description: 'Aprende QA y testing con cursos gratis, syllabus, práctica, flashcards y simulacros para ISTQB, IA, Scrum y gestión de proyectos.',
+      schema: [organization(), website()],
+      content: homeContent(catalog)
+    },
     {
       key: 'courses',
       path: '/cursos/',
@@ -511,29 +729,32 @@ function pageDefinitions(catalog) {
 
   const coursePages = catalog.flatMap((course) => {
     const meta = metaOf(course);
+    const courseData = courseDataByKey.get(course.key) || {};
     const courseRoute = coursePath(course.key);
     const examRoute = coursePath(course.key, 'simulacro');
-    return [
+    const primaryPages = [
       {
         key: `${course.key}-course`,
         path: courseRoute,
-        title: `${seoCourseName(course)}: curso y simulacro | AcademiaQA`,
+        ...courseHeroProperties(course),
+        title: courseTitle(course),
         heroTitle: meta.name || course.key,
         description: courseDescription(course),
         schema: [
-          courseEntity(course),
+          courseEntity(course, courseData),
           breadcrumb([
             { name: 'Inicio', path: '/' },
             { name: 'Cursos', path: '/cursos/' },
             { name: meta.shortName || meta.name || course.key, path: courseRoute }
           ])
         ],
-        content: courseContent(course)
+        content: courseContent(course, courseData)
       },
       {
         key: `${course.key}-exam`,
         path: examRoute,
-        title: `Simulacro ${seoCourseName(course)} | AcademiaQA`,
+        ...courseHeroProperties(course),
+        title: examTitle(course),
         heroTitle: meta.name || course.key,
         description: examDescription(course),
         schema: [
@@ -545,9 +766,33 @@ function pageDefinitions(catalog) {
             { name: 'Simulacro', path: examRoute }
           ])
         ],
-        content: courseContent(course, true)
+        content: courseContent(course, courseData, true)
       }
     ];
+
+    const chapterPages = (courseData.chapters || []).map((chapter) => {
+      const routePath = chapterPath(course.key, chapter.id);
+      return {
+        key: `${course.key}-chapter-${chapter.id}`,
+        path: routePath,
+        ...courseHeroProperties(course),
+        title: chapterTitle(course, chapter),
+        heroTitle: meta.name || course.key,
+        description: `Capítulo ${chapter.id} de ${seoCourseLabel(course)}: ${plain(chapter.summary || chapter.title)} Estudia objetivos LO, términos y ejemplos en AcademiaQA.`,
+        schema: [
+          chapterEntity(course, courseData, chapter),
+          breadcrumb([
+            { name: 'Inicio', path: '/' },
+            { name: 'Cursos', path: '/cursos/' },
+            { name: meta.shortName || meta.name || course.key, path: courseRoute },
+            { name: `Capítulo ${chapter.id}`, path: routePath }
+          ])
+        ],
+        content: chapterContent(course, courseData, chapter)
+      };
+    });
+
+    return [...primaryPages, ...chapterPages];
   });
 
   return [...publicPages, ...coursePages];
@@ -591,12 +836,12 @@ ${urls}
 }
 
 const catalog = await loadCatalog();
+const courseDataByKey = await loadCourseData(catalog);
 const version = await assetVersion();
-const pages = pageDefinitions(catalog);
-const sitemapPages = [{ path: '/' }, ...pages];
+const pages = pageDefinitions(catalog, courseDataByKey);
 
 await writeRobots();
-await writeSitemap(sitemapPages);
+await writeSitemap(pages);
 for (const page of pages) await writePage(page, catalog, version);
 
 console.log(`SEO generado: ${pages.length} paginas, robots.txt y sitemap.xml.`);

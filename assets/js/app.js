@@ -8,6 +8,7 @@
   const Config = global.ACADEMY_CONFIG || {};
   const ASSET_VERSION = String(Config.assetVersion || '2026-08-05-mobile-responsive-study');
   const APP_VERSION = String(Config.version || '0.0.0');
+  const CANONICAL_ORIGIN = 'https://academiaqaoficial.com';
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
   const TRM_API_URL = 'https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde DESC';
   const COFFEE_COP_PER_USD_FALLBACK = 3206.18;
@@ -219,6 +220,7 @@
       catalogFilter: 'all',
       homePanel: 'overview',
       homeSlide: 0,
+      studyChapter: null,
       practiceFilter: { ...DEFAULT_PRACTICE_FILTER }
     };
   }
@@ -250,6 +252,11 @@
 
   function number(value, fallback = 0) {
     return Security.toFiniteNumber(value, fallback);
+  }
+
+  function setTextIfChanged(element, value) {
+    const text = String(value ?? '');
+    if (element && element.textContent !== text) element.textContent = text;
   }
 
   function notify(message, type = 'info', timeout = 5_000) {
@@ -558,8 +565,13 @@
     return view === 'dashboard' ? base : `${base}${segment}/`;
   }
 
+  function chapterPath(key, chapterId) {
+    return `/curso/${encodeURIComponent(key)}/capitulo/${encodeURIComponent(chapterId)}/`;
+  }
+
   function routePathForView(view = state.view) {
     if (PUBLIC_VIEWS.has(view)) return publicPath(view);
+    if (view === 'study' && state.studyChapter) return chapterPath(activeCourseKey, state.studyChapter);
     return course ? coursePath(activeCourseKey, view) : publicPath('home');
   }
 
@@ -583,12 +595,13 @@
 
   function routeFromHash(hash = global.location.hash) {
     const anchor = String(hash || '').replace(/^#/, '') || 'inicio';
-    const [root, courseKey, view] = anchor.split('/');
+    const [root, courseKey, view, chapterId] = anchor.split('/');
     if (root === 'curso' && courseKey) {
       return {
-        view: normalizeCourseView(view),
+        view: view === 'capitulo' ? 'study' : normalizeCourseView(view),
         anchor: '',
-        course: decodeURIComponent(courseKey).trim().toLowerCase()
+        course: decodeURIComponent(courseKey).trim().toLowerCase(),
+        chapter: view === 'capitulo' ? Number(chapterId) || null : null
       };
     }
 
@@ -616,9 +629,10 @@
 
     if (parts[0] === 'curso' && parts[1]) {
       return {
-        view: normalizeCourseView(parts[2] || 'panel'),
+        view: parts[2] === 'capitulo' ? 'study' : normalizeCourseView(parts[2] || 'panel'),
         anchor: '',
-        course: parts[1].trim().toLowerCase()
+        course: parts[1].trim().toLowerCase(),
+        chapter: parts[2] === 'capitulo' ? Number(parts[3]) || null : null
       };
     }
 
@@ -646,7 +660,7 @@
   async function handleLocationRoute() {
     const route = routeFromLocation();
     if (route.course) {
-      await setCourse(route.course, { view: route.view, updateHash: false });
+      await setCourse(route.course, { view: route.view, chapter: route.chapter, updateHash: false });
       return;
     }
 
@@ -824,6 +838,7 @@
     questions = [...course.questions];
     progressStorageKey = course.meta?.storageKey || `academy_${normalizedKey}_progress`;
     state = createState(options.view || 'dashboard');
+    state.studyChapter = Number(options.chapter) || null;
     Storage.setActiveCourse(normalizedKey);
     updateCourseUi();
     render();
@@ -874,6 +889,74 @@
     if (!result.ok) notify('No fue posible guardar el progreso en este navegador.', 'warning');
   }
 
+  function compactText(value, max = 155) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 3).replace(/\s+\S*$/, '').replace(/[.,;:!?-]+$/, '')}...`;
+  }
+
+  function seoCourseLabel() {
+    if (activeCourseKey === 'ctfl') return 'CTFL 4.0';
+    if (activeCourseKey === 'ctai') return 'CT-AI 2.0';
+    return course?.meta?.code || course?.meta?.shortName || activeCourseKey.toUpperCase();
+  }
+
+  function currentSeoMetadata() {
+    const publicMetadata = {
+      home: ['Cursos QA gratis y simulacros ISTQB | AcademiaQA', Config.description],
+      courses: ['Cursos gratis de QA, Testing, IA y Scrum | AcademiaQA', 'Explora cursos gratis de QA, testing, IA, Scrum, gestión de proyectos y ciberseguridad con syllabus, práctica y simulacros.'],
+      routes: ['Rutas para aprender QA, Testing, IA y Scrum | AcademiaQA', 'Elige una ruta gratuita en QA, testing, IA, Scrum, gestión de proyectos o ciberseguridad y avanza hasta el simulacro.'],
+      contact: ['Contáctanos | AcademiaQA', 'Contacta a AcademiaQA para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.'],
+      legal: ['Información legal y privacidad | AcademiaQA', 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.']
+    };
+    if (PUBLIC_VIEWS.has(state.view)) {
+      const [title, description] = publicMetadata[state.view] || publicMetadata.home;
+      return { title, description: compactText(description), path: publicPath(state.view) };
+    }
+
+    const label = seoCourseLabel();
+    if (state.view === 'exam') {
+      const blueprint = course?.blueprint || {};
+      return {
+        title: `Simulacro ${catalogEntry(activeCourseKey).family === 'ISTQB' ? 'ISTQB ' : ''}${label} gratis | AcademiaQA`,
+        description: compactText(`Practica con el simulacro de ${label}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}. Acceso gratis en AcademiaQA.`),
+        path: coursePath(activeCourseKey, 'exam')
+      };
+    }
+
+    if (state.view === 'study' && state.studyChapter) {
+      const chapter = course?.chapters?.find((item) => Number(item.id) === Number(state.studyChapter));
+      if (chapter) {
+        const detailedTitle = `C${chapter.id}: ${chapter.title} | ${label} - AcademiaQA`;
+        return {
+          title: detailedTitle.length <= 65 ? detailedTitle : `Capítulo ${chapter.id} ${label} | AcademiaQA`,
+          description: compactText(`Capítulo ${chapter.id} de ${label}: ${chapter.summary} Estudia objetivos LO, términos y ejemplos en AcademiaQA.`),
+          path: chapterPath(activeCourseKey, chapter.id)
+        };
+      }
+    }
+
+    return {
+      title: `Curso ${catalogEntry(activeCourseKey).family === 'ISTQB' ? 'ISTQB ' : ''}${label} gratis y simulador | AcademiaQA`,
+      description: compactText(course?.meta?.subtitle || `Estudia ${label} gratis con syllabus, práctica y simulacro en AcademiaQA.`),
+      path: coursePath(activeCourseKey)
+    };
+  }
+
+  function updateDocumentMetadata() {
+    const metadata = currentSeoMetadata();
+    const canonicalUrl = new URL(metadata.path, CANONICAL_ORIGIN).href;
+    document.title = metadata.title;
+    document.querySelector('meta[name="description"]')?.setAttribute('content', metadata.description);
+    document.querySelector('link[rel="canonical"]')?.setAttribute('href', canonicalUrl);
+    document.querySelector('link[rel="alternate"][hreflang="es-CO"]')?.setAttribute('href', canonicalUrl);
+    document.querySelector('meta[property="og:title"]')?.setAttribute('content', metadata.title);
+    document.querySelector('meta[property="og:description"]')?.setAttribute('content', metadata.description);
+    document.querySelector('meta[property="og:url"]')?.setAttribute('content', canonicalUrl);
+    document.querySelector('meta[name="twitter:title"]')?.setAttribute('content', metadata.title);
+    document.querySelector('meta[name="twitter:description"]')?.setAttribute('content', metadata.description);
+  }
+
   function updateCourseUi() {
     const isPublicView = PUBLIC_VIEWS.has(state.view);
     const allCourses = publicCourseEntries();
@@ -897,24 +980,24 @@
 
     dom.siteHeader?.classList.toggle('homeHeader', isPublicView);
     dom.mainLayout.classList.toggle('homeLayout', isPublicView);
-    dom.heroTitle.textContent = isPublicView ? publicTitles[state.view] : courseLabel();
-    dom.heroSubtitle.textContent = isPublicView
+    setTextIfChanged(dom.heroTitle, isPublicView ? publicTitles[state.view] : courseLabel());
+    setTextIfChanged(dom.heroSubtitle, isPublicView
       ? publicSubtitles[state.view]
-      : `Menú de estudio de ${courseLabel()}: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.`;
-    dom.topChapters.textContent = isPublicView
+      : `Menú de estudio de ${courseLabel()}: teoría, objetivos, práctica, flashcards, estadísticas y simulacro.`);
+    setTextIfChanged(dom.topChapters, isPublicView
       ? `🧭 ${LEARNING_ROUTES.length} rutas de aprendizaje`
-      : `📘 ${course.chapters.length} capítulos`;
-    dom.topBank.textContent = String(isPublicView ? totalBank : questions.length);
-    dom.topExam.textContent = isPublicView
+      : `📘 ${course.chapters.length} capítulos`);
+    setTextIfChanged(dom.topBank, String(isPublicView ? totalBank : questions.length));
+    setTextIfChanged(dom.topExam, isPublicView
       ? `🎓 ${freeCourses} cursos gratis disponibles`
-      : `⏱️ Simulacro ${blueprint.minutes} min / aprueba ${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions}`;
-    dom.navCaps.textContent = `${course?.chapters?.length || 0} caps`;
-    dom.navExamCount.textContent = String(blueprint.totalQuestions || 0);
+      : `⏱️ Simulacro ${blueprint.minutes} min / aprueba ${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions}`);
+    setTextIfChanged(dom.navCaps, `${course?.chapters?.length || 0} caps`);
+    setTextIfChanged(dom.navExamCount, String(blueprint.totalQuestions || 0));
     const isHomeView = state.view === 'home';
     dom.footerText.classList.toggle('homeFooter', isHomeView);
-    dom.footerText.textContent = isPublicView
+    setTextIfChanged(dom.footerText, isPublicView
       ? (isHomeView ? `AcademiaQA · v${APP_VERSION}` : '')
-      : `Hecho para estudio personal · ${courseLabel()} · progreso independiente por certificación.`;
+      : `Hecho para estudio personal · ${courseLabel()} · progreso independiente por certificación.`);
     dom.footerText.hidden = isPublicView && !isHomeView;
 
     const hasK3 = course ? questions.some((question) => question.k === 'K3') : false;
@@ -925,6 +1008,7 @@
     document.querySelector('[data-view="flashcards"]')?.toggleAttribute('hidden', !hasFlashcards);
     document.querySelector('[data-view="objectives"]')?.toggleAttribute('hidden', !hasObjectives);
     syncNavigationState();
+    updateDocumentMetadata();
   }
 
   function render() {
@@ -933,7 +1017,37 @@
     const renderer = VIEW_RENDERERS[state.view] || VIEW_RENDERERS.home;
 
     try {
-      dom.app.innerHTML = renderer();
+      const renderedHtml = renderer();
+      const staticHome = state.view === 'home' ? dom.app.querySelector('[data-static-home]') : null;
+      const currentHomeTitle = state.view === 'home' ? $('homeMainTitle') : null;
+      if (staticHome) {
+        const template = document.createElement('template');
+        template.innerHTML = renderedHtml;
+        const nextHome = template.content.querySelector('.publicHome');
+        const currentHero = staticHome.querySelector('.landingHero');
+        const nextHero = nextHome?.querySelector('.landingHero');
+        const nextActions = nextHero?.querySelector('.landingActions');
+        if (nextActions) currentHero?.querySelector('.landingActions')?.replaceWith(nextActions);
+        const progressPanel = nextHero?.querySelector('.heroProgressPanel');
+        if (progressPanel) currentHero?.append(progressPanel);
+        [...staticHome.children].filter((child) => child !== currentHero).forEach((child) => child.remove());
+        [...(nextHome?.children || [])].filter((child) => child !== nextHero).forEach((child) => staticHome.append(child));
+        staticHome.removeAttribute('data-static-home');
+      } else if (currentHomeTitle) {
+        const template = document.createElement('template');
+        template.innerHTML = renderedHtml;
+        const nextHomeTitle = template.content.querySelector('#homeMainTitle');
+        if (nextHomeTitle) {
+          currentHomeTitle.textContent = nextHomeTitle.textContent;
+          nextHomeTitle.replaceWith(currentHomeTitle);
+        }
+        dom.app.replaceChildren(...template.content.childNodes);
+      } else {
+        dom.app.innerHTML = renderedHtml;
+      }
+      if (state.view === 'study' && state.studyChapter) {
+        openChapter(state.studyChapter, { updateRoute: false, scroll: false });
+      }
       if (state.view === 'home') startHomeSlider();
       else clearHomeSlider();
     } catch (error) {
@@ -1346,7 +1460,7 @@
       const route = learningRoute(routeKey);
       if (!route) return '';
       const image = routeTileImage(route.key);
-      return `<a class="homeRouteTile route-${h(route.key)}" href="${h(publicPath('courses'))}" role="button" tabindex="0" data-action="filter-courses" data-filter="${h(route.key)}" aria-controls="courseCatalog" aria-label="Ver cursos de ${h(route.name)}">
+      return `<a class="homeRouteTile route-${h(route.key)}" href="${h(publicPath('courses'))}" data-action="filter-courses" data-filter="${h(route.key)}" aria-label="Ver cursos de ${h(route.name)}">
         ${renderResponsiveImage(image, '', '(max-width: 760px) 100vw, 260px')}
         <div class="homeRouteTileCopy">
           <h3>${h(route.name)}</h3>
@@ -1404,7 +1518,7 @@
       <section class="homeSection" id="cursos-disponibles" aria-labelledby="coursesTitle">
         <div class="sectionIntro">
           <span class="sectionKicker">AcademiaQA</span>
-          <h2 id="coursesTitle">Cursos disponibles</h2>
+          <h1 id="coursesTitle">Cursos disponibles</h1>
           <p>CTFL 4.0, CT-AI 2.0, CT-GenAI, Scrum Master, Product Owner, Project Management Essentials, Scrum Fundamentals y Cybersecurity Awareness continúan habilitados sin costo para estudiar, practicar y simular.</p>
         </div>
         ${renderCatalogFilters()}
@@ -1418,7 +1532,7 @@
       <section class="homeSection" aria-labelledby="routesTitle">
         <div class="sectionIntro">
           <span class="sectionKicker">AcademiaQA</span>
-          <h2 id="routesTitle">Ruta de aprendizaje</h2>
+          <h1 id="routesTitle">Ruta de aprendizaje</h1>
           <p>Estas secuencias son recomendaciones flexibles para avanzar por áreas. Cada ruta puede crecer con nuevos cursos gratuitos o Premium sin afectar tu progreso actual.</p>
         </div>
         <div class="upcomingGrid">${renderUpcomingCards()}</div>
@@ -1435,7 +1549,7 @@
       <section class="contactHero" id="contactanos" aria-labelledby="contactTitle">
         <div>
           <span class="sectionKicker">Contacto</span>
-          <h2 id="contactTitle">Contáctanos</h2>
+          <h1 id="contactTitle">Contáctanos</h1>
           <p>Cuéntanos una idea, problema, error académico o propuesta de colaboración.</p>
         </div>
       </section>
@@ -1487,13 +1601,14 @@
       <section class="homeSection" aria-labelledby="legalTitle">
         <div class="sectionIntro">
           <span class="sectionKicker">Información legal</span>
-          <h2 id="legalTitle">Política de privacidad y términos de uso</h2>
+          <h1 id="legalTitle">Política de privacidad y términos de uso</h1>
           <p>AcademiaQA es una plataforma independiente de preparación y aprendizaje. Esta información resume cómo funciona el sitio estático y qué responsabilidades aplican al usarlo.</p>
         </div>
         <div class="legalGrid">
           <article class="legalCard" id="privacidad">
             <h3>Política de privacidad</h3>
             <p>AcademiaQA no solicita cuentas, contraseñas ni datos de tarjeta. El progreso se guarda localmente en tu navegador mediante almacenamiento local y puede borrarse desde las opciones del curso.</p>
+            <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
             <p>El botón de aportes abre Wompi como servicio externo. Los enlaces a exámenes y canales externos abren sitios de terceros con sus propias políticas.</p>
           </article>
           <article class="legalCard" id="terminos">
@@ -1551,7 +1666,7 @@
       <section class="landingHero" aria-labelledby="homeMainTitle">
         <div class="landingCopy">
           <span class="landingEyebrow">QA &amp; Testing Academia · ${freeCourseCount} cursos gratis</span>
-          <h2 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h2>
+          <h1 id="homeMainTitle">Prepárate para tu próxima certificación profesional.</h1>
           <p>Aprende la teoría, practica por objetivo y realiza simulacros con seguimiento de progreso. Explora rutas en testing, IA, Scrum y gestión de proyectos.</p>
           <div class="landingActions">
             <a class="btn" href="${h(publicPath('routes'))}" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
@@ -1583,6 +1698,20 @@
     </div>`;
   }
 
+  function renderAcademicTraceability() {
+    const coverage = course?.syllabusCoverageNote || {};
+    const validation = course?.qaValidation || {};
+    const updatedAt = String(coverage.updatedAt || validation.validatedAt || course?.generatedAt || '').slice(0, 10);
+    const source = coverage.source || validation.sourceSyllabus || course?.meta?.subtitle || 'Contenido académico de AcademiaQA';
+    const version = course?.meta?.versionLabel || course?.meta?.code || activeCourseKey.toUpperCase();
+    return `<aside class="courseAcademicTrace" aria-label="Información académica del curso">
+      <span><b>Versión:</b> ${h(version)}</span>
+      <span><b>Fuente de referencia:</b> ${h(source)}</span>
+      <span><b>Actualizado:</b> ${h(updatedAt || 'Fecha no disponible')}</span>
+      <span><b>Publicación:</b> AcademiaQA</span>
+    </aside>`;
+  }
+
   function renderCourseIntro() {
     const blueprint = course.blueprint || {};
     return `<div class="courseHero">
@@ -1603,6 +1732,7 @@
         <a class="courseAction" href="${h(coursePath(activeCourseKey, 'exam'))}" role="button" tabindex="0" data-view="exam"><b>⏱️ Simulacro</b><span class="small">Modo examen</span></a>
         ${course.meta?.examUrl ? `<a class="courseAction courseExternalExam" href="${h(course.meta.examUrl)}" target="_blank" rel="noopener noreferrer"><b>CertiProf Open</b><span class="small">${h(course.meta.certificationNote || 'Examen externo disponible.')}</span></a>` : ''}
       </div>
+      ${renderAcademicTraceability()}
     </div>`;
   }
 
@@ -1722,7 +1852,7 @@
       const questionCount = questions.filter((question) => Number(question.chapter) === Number(chapter.id)).length;
       const chapterProgress = chapterProgressDetails(chapter.id);
 
-      return `<div class="chapterCard" role="button" tabindex="0" data-action="open-chapter" data-chapter="${number(chapter.id)}">
+      return `<a class="chapterCard" href="${h(chapterPath(activeCourseKey, chapter.id))}" data-action="open-chapter" data-chapter="${number(chapter.id)}">
         <h3>Capítulo ${number(chapter.id)} · ${h(chapter.title)}</h3>
         <p class="small">Tiempo sugerido: ${number(chapter.minutes)} min · LO: ${objectiveCount} · Preguntas: ${questionCount} · Págs. syllabus: ${h(chapter.completeSyllabusPages || 'N/D')}</p>
         <div class="chapterProgressMeta">
@@ -1733,7 +1863,7 @@
         </div>
         <div class="progressbar" aria-label="Avance real del capítulo"><div style="width:${chapterProgress.coverage}%"></div></div>
         <p>${h(chapter.summary)}</p>
-      </div>`;
+      </a>`;
     }).join('');
 
     return `<div class="card"><h2>Estudiar syllabus por capítulo</h2><p>Selecciona un capítulo. Cada bloque incluye teoría resumida y el texto evaluable cargado para ese capítulo.</p><div class="grid2">${cards}</div></div><div id="chapterDetail"></div>`;
@@ -1754,7 +1884,7 @@
     </details>`;
   }
 
-  function openChapter(id) {
+  function openChapter(id, options = {}) {
     const chapter = course.chapters.find((item) => Number(item.id) === Number(id));
     const host = $('chapterDetail');
     if (!chapter || !host) return;
@@ -1770,6 +1900,12 @@
       <td data-label="Acción"><button class="btn secondary" type="button" data-action="practice" data-chapter="${number(id)}" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
     </tr>`;
     }).join('');
+
+    state.studyChapter = Number(id);
+    if (options.updateRoute !== false) {
+      pushRoute(chapterPath(activeCourseKey, id));
+      updateDocumentMetadata();
+    }
 
     host.innerHTML = `<div class="card">
       <h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2><p>${h(chapter.summary)}</p>
@@ -1787,7 +1923,7 @@
       <h3>Ejemplos aplicados</h3><ul>${(chapter.examples || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
       <div class="btnrow"><button class="btn" type="button" data-action="practice" data-chapter="${number(id)}" data-count="20" data-mode="study">Practicar capítulo</button><button class="btn secondary" type="button" data-view="objectives">Ver mapa LO</button></div>
     </div>`;
-    host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (options.scroll !== false) host.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function renderObjectives() {
@@ -2206,7 +2342,7 @@
       activeCourseKey = initialKey;
 
       if (initialRoute.course || !PUBLIC_VIEWS.has(initialRoute.view)) {
-        await setCourse(initialKey, { view: initialRoute.view, updateHash: false });
+        await setCourse(initialKey, { view: initialRoute.view, chapter: initialRoute.chapter, updateHash: false });
       } else {
         state = createState(initialRoute.view);
         render();
@@ -2219,5 +2355,13 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
+  function startBootstrap() {
+    bootstrap();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startBootstrap, { once: true });
+  } else {
+    startBootstrap();
+  }
 }(window));
