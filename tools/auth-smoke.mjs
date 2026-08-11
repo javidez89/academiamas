@@ -36,8 +36,12 @@ try {
   await authenticatedPage.getByRole('link', { name: 'Ver mi cuenta' }).click();
   await authenticatedPage.getByRole('heading', { name: /Hola, Javier AcademiaQA/i }).waitFor();
   assert.equal(new URL(authenticatedPage.url()).pathname, '/mi-cuenta/');
-  await authenticatedPage.getByRole('button', { name: /Javier/i }).click();
-  await authenticatedPage.getByRole('button', { name: 'Cerrar sesión' }).click();
+  const signOutButton = authenticatedPage.locator('#authControl [data-auth-sign-out]');
+  if (!(await signOutButton.isVisible())) {
+    await authenticatedPage.locator('#authControl').getByRole('button', { name: /Javier/i }).click();
+  }
+  await signOutButton.waitFor({ state: 'visible' });
+  await signOutButton.click();
   await authenticatedPage.waitForURL(new URL('/', BASE_URL).href);
   await authenticatedPage.locator('#authControl[data-auth-state="anonymous"]').waitFor();
   await authenticatedPage.getByText('Sesión cerrada correctamente.', { exact: true }).waitFor();
