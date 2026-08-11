@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-F5VK3VZYR0"></script>
+  <script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-F5VK3VZYR0');
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
+  <meta name="robots" content="index, follow">
+  <meta name="description" content="Capítulo 4 de CT-AI 2.0: Cubre testeabilidad de sistemas IA bloqueados/adaptativos, enfoque estadístico, oráculos, pruebas de IA generativa y LLM, red...">
+  <link rel="canonical" href="https://academiaqaoficial.com/curso/ctai/capitulo/4/">
+  <link rel="alternate" hreflang="es-CO" href="https://academiaqaoficial.com/curso/ctai/capitulo/4/">
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/img/favicon-48.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/apple-touch-icon.png">
+  <base href="/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_CO">
+  <meta property="og:site_name" content="AcademiaQA">
+  <meta property="og:title" content="C4: Pruebas de Sistemas Basados en IA | CT-AI 2.0 - AcademiaQA">
+  <meta property="og:description" content="Capítulo 4 de CT-AI 2.0: Cubre testeabilidad de sistemas IA bloqueados/adaptativos, enfoque estadístico, oráculos, pruebas de IA generativa y LLM, red...">
+  <meta property="og:url" content="https://academiaqaoficial.com/curso/ctai/capitulo/4/">
+  <meta property="og:image" content="https://academiaqaoficial.com/assets/img/academiaqa-social.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="C4: Pruebas de Sistemas Basados en IA | CT-AI 2.0 - AcademiaQA">
+  <meta name="twitter:description" content="Capítulo 4 de CT-AI 2.0: Cubre testeabilidad de sistemas IA bloqueados/adaptativos, enfoque estadístico, oráculos, pruebas de IA generativa y LLM, red...">
+  <meta name="twitter:image" content="https://academiaqaoficial.com/assets/img/academiaqa-social.jpg">
+  <meta name="twitter:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
+  <title>C4: Pruebas de Sistemas Basados en IA | CT-AI 2.0 - AcademiaQA</title>
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LearningResource",
+      "@id": "https://academiaqaoficial.com/curso/ctai/capitulo/4/#chapter",
+      "name": "Capítulo 4: Pruebas de Sistemas Basados en IA",
+      "description": "Cubre testeabilidad de sistemas IA bloqueados/adaptativos, enfoque estadístico, oráculos, pruebas de IA generativa y LLM, red teaming, niveles de prueba para ML y prueba basada en riesgos.",
+      "url": "https://academiaqaoficial.com/curso/ctai/capitulo/4/",
+      "inLanguage": "es-CO",
+      "isAccessibleForFree": true,
+      "learningResourceType": "Capítulo de curso",
+      "timeRequired": "PT195M",
+      "dateModified": "2026-08-06",
+      "provider": {
+        "@type": "EducationalOrganization",
+        "@id": "https://academiaqaoficial.com/#organization",
+        "name": "AcademiaQA",
+        "url": "https://academiaqaoficial.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://academiaqaoficial.com/assets/img/academiaqa-logo-660.webp",
+          "width": 660,
+          "height": 175
+        }
+      },
+      "teaches": [
+        "Comparar la testeabilidad de sistemas de IA bloqueados y adaptativos",
+        "Explicar por qué suele ser necesario un enfoque estadístico al probar sistemas basados en IA",
+        "Explicar desafíos y soluciones relacionados con oráculos de prueba para sistemas basados en IA",
+        "Explicar cómo se puede probar la IA generativa",
+        "Implementar pruebas de equipo rojo para sistemas IA generativa",
+        "Resumir los niveles de prueba usados para desarrollar sistemas de aprendizaje automático",
+        "Explicar cómo se aplica la prueba basada en riesgos a sistemas de aprendizaje automático"
+      ],
+      "about": [
+        {
+          "@type": "Thing",
+          "name": "sistema basado en IA bloqueado"
+        },
+        {
+          "@type": "Thing",
+          "name": "sistema basado en IA adaptativo"
+        },
+        {
+          "@type": "Thing",
+          "name": "oráculo de prueba"
+        },
+        {
+          "@type": "Thing",
+          "name": "verdad de referencia"
+        },
+        {
+          "@type": "Thing",
+          "name": "pseudo-oráculo"
+        },
+        {
+          "@type": "Thing",
+          "name": "IA generativa"
+        },
+        {
+          "@type": "Thing",
+          "name": "LLM"
+        },
+        {
+          "@type": "Thing",
+          "name": "red teaming"
+        },
+        {
+          "@type": "Thing",
+          "name": "pruebas exploratorias"
+        },
+        {
+          "@type": "Thing",
+          "name": "prueba basada en riesgos"
+        },
+        {
+          "@type": "Thing",
+          "name": "enfoque estadístico"
+        },
+        {
+          "@type": "Thing",
+          "name": "test levels ML"
+        }
+      ],
+      "isPartOf": {
+        "@type": "Course",
+        "@id": "https://academiaqaoficial.com/curso/ctai/#course",
+        "name": "ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI)",
+        "url": "https://academiaqaoficial.com/curso/ctai/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Inicio",
+          "item": "https://academiaqaoficial.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Cursos",
+          "item": "https://academiaqaoficial.com/cursos/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Certificado en Pruebas de IA v2.0 (CT-AI)",
+          "item": "https://academiaqaoficial.com/curso/ctai/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "name": "Capítulo 4",
+          "item": "https://academiaqaoficial.com/curso/ctai/capitulo/4/"
+        }
+      ]
+    }
+  ]
+}</script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=2026-08-11-seo-analytics">
+  <script defer src="/assets/js/core/security.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/registry.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/storage.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/core/question-selection.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/config.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/courses/catalog.js?v=2026-08-11-seo-analytics"></script>
+  <script defer src="/assets/js/app-loader.js?v=2026-08-11-seo-analytics"></script>
+</head>
+<body>
+  <header id="inicio">
+    <div class="wrap siteTopbar">
+      <a class="brandMark" href="/" data-home-anchor="inicio" aria-label="Ir al inicio">
+        <picture><source type="image/webp" srcset="/assets/img/academiaqa-logo-660.webp"><img class="brandLogo" src="/assets/img/academiaqa-logo.png" width="660" height="175" alt="AcademiaQA - QA &amp; Testing Academia" decoding="async"></picture>
+      </a>
+      <button class="menuToggle" type="button" data-action="toggle-site-menu" aria-controls="siteMenu" aria-expanded="false">
+        <span class="srOnly">Abrir menú principal</span>
+        <span aria-hidden="true">☰</span>
+      </button>
+      <nav class="siteNav" id="siteMenu" aria-label="Menú principal">
+        <a href="/" data-view="home" data-view-anchor="inicio">Inicio</a>
+        <a href="/cursos/" data-view="courses" data-view-anchor="cursos-disponibles">Cursos</a>
+        <a href="/ruta-aprendizaje/" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
+        <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
+        <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
+        <button class="coffeeLink" type="button">Invítame un café</button>
+      </nav>
+    </div>
+    <div class="wrap hero">
+      <div>
+        <h1 id="heroTitle">ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI)</h1>
+        <p class="subtitle" id="heroSubtitle">Menú de estudio de ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI): teoría, objetivos, práctica, flashcards, estadísticas y simulacro.</p>
+        <div class="topbadges">
+          <span class="badge" id="topChapters">📘 7 capítulos</span>
+          <span class="badge">🧠 Preguntas: <b id="topBank">133</b></span>
+          <span class="badge" id="topExam">⏱️ Simulacro 60 min / aprueba 29/44</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div id="appNotice" class="appNotice info" role="status" aria-live="polite" hidden></div>
+
+  <div class="coffeeModal" id="coffeeModal" role="dialog" aria-modal="true" aria-labelledby="coffeeModalTitle" hidden>
+    <div class="coffeeDialog">
+      <button class="modalClose" type="button" data-action="close-coffee-modal" aria-label="Cerrar">X</button>
+      <div class="coffeeDialogHead">
+        <span class="coffeeIcon" aria-hidden="true">☕</span>
+        <div>
+          <h2 id="coffeeModalTitle">Invítame un café</h2>
+          <p>Tu aporte ayuda a mantener cursos gratuitos, servidores y nuevas herramientas.</p>
+        </div>
+      </div>
+      <div class="coffeeOptions" role="group" aria-label="Opciones de aporte">
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 5" data-usd="5"><strong>USD 5</strong><span>Un café</span><em></em></button>
+        <button class="coffeeOption active" type="button" data-action="select-coffee-tier" data-tier="USD 10" data-usd="10"><small>Elegido</small><strong>USD 10</strong><span>Dos cafés</span><em></em></button>
+        <button class="coffeeOption" type="button" data-action="select-coffee-tier" data-tier="USD 15" data-usd="15"><strong>USD 15</strong><span>Gran apoyo</span><em></em></button>
+      </div>
+      <div class="coffeeSecure">
+        <b>Cobro seguro mediante Wompi</b>
+        <span id="coffeeCopHint" aria-live="polite">Wompi procesa en COP; antes de pagar confirma el valor final.</span>
+      </div>
+      <button class="btn coffeeCheckout" type="button" data-action="continue-wompi">Continuar con Wompi</button>
+      <p class="coffeeFineprint">Aporte voluntario y único. No compra ni desbloquea cursos. La confirmación depende del proceso aprobado por Wompi.</p>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <div class="layout" id="mainLayout">
+      <aside class="sidebar" id="studySidebar" aria-label="Menú del curso">
+        <button class="navbtn" type="button" data-view="home">🏠 Todos los cursos <small>inicio</small></button>
+        <div class="sideDivider"></div>
+        <div class="sideSectionTitle">Menú del curso</div>
+        <button class="navbtn active" type="button" data-view="dashboard">📌 Panel del curso <small>avance</small></button>
+        <button class="navbtn" type="button" data-view="study">📚 Estudiar syllabus <small id="navCaps">caps</small></button>
+        <button class="navbtn" type="button" data-view="objectives">🎯 Objetivos LO <small>mapa</small></button>
+        <button class="navbtn" type="button" data-view="practice">📝 Practicar <small>filtros</small></button>
+        <button class="navbtn" type="button" data-view="exam">⏱️ Simulacro <small id="navExamCount">40</small></button>
+        <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3 <small>técnicas</small></button>
+        <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards <small>glosario</small></button>
+        <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas <small>errores</small></button>
+        <div class="note small"><b>Nota:</b> cada certificación conserva progreso independiente. Las preguntas de práctica están alineadas al temario y no duplican literalmente el examen oficial.</div>
+        <div class="btnrow"><button class="btn secondary" type="button" id="resetProgress">Borrar avance</button></div>
+      </aside>
+
+      <section id="app" aria-label="Contenido del curso">
+        <article class="card seoChapterFallback">
+          <span class="sectionKicker">CT-AI 2.0 · Capítulo 4</span>
+          <h2>Pruebas de Sistemas Basados en IA</h2>
+          <p class="seoChapterLead">Cubre testeabilidad de sistemas IA bloqueados/adaptativos, enfoque estadístico, oráculos, pruebas de IA generativa y LLM, red teaming, niveles de prueba para ML y prueba basada en riesgos.</p>
+          <div class="certBadgeLine"><span>7 objetivos LO</span><span>195 min</span><span>12 términos clave</span></div>
+          <section class="seoTheorySection"><h3>4.1 Introducción a las pruebas de sistemas basados en IA</h3><p>Probar IA exige combinar pruebas tradicionales con pruebas de datos, modelo, métricas, riesgo, monitoreo y comportamiento estadístico. Se evalúan entradas, salidas, distribución de datos, incertidumbre, seguridad, sesgo, robustez y operación en el tiempo.</p><ul><li>La prueba no termina con el despliegue: muchos riesgos aparecen en producción.</li><li>Se necesitan conjuntos representativos y criterios medibles.</li></ul></section><section class="seoTheorySection"><h3>4.1.1 Sistemas IA bloqueados y adaptativos</h3><p>Un sistema bloqueado no cambia su modelo después del despliegue salvo nueva versión controlada. Es más testeable y reproducible. Un sistema adaptativo puede cambiar con datos nuevos o aprendizaje continuo, por lo que necesita monitoreo, control de cambios, pruebas periódicas y límites de adaptación.</p><ul><li>Bloqueado: validación previa más estable.</li><li>Adaptativo: riesgo de deriva y cambios no esperados.</li></ul></section><section class="seoTheorySection"><h3>4.1.2 Enfoque estadístico</h3><p>Muchos sistemas IA son probabilísticos, por lo que no basta probar una entrada y esperar una salida exacta. Se requieren muestras representativas, niveles de confianza, umbrales, análisis de distribución, repetición, comparación estadística y evaluación de métricas agregadas.</p><ul><li>Diseñar pruebas con suficiente tamaño de muestra.</li><li>Interpretar resultados con variabilidad e incertidumbre.</li></ul></section><section class="seoTheorySection"><h3>4.1.3 Oráculos de prueba para IA</h3><p>El problema del oráculo aparece cuando no hay una única salida esperada o es costoso definirla. Las soluciones incluyen verdad de referencia, expertos humanos, pseudo-oráculos, comparaciones back-to-back, pruebas metamórficas, reglas de negocio, invariantes y evaluación estadística.</p><ul><li>La verdad de referencia debe ser confiable y trazable.</li><li>Un pseudo-oráculo ayuda, pero también puede estar equivocado.</li></ul></section><section class="seoTheorySection"><h3>4.2 Pruebas de IA generativa y LLM</h3><p>La IA generativa y los LLM se prueban con prompts, escenarios, límites de seguridad, exactitud, consistencia, toxicidad, sesgo, fuga de datos, resistencia a prompt injection, cumplimiento y calidad de salida. También se evalúan parámetros como temperatura y políticas de rechazo.</p><ul><li>No validar solo prompts felices.</li><li>Probar jailbreaks, instrucciones contradictorias, contexto malicioso y datos sensibles.</li></ul></section><section class="seoTheorySection"><h3>4.2.2 Red teaming</h3><p>El red teaming simula ataques o usos abusivos para descubrir fallos antes de que ocurran en producción. Incluye prompts adversarios, inyección de instrucciones, extracción de datos, bypass de filtros, abuso de herramientas, alucinaciones peligrosas y degradación de seguridad.</p><ul><li>K3: diseñar ataques, registrar resultado, clasificar riesgo y proponer mitigación.</li><li>Red teaming debe tener alcance, reglas y criterios de severidad.</li></ul></section><section class="seoTheorySection"><h3>4.2.3 Ejercicio: prueba exploratoria de un LLM</h3><p>La prueba exploratoria permite aprender sobre el comportamiento del LLM mientras se diseñan y ejecutan pruebas. Se usa un charter, se varían prompts y se documentan hallazgos, patrones, riesgos y anomalías.</p><ul><li>Combinar creatividad con trazabilidad.</li><li>Guardar prompts, respuestas, parámetros y contexto.</li></ul></section><section class="seoTheorySection"><h3>4.3 Niveles de prueba y sistemas ML</h3><p>Los niveles específicos incluyen pruebas de datos de entrada, pruebas del modelo ML, pruebas del sistema basado en IA, pruebas de integración con componentes convencionales, pruebas de aceptación y pruebas en producción/monitoreo. Cada nivel busca riesgos diferentes.</p><ul><li>Dato correcto no garantiza modelo correcto.</li><li>Modelo correcto no garantiza sistema integrado correcto.</li></ul></section><section class="seoTheorySection"><h3>4.3.2 Prueba basada en riesgos para ML</h3><p>La prueba basada en riesgos prioriza según probabilidad e impacto. En IA se consideran sesgo, seguridad, deriva, baja robustez, mal rendimiento por grupo, falta de transparencia, daños éticos y dependencia de proveedores. El esfuerzo de prueba se enfoca donde el daño potencial es mayor.</p><ul><li>Riesgo alto exige evidencia más fuerte y criterios más estrictos.</li><li>El riesgo puede cambiar con nuevos datos o contexto operativo.</li></ul></section>
+          <section><h3>Términos clave</h3><div><span class="pill">sistema basado en IA bloqueado</span><span class="pill">sistema basado en IA adaptativo</span><span class="pill">oráculo de prueba</span><span class="pill">verdad de referencia</span><span class="pill">pseudo-oráculo</span><span class="pill">IA generativa</span><span class="pill">LLM</span><span class="pill">red teaming</span><span class="pill">pruebas exploratorias</span><span class="pill">prueba basada en riesgos</span><span class="pill">enfoque estadístico</span><span class="pill">test levels ML</span></div></section>
+          <section><h3>Objetivos de aprendizaje</h3><ol class="seoObjectiveList"><li><b>AI-4.1.1 · K2</b><span>Comparar la testeabilidad de sistemas de IA bloqueados y adaptativos</span><p>Un sistema de IA bloqueado conserva su comportamiento tras el despliegue y es más testeable; un sistema adaptativo cambia con nuevos datos y requiere monitoreo y pruebas continuas.</p></li><li><b>AI-4.1.2 · K2</b><span>Explicar por qué suele ser necesario un enfoque estadístico al probar sistemas basados en IA</span><p>El enfoque estadístico es necesario porque muchos modelos son probabilísticos, no deterministas y deben evaluarse con muestras representativas, umbrales, intervalos y niveles de confianza.</p></li><li><b>AI-4.1.3 · K2</b><span>Explicar desafíos y soluciones relacionados con oráculos de prueba para sistemas basados en IA</span><p>El problema del oráculo aparece cuando no existe una salida esperada única; soluciones incluyen verdad de referencia, expertos, comparación estadística, pruebas metamórficas, pseudo-oráculos y pruebas comparativas.</p></li><li><b>AI-4.2.1 · K2</b><span>Explicar cómo se puede probar la IA generativa</span><p>La IA generativa se prueba variando instrucciones, parámetros y datos, evaluando reglas, seguridad, sesgo, calidad, consistencia, toxicidad, alucinación y cumplimiento, no solo coincidencia exacta de salida.</p></li><li><b>AI-4.2.2 · K3</b><span>Implementar pruebas de equipo rojo para sistemas IA generativa</span><p>Las pruebas de equipo rojo diseñan ataques y escenarios adversarios antes del despliegue para descubrir vulnerabilidades como inyección de instrucciones, sesgos, fuga de datos o generación insegura.</p></li><li><b>AI-4.3.1 · K2</b><span>Resumir los niveles de prueba usados para desarrollar sistemas de aprendizaje automático</span><p>Los niveles específicos en sistemas de aprendizaje automático incluyen pruebas de datos de entrada, pruebas del modelo de aprendizaje automático y pruebas del desarrollo/despliegue de aprendizaje automático, además de niveles convencionales cuando aplica.</p></li><li><b>AI-4.3.2 · K2</b><span>Explicar cómo se aplica la prueba basada en riesgos a sistemas de aprendizaje automático</span><p>La prueba basada en riesgos prioriza datos, modelo y desarrollo según probabilidad e impacto, incluyendo sesgo, deriva, rendimiento, seguridad, robustez y riesgos de despliegue.</p></li></ol></section>
+          <section><h3>Errores frecuentes</h3><ul><li>No buscar siempre un oráculo exacto: en IA puede requerirse estadística, experto o relaciones metamórficas.</li><li>No hacer pruebas de equipo rojo solo después de producción.</li></ul></section>
+          <section><h3>Ejemplos aplicados</h3><ul><li>Para un LLM legal, las pruebas de equipo rojo debe cubrir inyección de instrucciones, filtración de datos, sesgo y consejos inseguros antes del despliegue.</li></ul></section>
+          <div class="btnrow"><a class="btn" href="/curso/ctai/">Entrar al curso</a><a class="btn secondary" href="/curso/ctai/simulacro/">Ver simulacro</a></div>
+          <aside class="seoSourcePanel" aria-label="Trazabilidad académica">
+            <h3>Información académica</h3>
+            <dl>
+              <div><dt>Versión</dt><dd>CT-AI v2.0 · Banco original ampliado</dd></div>
+              <div><dt>Fuente de referencia</dt><dd>ISTQB CT-AI Syllabus v2.0 y matriz de cobertura del Sample Exam v2.1</dd></div>
+              <div><dt>Última actualización</dt><dd>2026-08-06</dd></div>
+              <div><dt>Responsable de publicación</dt><dd>AcademiaQA</dd></div>
+            </dl>
+            <p>Plataforma educativa independiente. Consulta siempre las reglas y fuentes vigentes de la entidad certificadora.</p>
+          </aside>
+        </article>
+      </section>
+    </div>
+    <div class="footer" id="footerText"></div>
+  </main>
+</body>
+</html>
