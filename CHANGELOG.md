@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.13.0] - 2026-08-11
+
+### Added
+
+- Panel privado de administración para consultar usuarios registrados, matrículas, fechas, tiempo de estudio, simulacros, exámenes finales y avance por capítulo.
+- Rol administrativo protegido en Supabase para la cuenta propietaria de AcademiaQA.
+- Búsqueda administrativa por nombre o correo y prueba de regresión para acceso autorizado, bloqueo de cuentas normales y vista móvil.
+
+### Security
+
+- Las consultas administrativas se autorizan en PostgreSQL con funciones privadas `security definer`; el frontend no decide los permisos ni contiene credenciales privilegiadas.
+- La ruta `/admin/` queda fuera del sitemap y usa `noindex, nofollow`.
+
+### Validation
+
+- Sin cambios en cursos, bancos de preguntas, práctica, simulacros, progreso, pagos o contenido académico.
+
 ## [v0.12.0] - 2026-08-11
 
 ### Added

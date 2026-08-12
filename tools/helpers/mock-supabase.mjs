@@ -1,5 +1,5 @@
-export function installMockSupabaseScript({ session, enrollments = [] }) {
-  return ({ mockedSession, mockedEnrollments }) => {
+export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {} }) {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -10,6 +10,9 @@ export function installMockSupabaseScript({ session, enrollments = [] }) {
       enrollments: structuredClone(mockedEnrollments || []),
       progressByCourse,
       finalExamAttempts: [],
+      admin: Boolean(mockedAdmin),
+      adminUsers: structuredClone(mockedAdminUsers || []),
+      adminSummary: structuredClone(mockedAdminSummary || {}),
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
     window.__supabaseMock = state;
@@ -135,6 +138,22 @@ export function installMockSupabaseScript({ session, enrollments = [] }) {
           },
           async rpc(name, args) {
             state.calls[name] = structuredClone(args || {});
+            if (name === 'is_platform_admin') {
+              return { data: state.admin, error: null };
+            }
+            if (name === 'admin_dashboard_summary') {
+              return state.admin
+                ? { data: structuredClone(state.adminSummary), error: null }
+                : { data: null, error: { code: '42501', message: 'Administrator access required' } };
+            }
+            if (name === 'admin_list_users') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const search = String(args?.p_search || '').toLowerCase();
+              const matches = state.adminUsers.filter((item) => !search
+                || String(item.email || '').toLowerCase().includes(search)
+                || String(item.full_name || '').toLowerCase().includes(search));
+              return { data: { total: matches.length, users: structuredClone(matches) }, error: null };
+            }
             if (name === 'enroll_in_course') {
               return { data: [structuredClone(ensureEnrollment(args.p_course_key, args.p_estimated_hours))], error: null };
             }
@@ -196,7 +215,7 @@ export function installMockSupabaseScript({ session, enrollments = [] }) {
   };
 }
 
-export async function useMockedSupabase(page, session, enrollments = []) {
+export async function useMockedSupabase(page, session, enrollments = [], options = {}) {
   await page.route('**/assets/vendor/supabase-2.112.3.js*', (route) => route.fulfill({
     status: 200,
     contentType: 'application/javascript',
@@ -204,7 +223,10 @@ export async function useMockedSupabase(page, session, enrollments = []) {
   }));
   await page.addInitScript(installMockSupabaseScript({ session, enrollments }), {
     mockedSession: session,
-    mockedEnrollments: enrollments
+    mockedEnrollments: enrollments,
+    mockedAdmin: Boolean(options.admin),
+    mockedAdminUsers: options.adminUsers || [],
+    mockedAdminSummary: options.adminSummary || {}
   });
 }
 
