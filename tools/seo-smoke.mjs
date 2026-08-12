@@ -154,6 +154,13 @@ async function validateStaticSeo(catalog, courseDataByKey) {
   assert.match(findTag(accountHtml, 'meta', { name: 'robots' })?.content || '', /noindex\s*,\s*nofollow/i, 'Mi cuenta debe ser noindex.');
   assert.equal(findTag(accountHtml, 'link', { rel: 'canonical' })?.href, `${PROD_BASE}/mi-cuenta/`, 'Canonical incorrecto en Mi cuenta.');
 
+  const adminResponse = await fetch(`${LOCAL_BASE}/admin/`, { redirect: 'manual' });
+  assert.equal(adminResponse.status, 200, '/admin/ no responde HTTP 200.');
+  const adminHtml = await adminResponse.text();
+  assert.equal(findTag(adminHtml, 'meta', { name: 'robots' })?.content, 'noindex, nofollow', 'El panel administrativo debe ser noindex, nofollow.');
+  assert.equal(findTag(adminHtml, 'link', { rel: 'canonical' })?.href, `${PROD_BASE}/admin/`, 'Canonical incorrecto en Administración.');
+  assert.ok(!sitemapUrls.includes(`${PROD_BASE}/admin/`), 'El panel administrativo no debe aparecer en el sitemap.');
+
   for (const { key } of catalog) {
     const path = `/curso/${encodeURIComponent(key)}/examen-final/`;
     assert.ok(!sitemapUrls.includes(`${PROD_BASE}${path}`), `${path} no debe aparecer en el sitemap.`);

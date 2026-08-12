@@ -68,6 +68,7 @@ jobs:
         run: >-
           git diff --exit-code --
           robots.txt sitemap.xml cursos ruta-aprendizaje contactanos legal mi-cuenta curso
+          admin
 
   browser-gates:
     name: Browser integration gates
@@ -132,6 +133,11 @@ jobs:
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:cloud
+
+      - name: Validar acceso y métricas administrativas
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:admin
 
       - name: Validar flujo funcional crítico
         env:

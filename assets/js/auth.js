@@ -8,6 +8,7 @@
   let client = null;
   let session = null;
   let initialized = false;
+  let admin = false;
   let ready = false;
   let resolveReady;
   const readyPromise = new Promise((resolve) => {
@@ -58,6 +59,7 @@
     const user = session?.user || null;
     const signInButton = root.querySelector('[data-auth-sign-in]');
     const userPanel = root.querySelector('[data-auth-user]');
+    const adminLink = root.querySelector('[data-auth-admin-link]');
 
     root.dataset.authState = user ? 'authenticated' : 'anonymous';
     root.removeAttribute('aria-busy');
@@ -67,6 +69,7 @@
       signInButton.textContent = configured() ? 'Iniciar sesión' : 'Acceso no disponible';
     }
     if (userPanel) userPanel.hidden = !user;
+    if (adminLink) adminLink.hidden = !user || !admin;
 
     if (user) {
       const name = displayName(user);
@@ -83,6 +86,25 @@
     global.dispatchEvent(new CustomEvent('academiaqa:auth-change', {
       detail: { authenticated: Boolean(user), user }
     }));
+  }
+
+  async function refreshAdminAccess(user) {
+    admin = false;
+    if (!client || !user) {
+      render(session);
+      return false;
+    }
+    try {
+      const { data, error } = await client.rpc('is_platform_admin');
+      if (error) throw error;
+      admin = data === true;
+    } catch (error) {
+      console.error('No fue posible verificar el acceso administrativo.', error);
+      admin = false;
+    }
+    render(session);
+    global.dispatchEvent(new CustomEvent('academiaqa:admin-change', { detail: { admin } }));
+    return admin;
   }
 
   function markReady() {
@@ -187,10 +209,14 @@
     const { data, error } = await client.auth.getSession();
     if (error) console.error('No fue posible restaurar la sesión.', error);
     render(data?.session || null);
+    await refreshAdminAccess(data?.session?.user || null);
     markReady();
 
     client.auth.onAuthStateChange((_event, nextSession) => {
-      global.setTimeout(() => render(nextSession), 0);
+      global.setTimeout(async () => {
+        render(nextSession);
+        await refreshAdminAccess(nextSession?.user || null);
+      }, 0);
     });
     return readyPromise;
   }
@@ -203,7 +229,9 @@
     getClient: () => client,
     getSession: () => session,
     getUser: () => session?.user || null,
-    isAuthenticated: () => Boolean(session?.user)
+    isAuthenticated: () => Boolean(session?.user),
+    isAdmin: () => admin,
+    refreshAdminAccess: () => refreshAdminAccess(session?.user || null)
   });
 
   if (document.readyState === 'loading') {

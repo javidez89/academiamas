@@ -345,6 +345,7 @@ function authControl() {
               <strong data-auth-full-name>Mi cuenta</strong>
               <span data-auth-email></span>
               <a href="/mi-cuenta/" data-view="account">Ver mi cuenta</a>
+              <a href="/admin/" data-view="admin" data-auth-admin-link hidden>Administración</a>
               <button type="button" data-auth-sign-out>Cerrar sesión</button>
             </div>
           </div>
@@ -437,7 +438,7 @@ function shell({ page, content, catalog }, version) {
     questions: totals.questions,
     exam: `🎓 ${totals.courses}`
   };
-  const isPublicPage = ['/', '/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/', '/mi-cuenta/'].includes(page.path);
+  const isPublicPage = ['/', '/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/', '/mi-cuenta/', '/admin/'].includes(page.path);
   return `${head(page, version)}
 <body>
   <header id="inicio"${isPublicPage ? ' class="homeHeader"' : ''}>
@@ -865,6 +866,23 @@ function privatePageDefinitions(catalog) {
           </section>
         </div>`
   };
+  const admin = {
+    key: 'admin',
+    path: '/admin/',
+    title: 'Administración | AcademiaQA',
+    heroTitle: 'Administración',
+    description: 'Panel privado de usuarios y aprendizaje de AcademiaQA.',
+    robots: 'noindex, nofollow',
+    schema: [],
+    content: `        <div class="publicHome publicPage adminPage" id="admin">
+          <section class="accountSignIn" aria-labelledby="adminTitle">
+            <span class="sectionKicker">Acceso restringido</span>
+            <h1 id="adminTitle">Panel de administración</h1>
+            <p>Inicia sesión con una cuenta administradora para consultar usuarios y métricas de aprendizaje.</p>
+            <button class="btn" type="button" data-action="sign-in-google">Iniciar sesión</button>
+          </section>
+        </div>`
+  };
 
   const finalExams = catalog.map((course) => {
     const meta = metaOf(course);
@@ -888,7 +906,7 @@ function privatePageDefinitions(catalog) {
     };
   });
 
-  return [account, ...finalExams];
+  return [account, admin, ...finalExams];
 }
 
 function outputPath(routePath) {

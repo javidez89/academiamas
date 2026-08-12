@@ -216,6 +216,31 @@
     return unwrap(data);
   }
 
+  async function isAdmin() {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('is_platform_admin');
+    if (error) throw error;
+    return data === true;
+  }
+
+  async function getAdminDashboardSummary() {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_dashboard_summary');
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : {};
+  }
+
+  async function listAdminUsers({ search = '', limit = 50, offset = 0 } = {}) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_list_users', {
+      p_search: String(search || '').trim().slice(0, 120),
+      p_limit: Math.max(1, Math.min(100, Math.trunc(Number(limit) || 50))),
+      p_offset: Math.max(0, Math.trunc(Number(offset) || 0))
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : { total: 0, users: [] };
+  }
+
   global.AcademyCloud = Object.freeze({
     getProfile,
     listEnrollments,
@@ -228,6 +253,9 @@
     flushProgress,
     recordSimulatorCompletion,
     recordFinalExamCompletion,
+    isAdmin,
+    getAdminDashboardSummary,
+    listAdminUsers,
     mergeProgress
   });
 }(window));

@@ -135,14 +135,15 @@
     height: 907,
     alt: 'Nuevo curso de capacitación profesional avanzada en AcademiaQA'
   });
-  const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal', 'account']);
+  const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal', 'account', 'admin']);
   const PUBLIC_VIEW_PATHS = Object.freeze({
     home: '/',
     courses: '/cursos/',
     routes: '/ruta-aprendizaje/',
     contact: '/contactanos/',
     legal: '/legal/',
-    account: '/mi-cuenta/'
+    account: '/mi-cuenta/',
+    admin: '/admin/'
   });
   const COURSE_VIEW_ALIASES = Object.freeze({
     panel: 'dashboard',
@@ -187,6 +188,7 @@
     contact: renderContactPage,
     legal: renderLegalPage,
     account: renderAccountPage,
+    admin: renderAdminPage,
     authGate: renderCourseAuthGate,
     dashboard: renderDashboard,
     study: renderStudy,
@@ -247,6 +249,13 @@
       accountError: '',
       accountProfile: null,
       enrollments: [],
+      adminLoading: false,
+      adminError: '',
+      adminSummary: {},
+      adminUsers: [],
+      adminTotal: 0,
+      adminSearch: '',
+      adminCoursesByKey: new Map(),
       practiceFilter: { ...DEFAULT_PRACTICE_FILTER }
     };
   }
@@ -386,6 +395,7 @@
   function bindEvents() {
     document.addEventListener('click', handleClick);
     document.addEventListener('change', handleChange);
+    document.addEventListener('submit', handleSubmit);
     document.addEventListener('keydown', handleKeyboardActivation);
     ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach((eventName) => {
       document.addEventListener(eventName, noteUserActivity, { passive: true });
@@ -395,6 +405,7 @@
     global.addEventListener('hashchange', handleLocationRoute);
     global.addEventListener('popstate', handleLocationRoute);
     global.addEventListener('academiaqa:auth-change', handleAuthStateChange);
+    global.addEventListener('academiaqa:admin-change', handleAdminAccessChange);
 
     dom.resetProgress.addEventListener('click', async () => {
       if (!course) return;
@@ -434,6 +445,14 @@
       else render();
       return;
     }
+    if (state.view === 'admin') {
+      if (authenticated) {
+        await Auth?.refreshAdminAccess?.();
+        if (Auth?.isAdmin?.()) await refreshAdmin();
+        else render();
+      } else render();
+      return;
+    }
     if (authenticated && state.view === 'authGate' && authGateRequest) {
       await setCourse(authGateRequest.key, authGateRequest.options);
       return;
@@ -446,6 +465,20 @@
         console.error('No fue posible actualizar el resumen de aprendizaje.', error);
       }
     }
+  }
+
+  function handleAdminAccessChange() {
+    if (state.view !== 'admin') return;
+    render();
+  }
+
+  async function handleSubmit(event) {
+    const form = event.target.closest('[data-admin-search-form]');
+    if (!form) return;
+    event.preventDefault();
+    const data = new FormData(form);
+    state.adminSearch = String(data.get('search') || '').trim().slice(0, 120);
+    await refreshAdmin();
   }
 
   function handleKeyboardActivation(event) {
@@ -720,6 +753,7 @@
     if (['contactanos', 'redes'].includes(anchor)) return { view: 'contact', anchor: 'contactanos' };
     if (['legal', 'privacidad', 'terminos'].includes(anchor)) return { view: 'legal', anchor };
     if (['mi-cuenta', 'cuenta'].includes(anchor)) return { view: 'account', anchor: 'mi-cuenta' };
+    if (['admin', 'administracion'].includes(anchor)) return { view: 'admin', anchor: 'admin' };
     if (['como-estudiar'].includes(anchor)) return { view: 'home', anchor };
     return { view: 'home', anchor: 'inicio' };
   }
@@ -737,6 +771,7 @@
       if (parts[0] === 'contactanos') return { view: 'contact', anchor: 'contactanos' };
       if (parts[0] === 'legal') return { view: 'legal', anchor: 'legal' };
       if (parts[0] === 'mi-cuenta') return { view: 'account', anchor: 'mi-cuenta' };
+      if (parts[0] === 'admin') return { view: 'admin', anchor: 'admin' };
     }
 
     if (parts[0] === 'curso' && parts[1]) {
@@ -1092,6 +1127,14 @@
       if (Auth?.isAuthenticated?.()) await refreshAccount();
       return;
     }
+    if (view === 'admin') {
+      setView('admin', options);
+      await Auth?.whenReady?.();
+      if (Auth?.isAuthenticated?.()) await Auth?.refreshAdminAccess?.();
+      if (Auth?.isAdmin?.()) await refreshAdmin();
+      else render();
+      return;
+    }
     if (!PUBLIC_VIEWS.has(view) && !course) {
       await setCourse(activeCourseKey || Storage.getActiveCourse() || firstCatalogKey(), { view, updateHash: options.updateHash });
       return;
@@ -1223,7 +1266,8 @@
       routes: ['Rutas para aprender QA, Testing, IA y Scrum | AcademiaQA', 'Elige una ruta gratuita en QA, testing, IA, Scrum, gestión de proyectos o ciberseguridad y avanza hasta el simulacro.'],
       contact: ['Contáctanos | AcademiaQA', 'Contacta a AcademiaQA para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.'],
       legal: ['Información legal y privacidad | AcademiaQA', 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.'],
-      account: ['Mi cuenta | AcademiaQA', 'Consulta tus matrículas, avance y actividad de aprendizaje en AcademiaQA.']
+      account: ['Mi cuenta | AcademiaQA', 'Consulta tus matrículas, avance y actividad de aprendizaje en AcademiaQA.'],
+      admin: ['Administración | AcademiaQA', 'Panel privado de usuarios y aprendizaje de AcademiaQA.']
     };
     if (PUBLIC_VIEWS.has(state.view)) {
       const [title, description] = publicMetadata[state.view] || publicMetadata.home;
@@ -1280,7 +1324,7 @@
     document.querySelector('meta[property="og:url"]')?.setAttribute('content', canonicalUrl);
     document.querySelector('meta[name="twitter:title"]')?.setAttribute('content', metadata.title);
     document.querySelector('meta[name="twitter:description"]')?.setAttribute('content', metadata.description);
-    document.querySelector('meta[name="robots"]')?.setAttribute('content', ['account', 'finalExam'].includes(state.view) ? 'noindex, nofollow' : 'index, follow');
+    document.querySelector('meta[name="robots"]')?.setAttribute('content', ['account', 'admin', 'finalExam'].includes(state.view) ? 'noindex, nofollow' : 'index, follow');
   }
 
   function updateCourseUi() {
@@ -1298,6 +1342,7 @@
       contact: 'Contáctanos',
       legal: 'Información legal',
       account: 'Mi cuenta',
+      admin: 'Administración',
       authGate: gateEntry?.meta?.name || 'Acceso al curso'
     };
     const publicSubtitles = {
@@ -1307,6 +1352,7 @@
       contact: 'Cuéntanos una idea, problema, error académico o propuesta de colaboración.',
       legal: 'Política de privacidad, términos y condiciones de uso de AcademiaQA.',
       account: 'Tu información, matrículas y actividad de aprendizaje guardadas en la nube.',
+      admin: 'Consulta protegida de usuarios, matrículas, progreso y actividad académica.',
       authGate: 'Inicia sesión con Google para inscribirte y guardar tu progreso.'
     };
 
@@ -1447,8 +1493,8 @@
     };
   }
 
-  function courseProgressDetails(key, item) {
-    const progress = progressForCourse(key, item);
+  function courseProgressDetailsFrom(key, item, progressValue, enrollmentValue = null) {
+    const progress = Storage.normalizeProgress(progressValue || {});
     const attempts = progress.attempts || [];
     const simulatorAttempts = attempts.filter((attempt) => attempt.mode === 'exam');
     const best = simulatorAttempts.length ? Math.max(...simulatorAttempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
@@ -1459,7 +1505,7 @@
     const chapterAverage = chapters.length
       ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.coverage, 0) / chapters.length)
       : 0;
-    const enrollment = enrollmentForCourse(key);
+    const enrollment = enrollmentValue;
     const objectiveTotal = chapters.reduce((sum, chapter) => sum + number(chapter.objectiveCount), 0);
     const chapterDomainAverage = objectiveTotal
       ? Math.round(chapters.reduce((sum, chapter) => sum + (chapter.domain * chapter.objectiveCount), 0) / objectiveTotal)
@@ -1497,6 +1543,10 @@
       finalExamEligible,
       isEnrolled: Boolean(enrollment && enrollment.status !== 'cancelled')
     };
+  }
+
+  function courseProgressDetails(key, item) {
+    return courseProgressDetailsFrom(key, item, progressForCourse(key, item), enrollmentForCourse(key));
   }
 
   function courseRouteKey(key) {
@@ -2268,6 +2318,147 @@
           <p>Las horas son una estimación de estudio y práctica; pueden variar según tu experiencia.</p>
         </div>
         ${enrollmentCards || (!state.accountLoading ? '<div class="card"><p>Aún no te has inscrito en un curso.</p><a class="btn" href="/cursos/" data-view="courses">Explorar cursos</a></div>' : '')}
+      </section>
+    </div>`;
+  }
+
+  async function refreshAdmin() {
+    if (state.view !== 'admin' || !Auth?.isAuthenticated?.() || !Auth?.isAdmin?.()) return;
+    state.adminLoading = true;
+    state.adminError = '';
+    render();
+    try {
+      const [summary, result] = await Promise.all([
+        Cloud.getAdminDashboardSummary(),
+        Cloud.listAdminUsers({ search: state.adminSearch, limit: 50, offset: 0 })
+      ]);
+      const users = Array.isArray(result?.users) ? result.users : [];
+      const courseKeys = [...new Set(users.flatMap((user) => (
+        Array.isArray(user.enrollments) ? user.enrollments.map((item) => item.course_key) : []
+      )).filter(Boolean))];
+      const loadedCourses = await Promise.all(courseKeys.map(async (key) => {
+        try {
+          return [key, await ensureCourseLoaded(key)];
+        } catch (error) {
+          console.warn(`No fue posible cargar el detalle del curso ${key} para administraciÃ³n.`, error);
+          return [key, null];
+        }
+      }));
+      state.adminSummary = summary || {};
+      state.adminUsers = users;
+      state.adminTotal = number(result?.total);
+      state.adminCoursesByKey = new Map(loadedCourses.filter(([, value]) => value));
+    } catch (error) {
+      console.error(error);
+      state.adminError = 'No fue posible consultar las mÃ©tricas administrativas. Intenta nuevamente.';
+    } finally {
+      state.adminLoading = false;
+      if (state.view === 'admin') render();
+    }
+  }
+
+  function adminEnrollmentView(item) {
+    const entry = catalogEntry(item.course_key) || {};
+    const courseData = state.adminCoursesByKey.get(item.course_key)
+      || Registry.get(item.course_key)
+      || catalogCourseSummary(entry);
+    const details = courseProgressDetailsFrom(item.course_key, courseData, item.progress, item);
+    const statusLabel = item.status === 'active' ? 'Activo' : item.status === 'completed' ? 'Completado' : 'Cancelado';
+    const chapterRows = details.chapters.map((chapter) => `<li>
+      <span><b>C${number(chapter.chapterId)} Â· ${h(chapter.title)}</b><small>${chapter.touched}/${chapter.objectiveCount} LO Â· ${chapter.studyMinutes} min</small></span>
+      <span><b>${chapter.coverage}% avance</b><small>${chapter.domain}% dominio</small></span>
+    </li>`).join('');
+    return `<div class="adminEnrollmentRow">
+      <div class="adminEnrollmentTitle">
+        <span class="accountStatus ${h(item.status)}">${statusLabel}</span>
+        <b>${h(entry.meta?.name || item.course_key)}</b>
+        <small>Inicio ${h(formatDate(item.started_at))} Â· Ãºltima actividad ${h(formatDate(item.last_activity_at))}</small>
+      </div>
+      <dl class="adminEnrollmentMetrics">
+        <div><dt>Avance</dt><dd>${details.progressPercent}%</dd></div>
+        <div><dt>Dominio real</dt><dd>${details.masteryPercent}%</dd></div>
+        <div><dt>Tiempo</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
+        <div><dt>Simulacros</dt><dd>${number(item.simulator_attempts)}</dd></div>
+        <div><dt>Mejor simulacro</dt><dd>${number(item.best_simulator_score)}%</dd></div>
+        <div><dt>Examen final</dt><dd>${number(item.final_exam_attempts)} Â· ${number(item.best_final_exam_score)}%</dd></div>
+      </dl>
+      <div class="progressbar accountCourseProgress" aria-label="Avance de ${h(entry.meta?.name || item.course_key)}: ${details.progressPercent}%"><div style="width:${details.progressPercent}%"></div></div>
+      <details class="adminChapterDetails">
+        <summary>Avance por capÃ­tulo</summary>
+        ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Sin actividad registrada por capÃ­tulo.</p>'}
+      </details>
+    </div>`;
+  }
+
+  function renderAdminPage() {
+    if (!Auth?.isAuthenticated?.()) {
+      return `<div class="publicHome publicPage adminPage" id="admin">
+        <section class="accountSignIn" aria-labelledby="adminTitle">
+          <span class="sectionKicker">Acceso restringido</span>
+          <h1 id="adminTitle">Panel de administraciÃ³n</h1>
+          <p>Inicia sesiÃ³n con una cuenta administradora para consultar usuarios y mÃ©tricas de aprendizaje.</p>
+          <button class="btn" type="button" data-action="sign-in-google">Iniciar sesiÃ³n</button>
+        </section>
+      </div>`;
+    }
+
+    if (!Auth?.isAdmin?.()) {
+      return `<div class="publicHome publicPage adminPage" id="admin">
+        <section class="accountSignIn" aria-labelledby="adminTitle">
+          <span class="sectionKicker">Acceso restringido</span>
+          <h1 id="adminTitle">Esta cuenta no tiene permisos administrativos</h1>
+          <p>Tu sesiÃ³n continÃºa activa y puedes regresar a tu cuenta de aprendizaje.</p>
+          <a class="btn" href="${h(publicPath('account'))}" data-view="account">Ir a Mi cuenta</a>
+        </section>
+      </div>`;
+    }
+
+    const summary = state.adminSummary || {};
+    const users = Array.isArray(state.adminUsers) ? state.adminUsers : [];
+    const userRows = users.map((user) => {
+      const enrollments = Array.isArray(user.enrollments) ? user.enrollments : [];
+      return `<article class="adminUserRecord">
+        <header class="adminUserHeader">
+          <div>
+            <h3>${h(user.full_name || 'Usuario')}</h3>
+            <a href="mailto:${encodeURIComponent(user.email || '')}">${h(user.email || 'Sin correo')}</a>
+          </div>
+          <div class="adminUserDates">
+            <span>Registro: ${h(formatDate(user.created_at))}</span>
+            <span>Ãšltimo acceso: ${h(formatDate(user.last_sign_in_at))}</span>
+          </div>
+        </header>
+        <div class="adminEnrollments">
+          ${enrollments.map(adminEnrollmentView).join('') || '<p class="adminEmpty">Este usuario aÃºn no tiene cursos inscritos.</p>'}
+        </div>
+      </article>`;
+    }).join('');
+
+    return `<div class="publicHome publicPage adminPage" id="admin">
+      <section class="adminHeader" aria-labelledby="adminTitle">
+        <span class="sectionKicker">AdministraciÃ³n</span>
+        <h1 id="adminTitle">Usuarios y aprendizaje</h1>
+        <p>Consulta consolidada de registros, matrÃ­culas y actividad guardada en Supabase.</p>
+        <div class="grid3 adminTotals">
+          <div class="metric"><span>Usuarios registrados</span><strong>${number(summary.registered_users)}</strong></div>
+          <div class="metric"><span>Usuarios con cursos</span><strong>${number(summary.enrolled_users)}</strong></div>
+          <div class="metric"><span>MatrÃ­culas activas</span><strong>${number(summary.active_enrollments)}</strong></div>
+          <div class="metric"><span>Cursos completados</span><strong>${number(summary.completed_enrollments)}</strong></div>
+          <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(summary.study_seconds))}</strong></div>
+          <div class="metric"><span>Simulacros / finales</span><strong>${number(summary.simulator_attempts)} / ${number(summary.final_exam_attempts)}</strong></div>
+        </div>
+      </section>
+      <section class="adminDirectory" aria-labelledby="adminUsersTitle">
+        <div class="adminDirectoryHead">
+          <div><h2 id="adminUsersTitle">Usuarios</h2><p>${state.adminTotal} registro${state.adminTotal === 1 ? '' : 's'} encontrado${state.adminTotal === 1 ? '' : 's'}.</p></div>
+          <form class="adminSearchForm" data-admin-search-form role="search">
+            <label for="adminSearch">Buscar por nombre o correo</label>
+            <div><input id="adminSearch" name="search" type="search" maxlength="120" value="${h(state.adminSearch)}" autocomplete="off"><button class="btn" type="submit">Buscar</button></div>
+          </form>
+        </div>
+        ${state.adminLoading ? '<div class="adminLoading" role="status">Consultando informaciÃ³n protegida...</div>' : ''}
+        ${state.adminError ? `<div class="badbox">${h(state.adminError)}</div>` : ''}
+        <div class="adminUserList">${userRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron usuarios para esta bÃºsqueda.</p>' : '')}</div>
       </section>
     </div>`;
   }
@@ -3180,6 +3371,7 @@
         state = createState(initialRoute.view);
         render();
         if (initialRoute.view === 'account' && Auth?.isAuthenticated?.()) await refreshAccount();
+        if (initialRoute.view === 'admin' && Auth?.isAuthenticated?.() && Auth?.isAdmin?.()) await refreshAdmin();
       }
 
       scrollToAnchor(initialRoute.anchor);
