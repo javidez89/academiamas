@@ -9,6 +9,9 @@
   let session = null;
   let initialized = false;
   let admin = false;
+  let adminAccessRequest = null;
+  let activityRequest = null;
+  let activityTimer = null;
   let ready = false;
   let resolveReady;
   const readyPromise = new Promise((resolve) => {
@@ -51,7 +54,7 @@
     menu.hidden = true;
   }
 
-  function render(nextSession) {
+  function render(nextSession, { notify = true } = {}) {
     session = nextSession || null;
     const root = authRoot();
     if (!root) return;
@@ -83,28 +86,78 @@
       setStatus(configured() ? 'No has iniciado sesión.' : 'El acceso todavía no está disponible.');
     }
 
-    global.dispatchEvent(new CustomEvent('academiaqa:auth-change', {
-      detail: { authenticated: Boolean(user), user }
-    }));
+    if (notify) {
+      global.dispatchEvent(new CustomEvent('academiaqa:auth-change', {
+        detail: { authenticated: Boolean(user), user }
+      }));
+    }
   }
 
   async function refreshAdminAccess(user) {
-    admin = false;
     if (!client || !user) {
-      render(session);
+      admin = false;
+      render(session, { notify: false });
+      global.dispatchEvent(new CustomEvent('academiaqa:admin-change', { detail: { admin } }));
       return false;
     }
+    if (adminAccessRequest) return adminAccessRequest;
+
+    const userId = user.id;
+    adminAccessRequest = (async () => {
+      let nextAdmin = false;
+      try {
+        const { data, error } = await client.rpc('is_platform_admin');
+        if (error) throw error;
+        nextAdmin = data === true;
+      } catch (error) {
+        console.error('No fue posible verificar el acceso administrativo.', error);
+      }
+
+      if (session?.user?.id !== userId) return false;
+      admin = nextAdmin;
+      render(session, { notify: false });
+      global.dispatchEvent(new CustomEvent('academiaqa:admin-change', { detail: { admin } }));
+      return admin;
+    })();
+
     try {
-      const { data, error } = await client.rpc('is_platform_admin');
-      if (error) throw error;
-      admin = data === true;
-    } catch (error) {
-      console.error('No fue posible verificar el acceso administrativo.', error);
-      admin = false;
+      return await adminAccessRequest;
+    } finally {
+      adminAccessRequest = null;
     }
-    render(session);
-    global.dispatchEvent(new CustomEvent('academiaqa:admin-change', { detail: { admin } }));
-    return admin;
+  }
+
+  async function touchActivity() {
+    if (!client || !session?.user) return null;
+    if (activityRequest) return activityRequest;
+    activityRequest = (async () => {
+      const { data, error } = await client.rpc('touch_user_presence');
+      if (error) throw error;
+      return data || null;
+    })();
+    try {
+      return await activityRequest;
+    } catch (error) {
+      console.warn('No fue posible actualizar la actividad de la sesión.', error);
+      return null;
+    } finally {
+      activityRequest = null;
+    }
+  }
+
+  function stopActivityHeartbeat() {
+    if (activityTimer) global.clearInterval(activityTimer);
+    activityTimer = null;
+  }
+
+  function startActivityHeartbeat() {
+    stopActivityHeartbeat();
+    if (!session?.user) return Promise.resolve(null);
+    const initialTouch = touchActivity();
+    activityTimer = global.setInterval(() => {
+      if (document.visibilityState === 'visible') touchActivity();
+    }, 60_000);
+    return initialTouch;
   }
 
   function markReady() {
@@ -181,6 +234,9 @@
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeMenu();
     });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') touchActivity();
+    });
   }
 
   async function initialize() {
@@ -209,12 +265,14 @@
     const { data, error } = await client.auth.getSession();
     if (error) console.error('No fue posible restaurar la sesión.', error);
     render(data?.session || null);
+    await startActivityHeartbeat();
     await refreshAdminAccess(data?.session?.user || null);
     markReady();
 
     client.auth.onAuthStateChange((_event, nextSession) => {
       global.setTimeout(async () => {
         render(nextSession);
+        await startActivityHeartbeat();
         await refreshAdminAccess(nextSession?.user || null);
       }, 0);
     });

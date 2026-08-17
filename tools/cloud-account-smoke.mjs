@@ -51,7 +51,7 @@ try {
   await page.locator('[data-view="exam"]').first().click();
   await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).click();
   await page.locator('.questionBox').waitFor();
-  await page.getByRole('button', { name: /Finalizar/i }).click();
+  await page.getByRole('button', { name: 'Finalizar', exact: true }).click();
   await page.waitForFunction(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.simulator_attempts === 1
   ));
@@ -80,7 +80,7 @@ try {
   await page.getByRole('heading', { name: /^Examen final ·/i }).waitFor();
   await page.getByRole('button', { name: /Iniciar examen final/i }).click();
   await page.locator('.questionBox').waitFor();
-  await page.getByRole('button', { name: /Finalizar/i }).click();
+  await page.getByRole('button', { name: 'Finalizar', exact: true }).click();
   await page.getByRole('heading', { name: /Resultado del examen final/i }).waitFor();
   assert.equal(await page.getByRole('columnheader', { name: /Respuesta correcta/i }).count(), 0, 'El examen final no debe revelar el banco en la revisión.');
   await page.waitForFunction(() => (

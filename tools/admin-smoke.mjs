@@ -11,6 +11,7 @@ const adminUsers = [{
   full_name: 'Estudiante de prueba',
   created_at: now,
   last_sign_in_at: now,
+  last_seen_at: now,
   enrollments: [{
     course_key: 'ctfl',
     status: 'active',
@@ -37,6 +38,9 @@ try {
     adminUsers,
     adminSummary: {
       registered_users: 1,
+      online_users: 1,
+      active_users_30d: 1,
+      new_users_30d: 1,
       enrolled_users: 1,
       active_enrollments: 1,
       completed_enrollments: 0,
@@ -46,10 +50,13 @@ try {
     }
   });
   await adminPage.goto(`${baseUrl}/admin/?admin-smoke=${Date.now()}`, { waitUntil: 'domcontentloaded' });
-  await adminPage.getByRole('heading', { name: 'Usuarios y aprendizaje' }).waitFor();
+  await adminPage.getByRole('heading', { name: 'Resumen gerencial de usuarios' }).waitFor();
   await adminPage.getByText(privateEmail).waitFor();
+  await adminPage.getByText('En línea', { exact: true }).waitFor();
+  await adminPage.getByText('Ver cursos y avance por capítulo', { exact: true }).click();
   await adminPage.getByText(/Certified Tester Foundation Level 4\.0/).waitFor();
   assert.equal(await adminPage.locator('[data-auth-admin-link]').evaluate((element) => element.hidden), false, 'El enlace administrativo debe habilitarse solo al administrador.');
+  assert.ok(await adminPage.evaluate(() => window.__supabaseMock.rpcCounts.is_platform_admin) <= 2, 'La autorización administrativa no debe entrar en un ciclo de consultas.');
   const overflow = await adminPage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(overflow <= 1, `El panel administrativo móvil tiene ${overflow}px de desbordamiento.`);
   await adminContext.close();
