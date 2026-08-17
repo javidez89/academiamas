@@ -1,5 +1,27 @@
 # Changelog
 
+## [v0.14.0] - 2026-08-16
+
+### Added
+
+- Indicadores de usuarios en línea, última actividad, usuarios activos y nuevos durante los últimos 30 días.
+- Directorio gerencial en español con filtros, correos visibles, avance real, dominio, tiempo estudiado y detalle por curso y capítulo.
+- Registro seguro de actividad de sesión en Supabase con actualización periódica para conservar la última conexión.
+
+### Fixed
+
+- Eliminado el ciclo de revalidación de sesión que podía mostrar erróneamente que una cuenta administradora no tenía permisos.
+- Contraste explícito para nombres, correos y métricas del panel en pantallas de escritorio y móviles.
+
+### Security
+
+- La marca de actividad se asigna en PostgreSQL con `auth.uid()` y hora del servidor; el navegador no puede registrar actividad para otro usuario.
+- La autorización administrativa continúa validándose exclusivamente en la base de datos.
+
+### Validation
+
+- Sin cambios en cursos, bancos de preguntas, práctica, simulacros, progreso académico, pagos o certificados.
+
 ## [v0.13.0] - 2026-08-11
 
 ### Added

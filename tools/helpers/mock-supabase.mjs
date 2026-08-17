@@ -13,6 +13,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       admin: Boolean(mockedAdmin),
       adminUsers: structuredClone(mockedAdminUsers || []),
       adminSummary: structuredClone(mockedAdminSummary || {}),
+      rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
     window.__supabaseMock = state;
@@ -137,7 +138,11 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             };
           },
           async rpc(name, args) {
+            state.rpcCounts[name] = (state.rpcCounts[name] || 0) + 1;
             state.calls[name] = structuredClone(args || {});
+            if (name === 'touch_user_presence') {
+              return { data: new Date().toISOString(), error: null };
+            }
             if (name === 'is_platform_admin') {
               return { data: state.admin, error: null };
             }

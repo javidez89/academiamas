@@ -255,6 +255,7 @@
       adminUsers: [],
       adminTotal: 0,
       adminSearch: '',
+      adminFilter: 'all',
       adminCoursesByKey: new Map(),
       practiceFilter: { ...DEFAULT_PRACTICE_FILTER }
     };
@@ -406,6 +407,11 @@
     global.addEventListener('popstate', handleLocationRoute);
     global.addEventListener('academiaqa:auth-change', handleAuthStateChange);
     global.addEventListener('academiaqa:admin-change', handleAdminAccessChange);
+    global.setInterval(() => {
+      if (state.view === 'admin' && document.visibilityState === 'visible' && Auth?.isAdmin?.()) {
+        refreshAdmin({ silent: true });
+      }
+    }, 60_000);
 
     dom.resetProgress.addEventListener('click', async () => {
       if (!course) return;
@@ -549,6 +555,15 @@
         break;
       case 'sign-in-google':
         await Auth?.signInWithGoogle?.();
+        break;
+      case 'admin-filter':
+        state.adminFilter = ['all', 'online', 'active', 'enrolled', 'unenrolled'].includes(actionTarget.dataset.filter)
+          ? actionTarget.dataset.filter
+          : 'all';
+        render();
+        break;
+      case 'admin-refresh':
+        await refreshAdmin();
         break;
       case 'retry-course':
         await setCourse(actionTarget.dataset.course, {
@@ -2322,11 +2337,11 @@
     </div>`;
   }
 
-  async function refreshAdmin() {
+  async function refreshAdmin({ silent = false } = {}) {
     if (state.view !== 'admin' || !Auth?.isAuthenticated?.() || !Auth?.isAdmin?.()) return;
-    state.adminLoading = true;
+    state.adminLoading = !silent;
     state.adminError = '';
-    render();
+    if (!silent) render();
     try {
       const [summary, result] = await Promise.all([
         Cloud.getAdminDashboardSummary(),
@@ -2337,10 +2352,12 @@
         Array.isArray(user.enrollments) ? user.enrollments.map((item) => item.course_key) : []
       )).filter(Boolean))];
       const loadedCourses = await Promise.all(courseKeys.map(async (key) => {
+        const existing = state.adminCoursesByKey.get(key);
+        if (existing) return [key, existing];
         try {
           return [key, await ensureCourseLoaded(key)];
         } catch (error) {
-          console.warn(`No fue posible cargar el detalle del curso ${key} para administraciÃ³n.`, error);
+          console.warn(`No fue posible cargar el detalle del curso ${key} para administración.`, error);
           return [key, null];
         }
       }));
@@ -2350,7 +2367,7 @@
       state.adminCoursesByKey = new Map(loadedCourses.filter(([, value]) => value));
     } catch (error) {
       console.error(error);
-      state.adminError = 'No fue posible consultar las mÃ©tricas administrativas. Intenta nuevamente.';
+      state.adminError = 'No fue posible consultar las métricas administrativas. Intenta nuevamente.';
     } finally {
       state.adminLoading = false;
       if (state.view === 'admin') render();
@@ -2365,14 +2382,14 @@
     const details = courseProgressDetailsFrom(item.course_key, courseData, item.progress, item);
     const statusLabel = item.status === 'active' ? 'Activo' : item.status === 'completed' ? 'Completado' : 'Cancelado';
     const chapterRows = details.chapters.map((chapter) => `<li>
-      <span><b>C${number(chapter.chapterId)} Â· ${h(chapter.title)}</b><small>${chapter.touched}/${chapter.objectiveCount} LO Â· ${chapter.studyMinutes} min</small></span>
+      <span><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><small>${chapter.touched}/${chapter.objectiveCount} LO · ${chapter.studyMinutes} min</small></span>
       <span><b>${chapter.coverage}% avance</b><small>${chapter.domain}% dominio</small></span>
     </li>`).join('');
     return `<div class="adminEnrollmentRow">
       <div class="adminEnrollmentTitle">
         <span class="accountStatus ${h(item.status)}">${statusLabel}</span>
         <b>${h(entry.meta?.name || item.course_key)}</b>
-        <small>Inicio ${h(formatDate(item.started_at))} Â· Ãºltima actividad ${h(formatDate(item.last_activity_at))}</small>
+        <small>Inicio ${h(formatDate(item.started_at))} · última actividad ${h(formatDate(item.last_activity_at))}</small>
       </div>
       <dl class="adminEnrollmentMetrics">
         <div><dt>Avance</dt><dd>${details.progressPercent}%</dd></div>
@@ -2380,14 +2397,72 @@
         <div><dt>Tiempo</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
         <div><dt>Simulacros</dt><dd>${number(item.simulator_attempts)}</dd></div>
         <div><dt>Mejor simulacro</dt><dd>${number(item.best_simulator_score)}%</dd></div>
-        <div><dt>Examen final</dt><dd>${number(item.final_exam_attempts)} Â· ${number(item.best_final_exam_score)}%</dd></div>
+        <div><dt>Examen final</dt><dd>${number(item.final_exam_attempts)} · ${number(item.best_final_exam_score)}%</dd></div>
       </dl>
       <div class="progressbar accountCourseProgress" aria-label="Avance de ${h(entry.meta?.name || item.course_key)}: ${details.progressPercent}%"><div style="width:${details.progressPercent}%"></div></div>
       <details class="adminChapterDetails">
-        <summary>Avance por capÃ­tulo</summary>
-        ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Sin actividad registrada por capÃ­tulo.</p>'}
+        <summary>Avance por capítulo</summary>
+        ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Sin actividad registrada por capítulo.</p>'}
       </details>
     </div>`;
+  }
+
+  function adminIsOnline(value) {
+    const seenAt = new Date(value).getTime();
+    return Number.isFinite(seenAt) && Date.now() - seenAt <= 150_000;
+  }
+
+  function formatAdminActivity(value) {
+    const seenAt = new Date(value).getTime();
+    if (!Number.isFinite(seenAt)) return 'Sin actividad registrada';
+    const elapsedMinutes = Math.max(0, Math.floor((Date.now() - seenAt) / 60_000));
+    if (elapsedMinutes <= 2) return 'En línea ahora';
+    if (elapsedMinutes < 60) return `Hace ${elapsedMinutes} min`;
+    const elapsedHours = Math.floor(elapsedMinutes / 60);
+    if (elapsedHours < 24) return `Hace ${elapsedHours} h`;
+    const elapsedDays = Math.floor(elapsedHours / 24);
+    if (elapsedDays <= 30) return `Hace ${elapsedDays} día${elapsedDays === 1 ? '' : 's'}`;
+    return formatDate(value);
+  }
+
+  function adminUserSnapshot(user) {
+    const enrollments = Array.isArray(user.enrollments) ? user.enrollments : [];
+    const learningEnrollments = enrollments.filter((item) => item.status !== 'cancelled');
+    const details = learningEnrollments.map((item) => {
+      const entry = catalogEntry(item.course_key) || {};
+      const courseData = state.adminCoursesByKey.get(item.course_key)
+        || Registry.get(item.course_key)
+        || catalogCourseSummary(entry);
+      return courseProgressDetailsFrom(item.course_key, courseData, item.progress, item);
+    });
+    const lastSeenAt = user.last_seen_at || user.last_sign_in_at || user.created_at;
+    const progressPercent = details.length
+      ? Math.round(details.reduce((sum, item) => sum + number(item.progressPercent), 0) / details.length)
+      : 0;
+    const masteryPercent = details.length
+      ? Math.round(details.reduce((sum, item) => sum + number(item.masteryPercent), 0) / details.length)
+      : 0;
+    return {
+      enrollments,
+      learningEnrollments,
+      online: adminIsOnline(user.last_seen_at),
+      lastSeenAt,
+      progressPercent,
+      masteryPercent,
+      studySeconds: details.reduce((sum, item) => sum + number(item.studySeconds), 0),
+      activeCourses: learningEnrollments.filter((item) => item.status === 'active').length,
+      completedCourses: learningEnrollments.filter((item) => item.status === 'completed').length
+    };
+  }
+
+  function adminUserMatchesFilter(snapshot) {
+    if (state.adminFilter === 'online') return snapshot.online;
+    if (state.adminFilter === 'active') {
+      return Date.now() - new Date(snapshot.lastSeenAt).getTime() <= 30 * 24 * 60 * 60 * 1000;
+    }
+    if (state.adminFilter === 'enrolled') return snapshot.learningEnrollments.length > 0;
+    if (state.adminFilter === 'unenrolled') return snapshot.learningEnrollments.length === 0;
+    return true;
   }
 
   function renderAdminPage() {
@@ -2395,9 +2470,9 @@
       return `<div class="publicHome publicPage adminPage" id="admin">
         <section class="accountSignIn" aria-labelledby="adminTitle">
           <span class="sectionKicker">Acceso restringido</span>
-          <h1 id="adminTitle">Panel de administraciÃ³n</h1>
-          <p>Inicia sesiÃ³n con una cuenta administradora para consultar usuarios y mÃ©tricas de aprendizaje.</p>
-          <button class="btn" type="button" data-action="sign-in-google">Iniciar sesiÃ³n</button>
+          <h1 id="adminTitle">Panel de administración</h1>
+          <p>Inicia sesión con una cuenta administradora para consultar usuarios y métricas de aprendizaje.</p>
+          <button class="btn" type="button" data-action="sign-in-google">Iniciar sesión</button>
         </section>
       </div>`;
     }
@@ -2407,7 +2482,7 @@
         <section class="accountSignIn" aria-labelledby="adminTitle">
           <span class="sectionKicker">Acceso restringido</span>
           <h1 id="adminTitle">Esta cuenta no tiene permisos administrativos</h1>
-          <p>Tu sesiÃ³n continÃºa activa y puedes regresar a tu cuenta de aprendizaje.</p>
+          <p>Tu sesión continúa activa y puedes regresar a tu cuenta de aprendizaje.</p>
           <a class="btn" href="${h(publicPath('account'))}" data-view="account">Ir a Mi cuenta</a>
         </section>
       </div>`;
@@ -2415,50 +2490,81 @@
 
     const summary = state.adminSummary || {};
     const users = Array.isArray(state.adminUsers) ? state.adminUsers : [];
-    const userRows = users.map((user) => {
-      const enrollments = Array.isArray(user.enrollments) ? user.enrollments : [];
-      return `<article class="adminUserRecord">
-        <header class="adminUserHeader">
-          <div>
-            <h3>${h(user.full_name || 'Usuario')}</h3>
-            <a href="mailto:${encodeURIComponent(user.email || '')}">${h(user.email || 'Sin correo')}</a>
+    const rows = users.map((user) => ({ user, snapshot: adminUserSnapshot(user) }));
+    const visibleRows = rows.filter(({ snapshot }) => adminUserMatchesFilter(snapshot));
+    const onlineCount = rows.filter(({ snapshot }) => snapshot.online).length;
+    const activeCount = rows.filter(({ snapshot }) => (
+      Date.now() - new Date(snapshot.lastSeenAt).getTime() <= 30 * 24 * 60 * 60 * 1000
+    )).length;
+    const enrolledCount = rows.filter(({ snapshot }) => snapshot.learningEnrollments.length > 0).length;
+    const userRows = visibleRows.map(({ user, snapshot }) => {
+      const name = user.full_name || user.email?.split('@')[0] || 'Usuario';
+      return `<article class="adminManagerRow">
+        <div class="adminManagerMain">
+          <div class="adminManagerIdentity" data-label="Usuario">
+            <span class="adminUserInitial" aria-hidden="true">${h(name.charAt(0).toUpperCase())}</span>
+            <span><strong>${h(name)}</strong><a href="mailto:${h(user.email || '')}">${h(user.email || 'Sin correo')}</a></span>
           </div>
-          <div class="adminUserDates">
-            <span>Registro: ${h(formatDate(user.created_at))}</span>
-            <span>Ãšltimo acceso: ${h(formatDate(user.last_sign_in_at))}</span>
+          <div class="adminManagerCell" data-label="Estado">
+            <span class="adminPresence ${snapshot.online ? 'online' : 'offline'}"><i aria-hidden="true"></i>${snapshot.online ? 'En línea' : 'Desconectado'}</span>
           </div>
-        </header>
-        <div class="adminEnrollments">
-          ${enrollments.map(adminEnrollmentView).join('') || '<p class="adminEmpty">Este usuario aÃºn no tiene cursos inscritos.</p>'}
+          <div class="adminManagerCell" data-label="Cursos"><strong>${snapshot.learningEnrollments.length}</strong><small>${snapshot.activeCourses} activos · ${snapshot.completedCourses} completados</small></div>
+          <div class="adminManagerCell adminProgressCell" data-label="Avance real"><strong>${snapshot.progressPercent}%</strong><small>Dominio ${snapshot.masteryPercent}%</small><span class="adminMiniProgress"><i style="width:${snapshot.progressPercent}%"></i></span></div>
+          <div class="adminManagerCell" data-label="Tiempo"><strong>${h(formatStudyDuration(snapshot.studySeconds))}</strong><small>estudio acumulado</small></div>
+          <div class="adminManagerCell" data-label="Última actividad"><strong>${h(formatAdminActivity(snapshot.lastSeenAt))}</strong><small>${h(formatDate(snapshot.lastSeenAt))}</small></div>
         </div>
+        <details class="adminUserDetails">
+          <summary>Ver cursos y avance por capítulo</summary>
+          <div class="adminUserRegistration"><span>Registro: ${h(formatDate(user.created_at))}</span><span>Último inicio de sesión: ${h(formatDate(user.last_sign_in_at))}</span></div>
+          <div class="adminEnrollments">
+            ${snapshot.enrollments.map(adminEnrollmentView).join('') || '<p class="adminEmpty">Este usuario aún no tiene cursos inscritos.</p>'}
+          </div>
+        </details>
       </article>`;
     }).join('');
 
+    const filters = [
+      ['all', 'Todos', state.adminTotal],
+      ['online', 'En línea', onlineCount],
+      ['active', 'Activos 30 días', activeCount],
+      ['enrolled', 'Con cursos', enrolledCount],
+      ['unenrolled', 'Sin cursos', Math.max(0, users.length - enrolledCount)]
+    ];
+
     return `<div class="publicHome publicPage adminPage" id="admin">
       <section class="adminHeader" aria-labelledby="adminTitle">
-        <span class="sectionKicker">AdministraciÃ³n</span>
-        <h1 id="adminTitle">Usuarios y aprendizaje</h1>
-        <p>Consulta consolidada de registros, matrÃ­culas y actividad guardada en Supabase.</p>
-        <div class="grid3 adminTotals">
+        <span class="sectionKicker">Administración</span>
+        <h1 id="adminTitle">Resumen gerencial de usuarios</h1>
+        <p>Actividad, matrículas y avance real sincronizados con la información guardada en Supabase.</p>
+        <div class="adminSummaryGrid">
           <div class="metric"><span>Usuarios registrados</span><strong>${number(summary.registered_users)}</strong></div>
+          <div class="metric adminOnlineMetric"><span>Usuarios en línea</span><strong>${number(summary.online_users)}</strong></div>
+          <div class="metric"><span>Activos últimos 30 días</span><strong>${number(summary.active_users_30d)}</strong></div>
+          <div class="metric"><span>Nuevos últimos 30 días</span><strong>${number(summary.new_users_30d)}</strong></div>
           <div class="metric"><span>Usuarios con cursos</span><strong>${number(summary.enrolled_users)}</strong></div>
-          <div class="metric"><span>MatrÃ­culas activas</span><strong>${number(summary.active_enrollments)}</strong></div>
-          <div class="metric"><span>Cursos completados</span><strong>${number(summary.completed_enrollments)}</strong></div>
+          <div class="metric"><span>Matrículas activas</span><strong>${number(summary.active_enrollments)}</strong></div>
           <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(summary.study_seconds))}</strong></div>
           <div class="metric"><span>Simulacros / finales</span><strong>${number(summary.simulator_attempts)} / ${number(summary.final_exam_attempts)}</strong></div>
         </div>
       </section>
       <section class="adminDirectory" aria-labelledby="adminUsersTitle">
         <div class="adminDirectoryHead">
-          <div><h2 id="adminUsersTitle">Usuarios</h2><p>${state.adminTotal} registro${state.adminTotal === 1 ? '' : 's'} encontrado${state.adminTotal === 1 ? '' : 's'}.</p></div>
+          <div><h2 id="adminUsersTitle">Usuarios y correos activos</h2><p>${state.adminTotal} registro${state.adminTotal === 1 ? '' : 's'} en el directorio.</p></div>
           <form class="adminSearchForm" data-admin-search-form role="search">
             <label for="adminSearch">Buscar por nombre o correo</label>
-            <div><input id="adminSearch" name="search" type="search" maxlength="120" value="${h(state.adminSearch)}" autocomplete="off"><button class="btn" type="submit">Buscar</button></div>
+            <div><input id="adminSearch" name="search" type="search" maxlength="120" value="${h(state.adminSearch)}" autocomplete="off"><button class="btn" type="submit">Buscar</button><button class="btn secondary adminRefresh" type="button" data-action="admin-refresh" aria-label="Actualizar información">Actualizar</button></div>
           </form>
         </div>
-        ${state.adminLoading ? '<div class="adminLoading" role="status">Consultando informaciÃ³n protegida...</div>' : ''}
+        <div class="adminFilters" aria-label="Filtrar usuarios">
+          ${filters.map(([key, label, count]) => `<button type="button" data-action="admin-filter" data-filter="${key}" aria-pressed="${state.adminFilter === key}" class="${state.adminFilter === key ? 'active' : ''}">${label}<span>${count}</span></button>`).join('')}
+        </div>
+        <p class="adminPresenceNote">Se considera en línea una sesión con actividad durante los últimos 2 minutos y 30 segundos.</p>
+        ${state.adminLoading ? '<div class="adminLoading" role="status">Consultando información protegida...</div>' : ''}
         ${state.adminError ? `<div class="badbox">${h(state.adminError)}</div>` : ''}
-        <div class="adminUserList">${userRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron usuarios para esta bÃºsqueda.</p>' : '')}</div>
+        <div class="adminManagerTable" role="table" aria-label="Directorio gerencial de usuarios">
+          <div class="adminManagerHeader" role="row"><span>Usuario</span><span>Estado</span><span>Cursos</span><span>Avance real</span><span>Tiempo</span><span>Última actividad</span></div>
+          <div class="adminUserList">${userRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron usuarios para este filtro.</p>' : '')}</div>
+        </div>
       </section>
     </div>`;
   }
