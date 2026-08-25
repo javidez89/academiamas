@@ -143,9 +143,11 @@ assert.match(edgeSource, /-part-/, 'La función debe aceptar partes consecutivas
 assert.match(appSource, /data-narration-seek/, 'Cada reproductor debe incluir una barra de avance.');
 assert.match(appSource, /function seekNarration/, 'La barra debe permitir navegar a un punto concreto.');
 assert.match(appSource, /narrationPositionAt/, 'La navegación debe abarcar todas las partes de una narración larga.');
-assert.match(appSource, /Voz del dispositivo · avance estimado/, 'La voz local debe ofrecer una línea de tiempo estimada.');
+assert.match(appSource, /Voz del dispositivo · avance sincronizado/, 'La voz local debe ofrecer una línea de tiempo sincronizada.');
 assert.match(appSource, /narrationSeekActive/, 'La reproducción no debe sobrescribir la barra mientras el usuario la arrastra.');
-assert.match(appSource, /splitNarrationText\(narrationState\.text, 320\)/, 'La voz local debe dividir el contenido para permitir avance y retroceso.');
+assert.match(appSource, /DEVICE_NARRATION_CHUNK_LIMIT/, 'La voz local debe dividir el contenido con un límite estable para permitir avance y retroceso.');
+assert.match(appSource, /utterance\.onboundary/, 'La voz local debe sincronizar el avance con los límites informados por el navegador.');
+assert.match(appSource, /remaining < duration/, 'Los límites exactos deben avanzar al segmento siguiente sin repetir la última palabra.');
 
 for (const file of ['index.html', 'assets/js/app.js', 'assets/js/cloud.js', 'assets/js/config.js']) {
   const source = await fs.readFile(path.join(root, file), 'utf8');

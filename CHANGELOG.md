@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.16.2] - 2026-08-25
+
+### Fixed
+
+- La voz local avanza al segmento siguiente sin repetir la última palabra al llegar a comas, puntos o límites de narración.
+- La barra de audio se sincroniza con los límites de palabra informados por el navegador y amplía su duración cuando la voz tarda más de lo estimado.
+
+### Added
+
+- El inicio muestra totales agregados y reales de personas registradas y en línea, sin exponer identidades ni datos personales.
+- Una función pública limitada de Supabase entrega únicamente las métricas agregadas requeridas por el inicio.
+
+### Validation
+
+- La prueba de audio reproduce el cambio exacto entre segmentos y falla si reaparece una palabra aislada repetida.
+- La prueba cloud valida los totales públicos renderizados en el inicio.
+
 ## [v0.16.1] - 2026-08-25
 
 ### Fixed

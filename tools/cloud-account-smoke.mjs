@@ -204,6 +204,9 @@ try {
 
   await page.getByRole('link', { name: 'Ir al inicio' }).click();
   await page.getByText('1 cursos inscritos', { exact: true }).waitFor();
+  await page.locator('[data-community-registered]').waitFor();
+  assert.equal(await page.locator('[data-community-registered]').textContent(), '18', 'El inicio debe mostrar el total agregado de personas registradas.');
+  assert.equal(await page.locator('[data-community-online]').textContent(), '3', 'El inicio debe mostrar el total agregado de personas en línea.');
 
   await page.evaluate(() => document.querySelector('a[data-view="account"]')?.click());
   await page.getByRole('heading', { name: /Mis cursos/i }).waitFor();

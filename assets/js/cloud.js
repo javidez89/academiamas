@@ -335,6 +335,18 @@
     return data === true;
   }
 
+  async function getPublicLearningActivity() {
+    const client = requireClient();
+    const { data, error } = await client.rpc('public_learning_activity_summary');
+    if (error) throw error;
+    const value = data && typeof data === 'object' ? data : {};
+    return {
+      registeredStudents: Math.max(0, Math.trunc(Number(value.registered_students) || 0)),
+      onlineStudents: Math.max(0, Math.trunc(Number(value.online_students) || 0)),
+      measuredAt: String(value.measured_at || '')
+    };
+  }
+
   async function getAdminDashboardSummary() {
     const { client } = requireUser();
     const { data, error } = await client.rpc('admin_dashboard_summary');
@@ -384,6 +396,7 @@
     flushProgress,
     recordSimulatorCompletion,
     recordFinalExamCompletion,
+    getPublicLearningActivity,
     isAdmin,
     getAdminDashboardSummary,
     listAdminUsers,

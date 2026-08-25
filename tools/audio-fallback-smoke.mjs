@@ -15,6 +15,7 @@ try {
         this.lang = '';
         this.rate = 1;
         this.voice = null;
+        this.onboundary = null;
         this.onend = null;
         this.onerror = null;
       }
@@ -54,7 +55,7 @@ try {
     const input = document.querySelector('[data-narration-seek="chapter-reference-1"]');
     return input && !input.disabled && Number(input.max) > 30 && Number(input.value) > 0.25;
   });
-  assert.match(await expandedMaterial.locator('.narrationStatus').textContent(), /Voz del dispositivo · avance estimado/i);
+  assert.match(await expandedMaterial.locator('.narrationStatus').textContent(), /Voz del dispositivo · avance sincronizado/i);
   assert.ok((await page.evaluate(() => window.speechSynthesis.calls.length)) >= 1, 'Debe iniciar la voz local al fallar el servicio de nube.');
 
   const total = Number(await seek.getAttribute('max'));
@@ -86,8 +87,24 @@ try {
     return Number(input?.value || 0) >= target - 1 && Number(input?.value || 0) <= target + 2;
   }, backward);
   assert.ok((await page.evaluate(() => window.speechSynthesis.calls.length)) >= 3, 'Avanzar y retroceder deben reiniciar la voz en el segmento elegido.');
+  const callsBeforeRepeat = await page.evaluate(() => window.speechSynthesis.calls.length);
+  await expandedMaterial.getByRole('button', { name: /Repetir narraci[oó]n/i }).click();
+  await page.waitForFunction((count) => window.speechSynthesis.calls.length > count, callsBeforeRepeat);
+  const callsBeforeBoundary = await page.evaluate(() => window.speechSynthesis.calls.length);
+  await page.evaluate(() => {
+    const utterance = window.speechSynthesis.active;
+    utterance?.onboundary?.({ name: 'word', charIndex: Math.floor(utterance.text.length / 2) });
+    utterance?.onend?.();
+  });
+  await page.waitForFunction((count) => window.speechSynthesis.calls.length > count, callsBeforeBoundary);
+  const transition = await page.evaluate(() => ({
+    previous: window.speechSynthesis.calls.at(-2)?.text || '',
+    next: window.speechSynthesis.calls.at(-1)?.text || ''
+  }));
+  assert.ok(transition.next.trim().split(/\s+/).length > 3, 'Al terminar un segmento debe continuar con la frase siguiente, no repetir solo la última palabra.');
+  assert.notEqual(transition.next.trim(), transition.previous.trim().split(/\s+/).at(-1), 'El límite entre segmentos no debe repetir la última palabra anterior.');
   assert.equal(errors.length, 0, errors.join('\n'));
-  console.log('Audio fallback smoke OK: material ampliado, avance estimado, arrastre, avance y retroceso verificados.');
+  console.log('Audio fallback smoke OK: material ampliado, barra sincronizada, navegación y transición sin palabras repetidas.');
 } finally {
   await browser.close();
 }

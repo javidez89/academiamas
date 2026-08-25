@@ -8,7 +8,7 @@
   const Auth = global.AcademyAuth;
   const Cloud = global.AcademyCloud;
   const Config = global.ACADEMY_CONFIG || {};
-  const ASSET_VERSION = String(Config.assetVersion || '2026-08-05-mobile-responsive-study');
+  const ASSET_VERSION = String(Config.assetVersion || '2026-08-25-audio-presence');
   const APP_VERSION = String(Config.version || '0.0.0');
   const CANONICAL_ORIGIN = 'https://academiaqaoficial.com';
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
@@ -21,6 +21,8 @@
   const SESSION_CLOSED_KEY = 'academiaqa.auth.sessionClosed';
   const READING_SCALE_KEY = 'academiaqa.accessibility.readingScale';
   const FINAL_EXAM_UNLOCK_PROGRESS = 95;
+  const DEVICE_NARRATION_CHUNK_LIMIT = 260;
+  const COMMUNITY_ACTIVITY_REFRESH_MS = 60_000;
   const DEFAULT_PRACTICE_FILTER = Object.freeze({
     chapter: 'all',
     k: 'all',
@@ -223,6 +225,14 @@
     progressByCourse: new Map(),
     coursesByKey: new Map()
   };
+  let communityActivity = {
+    registeredStudents: 0,
+    onlineStudents: 0,
+    measuredAt: '',
+    loading: true,
+    error: false
+  };
+  let communityActivityRequest = null;
   let studyTimer = null;
   let lastStudyTickAt = Date.now();
   let lastUserActivityAt = Date.now();
@@ -243,6 +253,8 @@
     deviceIndex: 0,
     deviceElapsed: 0,
     deviceStartedAt: 0,
+    deviceCharIndex: 0,
+    deviceUtteranceOffset: 0,
     status: 'idle',
     speed: 1,
     source: '',
@@ -454,6 +466,9 @@
         refreshAdmin({ silent: true });
       }
     }, 60_000);
+    global.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshCommunityActivity({ silent: true });
+    }, COMMUNITY_ACTIVITY_REFRESH_MS);
 
     dom.resetProgress.addEventListener('click', async () => {
       if (!course) return;
@@ -2021,6 +2036,54 @@
     homeSliderTimer = null;
   }
 
+  async function refreshCommunityActivity({ silent = false } = {}) {
+    if (communityActivityRequest) return communityActivityRequest;
+    if (!silent) communityActivity = { ...communityActivity, loading: true, error: false };
+    communityActivityRequest = Cloud.getPublicLearningActivity()
+      .then((value) => {
+        communityActivity = { ...value, loading: false, error: false };
+        if (state.view === 'home') render();
+        return communityActivity;
+      })
+      .catch((error) => {
+        console.warn('No fue posible actualizar la actividad pública de AcademiaQA.', error);
+        communityActivity = { ...communityActivity, loading: false, error: true };
+        if (state.view === 'home') render();
+        return communityActivity;
+      })
+      .finally(() => {
+        communityActivityRequest = null;
+      });
+    return communityActivityRequest;
+  }
+
+  function renderCommunityActivity() {
+    const registered = communityActivity.loading || communityActivity.error
+      ? '—'
+      : communityActivity.registeredStudents.toLocaleString('es-CO');
+    const online = communityActivity.loading || communityActivity.error
+      ? '—'
+      : communityActivity.onlineStudents.toLocaleString('es-CO');
+    const status = communityActivity.loading
+      ? 'Actualizando actividad...'
+      : communityActivity.error ? 'Actividad temporalmente no disponible.' : 'Datos agregados actualizados cada minuto.';
+    return `<section class="communityActivity" aria-labelledby="communityActivityTitle" aria-live="polite">
+      <div class="communityActivityCopy">
+        <span class="sectionKicker">Comunidad AcademiaQA</span>
+        <h2 id="communityActivityTitle">Aprendemos en comunidad.</h2>
+        <p>${h(status)} No se muestran identidades ni datos personales.</p>
+      </div>
+      <div class="communityMetric">
+        <strong data-community-registered>${h(registered)}</strong>
+        <span>Personas registradas</span>
+      </div>
+      <div class="communityMetric communityMetricOnline">
+        <strong data-community-online>${h(online)}</strong>
+        <span>En línea ahora</span>
+      </div>
+    </section>`;
+  }
+
   function startHomeSlider() {
     const slides = latestCourseEntries(3);
     clearHomeSlider();
@@ -3205,6 +3268,8 @@
         ${renderHeroProgressCard()}
       </section>
 
+      ${renderCommunityActivity()}
+
       ${renderNewCoursesSlider()}
 
       ${renderHomeAvailableCoursesSection()}
@@ -3535,8 +3600,10 @@
   }
 
   function estimatedNarrationDuration(text) {
-    const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
-    return Math.max(1, words / 2.45);
+    const value = String(text || '').trim();
+    const words = value.split(/\s+/).filter(Boolean).length;
+    const punctuationPauses = (value.match(/[,.!?;:]/g) || []).length;
+    return Math.max(1, (words / 2.05) + (punctuationPauses * 0.08));
   }
 
   function narrationDurations() {
@@ -3558,7 +3625,12 @@
     const running = narrationState.status === 'playing' && narrationState.deviceStartedAt > 0
       ? ((Date.now() - narrationState.deviceStartedAt) / 1_000) * narrationState.speed
       : 0;
-    return Math.min(duration, Math.max(0, Number(narrationState.deviceElapsed) || 0) + running);
+    const current = Math.max(0, Number(narrationState.deviceElapsed) || 0) + running;
+    if (narrationState.status === 'playing' && current >= duration) {
+      narrationState.deviceDurations[narrationState.deviceIndex] = current + 0.75;
+      return current;
+    }
+    return Math.min(duration, current);
   }
 
   function narrationTimelineSnapshot(contentId = narrationState.contentId) {
@@ -3595,7 +3667,7 @@
     let remaining = Math.min(total, Math.max(0, Number(globalTime) || 0));
     for (let index = 0; index < durations.length; index += 1) {
       const duration = durations[index];
-      if (remaining <= duration || index === durations.length - 1) {
+      if (remaining < duration || index === durations.length - 1) {
         return { index, localTime: Math.min(duration, remaining) };
       }
       remaining -= duration;
@@ -3654,7 +3726,7 @@
       const segmentStatus = active && narrationState.chunks?.length > 1 ? ` · parte ${narrationState.chunkIndex + 1} de ${narrationState.chunks.length}` : '';
       setTextIfChanged(statusElement, status === 'loading'
         ? `Generando voz${segmentStatus}...`
-        : active && narrationState.source === 'device' ? 'Voz del dispositivo · avance estimado' : `Narración generada con IA${segmentStatus}`);
+        : active && narrationState.source === 'device' ? 'Voz del dispositivo · avance sincronizado' : `Narración generada con IA${segmentStatus}`);
     });
     updateNarrationTimeline();
   }
@@ -3709,6 +3781,8 @@
       deviceIndex: 0,
       deviceElapsed: 0,
       deviceStartedAt: 0,
+      deviceCharIndex: 0,
+      deviceUtteranceOffset: 0,
       status: 'idle',
       source: '',
       utterance: null
@@ -3733,18 +3807,26 @@
     return voices.sort((left, right) => score(right) - score(left))[0] || null;
   }
 
-  function deviceSegmentRemainder(segment, localTime, duration) {
-    const words = String(segment || '').trim().split(/\s+/).filter(Boolean);
-    if (!words.length || localTime <= 0 || duration <= 0) return String(segment || '').trim();
-    const startIndex = Math.min(words.length - 1, Math.floor((localTime / duration) * words.length));
-    return words.slice(startIndex).join(' ');
+  function deviceSegmentSlice(segment, localTime, duration) {
+    const source = String(segment || '').trim();
+    const words = [...source.matchAll(/\S+/g)];
+    if (!words.length || localTime <= 0 || duration <= 0) return { text: source, charOffset: 0 };
+    const ratio = Math.min(1, Math.max(0, localTime / duration));
+    const wordIndex = Math.min(words.length, Math.ceil(ratio * words.length));
+    const charOffset = wordIndex < words.length ? Number(words[wordIndex].index) || 0 : source.length;
+    const remainder = source.slice(charOffset);
+    const leading = remainder.match(/^[\s,.;:!?¿¡)\]}-]+/)?.[0]?.length || 0;
+    return {
+      text: remainder.slice(leading).trim(),
+      charOffset: Math.min(source.length, charOffset + leading)
+    };
   }
 
   function playWithDeviceVoice({ globalTime = 0, autoplay = true } = {}) {
     if (!global.speechSynthesis || !global.SpeechSynthesisUtterance) throw new Error('Este navegador no ofrece narración local.');
     const deviceSegments = narrationState.deviceSegments?.length
       ? narrationState.deviceSegments
-      : splitNarrationText(narrationState.text, 320);
+      : splitNarrationText(narrationState.text, DEVICE_NARRATION_CHUNK_LIMIT);
     const deviceDurations = deviceSegments.map((segment, index) => (
       Number(narrationState.deviceDurations?.[index]) || estimatedNarrationDuration(segment)
     ));
@@ -3752,23 +3834,49 @@
     const position = narrationPositionAt(globalTime);
     const segment = deviceSegments[position.index];
     if (!segment) return;
+    const segmentDuration = deviceDurations[position.index];
+    const segmentSlice = deviceSegmentSlice(segment, position.localTime, segmentDuration);
+    if (!segmentSlice.text) {
+      narrationState = {
+        ...narrationState,
+        status: 'idle',
+        deviceIndex: position.index,
+        deviceElapsed: segmentDuration,
+        deviceStartedAt: 0,
+        deviceCharIndex: segment.length,
+        deviceUtteranceOffset: segment.length,
+        utterance: null
+      };
+      updateNarrationControls();
+      return;
+    }
     const token = ++narrationLoadToken;
     global.speechSynthesis.cancel();
     clearDeviceNarrationTimer();
-    const utterance = new global.SpeechSynthesisUtterance(deviceSegmentRemainder(
-      segment,
-      position.localTime,
-      deviceDurations[position.index]
-    ));
+    const utterance = new global.SpeechSynthesisUtterance(segmentSlice.text);
     utterance.lang = 'es-CO';
     utterance.rate = narrationState.speed;
     const voice = spanishDeviceVoice();
     if (voice) utterance.voice = voice;
+    utterance.onboundary = (event) => {
+      if (token !== narrationLoadToken || !Number.isFinite(Number(event?.charIndex))) return;
+      const absoluteCharIndex = Math.min(segment.length, segmentSlice.charOffset + Number(event.charIndex));
+      const currentDuration = Number(narrationState.deviceDurations[position.index]) || segmentDuration;
+      narrationState.deviceCharIndex = absoluteCharIndex;
+      narrationState.deviceElapsed = currentDuration * (absoluteCharIndex / Math.max(1, segment.length));
+      narrationState.deviceStartedAt = Date.now();
+      updateNarrationTimeline();
+    };
     utterance.onend = () => {
       if (token !== narrationLoadToken) return;
+      const completedDuration = Math.max(0.5, deviceNarrationLocalTime());
+      narrationState.deviceDurations[position.index] = completedDuration;
+      narrationState.deviceElapsed = completedDuration;
+      narrationState.deviceStartedAt = 0;
+      narrationState.deviceCharIndex = segment.length;
       clearDeviceNarrationTimer();
       if (position.index + 1 < deviceSegments.length) {
-        const nextTime = deviceDurations.slice(0, position.index + 1).reduce((sum, duration) => sum + duration, 0);
+        const nextTime = narrationState.deviceDurations.slice(0, position.index + 1).reduce((sum, duration) => sum + duration, 0);
         playWithDeviceVoice({ globalTime: nextTime, autoplay: true });
         return;
       }
@@ -3776,7 +3884,7 @@
         ...narrationState,
         status: 'idle',
         deviceIndex: deviceSegments.length - 1,
-        deviceElapsed: deviceDurations.at(-1) || 0,
+        deviceElapsed: completedDuration,
         deviceStartedAt: 0,
         utterance: null
       };
@@ -3795,7 +3903,9 @@
       utterance: autoplay ? utterance : null,
       deviceIndex: position.index,
       deviceElapsed: position.localTime,
-      deviceStartedAt: autoplay ? Date.now() : 0
+      deviceStartedAt: autoplay ? Date.now() : 0,
+      deviceCharIndex: segmentSlice.charOffset,
+      deviceUtteranceOffset: segmentSlice.charOffset
     };
     if (autoplay) {
       global.speechSynthesis.speak(utterance);
@@ -3830,6 +3940,7 @@
     const text = narrationTextFor(contentId);
     if (!text) return;
     const chunks = splitNarrationText(text);
+    const deviceSegments = splitNarrationText(text, DEVICE_NARRATION_CHUNK_LIMIT);
     stopNarration();
     narrationState = {
       ...narrationState,
@@ -3838,11 +3949,13 @@
       chunks,
       chunkDurations: chunks.map(estimatedNarrationDuration),
       chunkIndex: 0,
-      deviceSegments: splitNarrationText(text, 320),
-      deviceDurations: splitNarrationText(text, 320).map(estimatedNarrationDuration),
+      deviceSegments,
+      deviceDurations: deviceSegments.map(estimatedNarrationDuration),
       deviceIndex: 0,
       deviceElapsed: 0,
       deviceStartedAt: 0,
+      deviceCharIndex: 0,
+      deviceUtteranceOffset: 0,
       status: 'loading',
       source: '',
       utterance: null
@@ -4664,6 +4777,7 @@
         console.warn('No fue posible mostrar la confirmación de cierre de sesión.', error);
       }
       if (!Storage.available()) notify('El navegador no permite guardar progreso local. La academia seguirá funcionando sin persistencia.', 'warning', 10_000);
+      refreshCommunityActivity({ silent: true });
       syncBackToTop();
     } catch (error) {
       showFatalError(error);

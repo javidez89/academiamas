@@ -1,5 +1,5 @@
-export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], audioFailure = false }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedAudioFailure }) => {
+export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], audioFailure = false, publicActivitySummary = {} }) {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedAudioFailure, mockedPublicActivitySummary }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -17,6 +17,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       certificateOrders: structuredClone(mockedCertificateOrders || []),
       adminCertificates: structuredClone(mockedAdminCertificates || []),
       audioFailure: Boolean(mockedAudioFailure),
+      publicActivitySummary: structuredClone(mockedPublicActivitySummary || {}),
       rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
@@ -173,6 +174,9 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             state.calls[name] = structuredClone(args || {});
             if (name === 'touch_user_presence') {
               return { data: new Date().toISOString(), error: null };
+            }
+            if (name === 'public_learning_activity_summary') {
+              return { data: structuredClone(state.publicActivitySummary), error: null };
             }
             if (name === 'is_platform_admin') {
               return { data: state.admin, error: null };
@@ -352,7 +356,12 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedCertificates: options.certificates || [],
     mockedCertificateOrders: options.certificateOrders || [],
     mockedAdminCertificates: options.adminCertificates || [],
-    mockedAudioFailure: Boolean(options.audioFailure)
+    mockedAudioFailure: Boolean(options.audioFailure),
+    mockedPublicActivitySummary: options.publicActivitySummary || {
+      registered_students: 18,
+      online_students: 3,
+      measured_at: '2026-08-25T13:00:00.000Z'
+    }
   });
 }
 

@@ -597,6 +597,15 @@ function homeContent(catalog) {
               </div>
             </div>
           </section>
+          <section class="communityActivity" aria-labelledby="communityActivityTitle" aria-live="polite">
+            <div class="communityActivityCopy">
+              <span class="sectionKicker">Comunidad AcademiaQA</span>
+              <h2 id="communityActivityTitle">Aprendemos en comunidad.</h2>
+              <p>Actualizando actividad... No se muestran identidades ni datos personales.</p>
+            </div>
+            <div class="communityMetric"><strong data-community-registered>—</strong><span>Personas registradas</span></div>
+            <div class="communityMetric communityMetricOnline"><strong data-community-online>—</strong><span>En línea ahora</span></div>
+          </section>
           <section class="homeSection" aria-labelledby="homeFallbackCoursesTitle">
             <span class="sectionKicker">Cursos disponibles</span>
             <h2 id="homeFallbackCoursesTitle">Aprende QA, testing, IA, Scrum y gestión de proyectos.</h2>

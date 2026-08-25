@@ -4,7 +4,7 @@ import { MOCK_SESSION, useMockedSupabase } from './helpers/mock-supabase.mjs';
 import { completeCourseStudy } from './helpers/learning-progress.mjs';
 
 const baseUrl = process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/';
-const version = process.env.ACADEMIAQA_VERSION || '2026-08-25-audio-banks';
+const version = process.env.ACADEMIAQA_VERSION || '2026-08-25-audio-presence';
 const url = `${baseUrl.replace(/\/$/, '')}/?v=${encodeURIComponent(version)}&smoke=${Date.now()}#inicio`;
 
 const browser = await chromium.launch({ headless: true });

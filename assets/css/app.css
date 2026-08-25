@@ -879,6 +879,54 @@ main{
 .publicHome{
   gap:26px;
 }
+.communityActivity{
+  display:grid;
+  grid-template-columns:minmax(0,1.6fr) repeat(2,minmax(150px,.55fr));
+  gap:24px;
+  align-items:center;
+  padding:22px 26px;
+  border-block:1px solid #b9dfd1;
+  background:#eef9f5;
+}
+.communityActivityCopy h2{
+  margin:5px 0 4px;
+  color:#10233f;
+  font-size:1.45rem;
+}
+.communityActivityCopy p{
+  margin:0;
+  color:#536a7f;
+  font-size:.9rem;
+}
+.communityMetric{
+  min-width:0;
+  padding-left:20px;
+  border-left:1px solid #b9dfd1;
+}
+.communityMetric strong{
+  display:block;
+  color:#10233f;
+  font-size:2rem;
+  line-height:1;
+}
+.communityMetric span{
+  display:block;
+  margin-top:7px;
+  color:#486273;
+  font-size:.83rem;
+  font-weight:800;
+}
+.communityMetricOnline strong::before{
+  content:"";
+  display:inline-block;
+  width:10px;
+  height:10px;
+  margin-right:8px;
+  border-radius:50%;
+  background:#16a36a;
+  box-shadow:0 0 0 4px rgba(22,163,106,.14);
+  vertical-align:.18em;
+}
 .landingHero{
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(280px,360px);
@@ -1506,6 +1554,20 @@ body.modalOpen{
   .landingHero{
     padding:26px 18px;
     border-radius:14px;
+  }
+  .communityActivity{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:18px 10px;
+    padding:20px 16px;
+  }
+  .communityActivityCopy{
+    grid-column:1/-1;
+  }
+  .communityMetric{
+    padding-left:12px;
+  }
+  .communityMetric strong{
+    font-size:1.65rem;
   }
   .landingCopy h1,
   .landingCopy h2{
