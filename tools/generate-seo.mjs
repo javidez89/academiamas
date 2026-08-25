@@ -601,7 +601,6 @@ function homeContent(catalog) {
             <div class="communityActivityCopy">
               <span class="sectionKicker">Comunidad AcademiaQA</span>
               <h2 id="communityActivityTitle">Aprendemos en comunidad.</h2>
-              <p>Actualizando sesiones autenticadas... No se muestran identidades ni datos personales.</p>
             </div>
             <div class="communityMetric"><strong data-community-registered>—</strong><span>Personas registradas</span></div>
             <div class="communityMetric"><strong data-community-courses>—</strong><span>Cursos activos</span></div>

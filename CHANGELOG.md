@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.17.3] - 2026-08-25
+
+### Changed
+- El bloque de comunidad del inicio muestra únicamente sus tres métricas, sin texto explicativo adicional.
+
 ## [v0.17.2] - 2026-08-25
 
 ### Changed
