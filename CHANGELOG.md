@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.17.2] - 2026-08-25
+
+### Changed
+- El inicio conserva las métricas de personas registradas, cursos activos y usuarios en línea.
+- Se retira la métrica visible de estudiantes realizando cuestionarios.
+
 ## [v0.17.1] - 2026-08-25
 
 ### Fixed
