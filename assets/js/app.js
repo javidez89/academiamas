@@ -8,7 +8,7 @@
   const Auth = global.AcademyAuth;
   const Cloud = global.AcademyCloud;
   const Config = global.ACADEMY_CONFIG || {};
-  const ASSET_VERSION = String(Config.assetVersion || '2026-08-25-verified-activity');
+  const ASSET_VERSION = String(Config.assetVersion || '2026-08-25-connected-users');
   const APP_VERSION = String(Config.version || '0.0.0');
   const CANONICAL_ORIGIN = 'https://academiaqaoficial.com';
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
@@ -229,6 +229,7 @@
   let communityActivity = {
     registeredStudents: 0,
     activeCourses: 0,
+    onlineStudents: 0,
     activeStudents: 0,
     measuredAt: '',
     loading: true,
@@ -2140,6 +2141,9 @@
     const activeCourses = communityActivity.loading || communityActivity.error
       ? '—'
       : communityActivity.activeCourses.toLocaleString('es-CO');
+    const onlineStudents = communityActivity.loading || communityActivity.error
+      ? '—'
+      : communityActivity.onlineStudents.toLocaleString('es-CO');
     const activeStudents = communityActivity.loading || communityActivity.error
       ? '—'
       : communityActivity.activeStudents.toLocaleString('es-CO');
@@ -2150,7 +2154,7 @@
       <div class="communityActivityCopy">
         <span class="sectionKicker">Comunidad AcademiaQA</span>
         <h2 id="communityActivityTitle">Aprendemos en comunidad.</h2>
-        <p>${h(status)} La actividad en vivo solo cuenta prácticas, simulacros y exámenes finales iniciados por usuarios autenticados. No se muestran identidades ni datos personales.</p>
+        <p>${h(status)} “En línea ahora” usa sesiones autenticadas recientes; “Estudiando ahora” cuenta prácticas, simulacros y exámenes finales iniciados. No se muestran identidades ni datos personales.</p>
       </div>
       <div class="communityMetric">
         <strong data-community-registered>${h(registered)}</strong>
@@ -2159,6 +2163,10 @@
       <div class="communityMetric">
         <strong data-community-courses>${h(activeCourses)}</strong>
         <span>Cursos activos</span>
+      </div>
+      <div class="communityMetric communityMetricOnline">
+        <strong data-community-online>${h(onlineStudents)}</strong>
+        <span>En línea ahora</span>
       </div>
       <div class="communityMetric communityMetricOnline">
         <strong data-community-active>${h(activeStudents)}</strong>

@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'academiaqa-static-';
-const CACHE_NAME = `${CACHE_PREFIX}0.17.0`;
+const CACHE_NAME = `${CACHE_PREFIX}0.17.1`;
 const CORE_ASSETS = [
   '/',
   '/offline.html',

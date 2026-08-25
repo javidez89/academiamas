@@ -386,7 +386,8 @@
     return {
       registeredStudents: Math.max(0, Math.trunc(Number(value.registered_students) || 0)),
       activeCourses: Math.max(0, Math.trunc(Number(value.active_courses) || 0)),
-      activeStudents: Math.max(0, Math.trunc(Number(value.active_students ?? value.online_students) || 0)),
+      onlineStudents: Math.max(0, Math.trunc(Number(value.online_students) || 0)),
+      activeStudents: Math.max(0, Math.trunc(Number(value.active_students) || 0)),
       measuredAt: String(value.measured_at || '')
     };
   }

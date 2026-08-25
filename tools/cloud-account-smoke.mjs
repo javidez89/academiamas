@@ -221,6 +221,7 @@ try {
   await page.locator('[data-community-registered]').waitFor();
   assert.equal(await page.locator('[data-community-registered]').textContent(), '18', 'El inicio debe mostrar el total agregado de personas registradas.');
   assert.equal(await page.locator('[data-community-courses]').textContent(), '7', 'El inicio debe mostrar los cursos activos obtenidos de la nube.');
+  assert.equal(await page.locator('[data-community-online]').textContent(), '4', 'El inicio debe mostrar usuarios autenticados conectados recientemente.');
   assert.equal(await page.locator('[data-community-active]').textContent(), '3', 'El inicio debe mostrar estudiantes con actividad académica verificada.');
   assert.match(await page.locator('.communityActivity').innerText(), /prácticas, simulacros y exámenes finales/i, 'El indicador debe explicar qué actividad cuenta como estudio en vivo.');
 

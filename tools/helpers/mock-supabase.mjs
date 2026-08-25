@@ -394,6 +394,7 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedPublicActivitySummary: options.publicActivitySummary || {
       registered_students: 18,
       active_courses: 7,
+      online_students: 4,
       active_students: 3,
       measured_at: '2026-08-25T13:00:00.000Z'
     }

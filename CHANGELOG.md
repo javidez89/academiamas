@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.17.1] - 2026-08-25
+
+### Fixed
+- El inicio vuelve a mostrar usuarios autenticados en línea a partir del heartbeat real de sesión.
+- La actividad en cuestionarios se conserva como una métrica separada de quienes solo están conectados.
+
 ## [v0.17.0] - 2026-08-25
 
 ### Added
