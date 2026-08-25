@@ -94,6 +94,29 @@ details.contentDetails summary{cursor:pointer;font-weight:850;color:#143d70}
 
 .footer{text-align:center;color:#667085;margin:24px 0}
 .footer.homeFooter{text-align:left;font-size:.85rem;font-weight:800;color:#475467;padding-left:2px}
+.backToTop{
+  position:fixed;
+  right:calc(16px + env(safe-area-inset-right));
+  bottom:calc(16px + env(safe-area-inset-bottom));
+  z-index:60;
+  display:grid;
+  place-items:center;
+  width:48px;
+  height:48px;
+  border:1px solid #0f5faa;
+  border-radius:50%;
+  background:#0f5faa;
+  color:#fff;
+  box-shadow:0 10px 24px rgba(15,49,88,.26);
+  font:900 25px/1 system-ui,sans-serif;
+  cursor:pointer;
+}
+.backToTop:hover{background:#0b4b88}
+.backToTop:focus-visible{outline:3px solid #ffb020;outline-offset:3px}
+.backToTop[hidden]{display:none!important}
+@media(max-width:640px){
+  .backToTop{width:44px;height:44px;right:calc(12px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom))}
+}
 .pwaInstallButton{
   display:inline-flex;
   min-height:40px;
@@ -1973,6 +1996,7 @@ body.modalOpen{
 .chapterProgressGrid{
   margin:14px 0;
 }
+.chapterProgressGrid .metric small{margin-left:4px}
 .studyMasterySummary{
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(180px,.75fr);
@@ -2349,6 +2373,553 @@ body.modalOpen{
 @media(max-width:1100px){.adminSummaryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.adminManagerHeader{display:none}.adminManagerMain{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.adminManagerIdentity{grid-column:1/-1}.adminManagerCell:before{content:attr(data-label);font-size:.7rem;text-transform:uppercase;font-weight:800;color:#6b7d95}}
 @media(max-width:760px){.adminDirectoryHead{align-items:stretch;flex-direction:column}.adminSearchForm{min-width:0}.adminSearchForm>div{grid-template-columns:minmax(0,1fr) auto}.adminRefresh{grid-column:1/-1}.adminEnrollmentMetrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:620px){.adminHeader{padding:18px}.adminSummaryGrid{grid-template-columns:1fr 1fr}.adminSummaryGrid .metric{min-width:0;padding:14px}.adminManagerMain{grid-template-columns:1fr}.adminManagerIdentity{grid-column:1}.adminFilters{margin-right:-14px}.adminEnrollmentRow{padding:16px}.adminEnrollmentMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.adminEnrollmentTitle{grid-template-columns:1fr}.adminEnrollmentTitle small{grid-column:1}.adminChapterDetails li{display:grid}.adminChapterDetails li span:last-child{text-align:left}}
+
+.certificateModalCopy,
+.certificateModalLoading{
+  padding:32px;
+}
+
+.narrationControls{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:12px 0;
+  padding:9px;
+  border:1px solid #c9d8ec;
+  border-radius:8px;
+  background:#f5f9ff;
+  color:#17365f;
+}
+.narrationPrimary,.narrationIconButton,.narrationSpeed button{
+  min-height:36px;
+  border:1px solid #aebfd7;
+  border-radius:7px;
+  background:#fff;
+  color:#14345f;
+  font:inherit;
+  font-weight:800;
+  cursor:pointer;
+}
+.narrationPrimary{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:7px 12px;
+  border-color:#1769aa;
+  background:#1769aa;
+  color:#fff;
+}
+.narrationIconButton{
+  width:38px;
+  padding:0;
+  font-size:20px;
+}
+.narrationSpeed{
+  display:inline-flex;
+  overflow:hidden;
+  border:1px solid #aebfd7;
+  border-radius:7px;
+  background:#fff;
+}
+.narrationSpeed button{
+  min-width:48px;
+  padding:6px 8px;
+  border:0;
+  border-right:1px solid #d2ddec;
+  border-radius:0;
+}
+.narrationSpeed button:last-child{border-right:0}
+.narrationSpeed button[aria-pressed="true"]{
+  background:#ffb020;
+  color:#10243f;
+}
+.narrationControls button:disabled{cursor:wait;opacity:.6}
+.narrationStatus{
+  margin-left:auto;
+  color:#52677f;
+  font-size:12px;
+  font-weight:700;
+}
+.narrationTimeline{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:3px;
+  flex:1 1 100%;
+  min-width:0;
+  padding:2px 3px 0;
+}
+.narrationTimeline input[type="range"]{
+  width:100%;
+  min-height:24px;
+  margin:0;
+  accent-color:#1769aa;
+  cursor:pointer;
+}
+.narrationTimeline input[type="range"]:disabled{
+  cursor:not-allowed;
+  opacity:.55;
+}
+.narrationTimes{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  color:#52677f;
+  font-size:11px;
+  font-variant-numeric:tabular-nums;
+  font-weight:800;
+}
+.chapterHeadingRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.chapterHeadingRow h2{margin:0}
+.readingSizeControls{
+  display:inline-grid;
+  grid-template-columns:40px minmax(56px,auto) 40px;
+  align-items:center;
+  flex:0 0 auto;
+  overflow:hidden;
+  border:1px solid #aebfd7;
+  border-radius:8px;
+  background:#fff;
+  color:#17365f;
+}
+.readingSizeControls button{
+  width:40px;
+  min-height:38px;
+  border:0;
+  background:#edf5ff;
+  color:#143d70;
+  font-weight:900;
+  cursor:pointer;
+}
+.readingSizeControls button:hover{background:#dcecff}
+.readingSizeControls button:disabled{cursor:not-allowed;opacity:.45}
+.readingSizeControls output{
+  padding:0 8px;
+  text-align:center;
+  font-size:.78rem;
+  font-weight:850;
+}
+.chapterReading .chapterLead,
+.chapterLearningContent{
+  font-size:calc(1rem * var(--reading-scale,1));
+}
+.chapterLearningContent h3{font-size:1.05em}
+.chapterLearningContent .small{font-size:.86em}
+.chapterLearningContent .table{font-size:.92em}
+.chapterLearningContent .pill{font-size:.8em}
+.referenceReading{
+  width:100%;
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
+  text-align:justify;
+  hyphens:auto;
+}
+.courseCaseStudy{
+  margin:18px 0;
+  padding:18px;
+  border-left:5px solid #f0a000;
+  background:#fff8e8;
+  color:#243b55;
+}
+.courseCaseStudy h3{margin:5px 0 10px;color:#10243f}
+.courseCaseStudy p{margin:7px 0}
+.courseCaseStudy small{display:block;margin-top:12px;color:#65758a}
+.sourceStatement{
+  display:grid;
+  gap:4px;
+  margin:12px 0;
+  padding:11px 13px;
+  border-left:4px solid #2670d8;
+  background:#eef6ff;
+  color:#17365f;
+}
+.sourceMeta{
+  margin:10px 0;
+  color:#52677f;
+  font-size:12px;
+  line-height:1.5;
+}
+.sourceReference{
+  margin:10px 2px 0;
+  padding-top:8px;
+  border-top:1px solid #dce6f2;
+}
+
+@media (max-width:640px){
+  .chapterHeadingRow{align-items:flex-start}
+  .narrationControls{align-items:stretch}
+  .narrationPrimary{flex:1;justify-content:center}
+  .narrationStatus{width:100%;margin-left:0;text-align:center}
+  .narrationTimeline{padding-inline:0}
+}
+@media (max-width:420px){
+  .chapterHeadingRow{display:grid}
+  .readingSizeControls{justify-self:start}
+  .narrationPrimary{white-space:nowrap}
+  .narrationSpeed{order:2;width:100%}
+  .narrationSpeed button{flex:1;min-width:0}
+  .narrationStatus{order:3}
+  .narrationTimeline{order:4}
+}
+.certificateModalCopy h2,
+.certificateModalLoading h2{
+  max-width:560px;
+  margin:8px 46px 10px 0;
+  color:#10233f;
+}
+.certificateModalCopy>p,
+.certificateModalLoading>p{
+  color:#52647b;
+}
+.certificateCourseLead{
+  margin:0 0 18px;
+  font-weight:850;
+}
+.certificatePrice{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  align-items:baseline;
+  gap:4px 16px;
+  margin:18px 0;
+  padding:18px;
+  border:1px solid #b9d5f3;
+  border-left:5px solid #1264c4;
+  border-radius:8px;
+  background:#f4f9ff;
+}
+.certificatePrice strong{
+  color:#102c50;
+  font-size:1.75rem;
+}
+.certificatePrice span{
+  color:#087443;
+  font-size:1.15rem;
+  font-weight:900;
+}
+.certificatePrice small{
+  grid-column:1/-1;
+  color:#52647b;
+}
+.certificateBenefits{
+  display:grid;
+  gap:8px;
+  margin:0 0 18px;
+  padding-left:20px;
+  color:#263a56;
+}
+.certificateIdentityForm{
+  display:grid;
+  gap:10px;
+}
+.certificateIdentityForm label{
+  color:#334b68;
+  font-size:.82rem;
+  font-weight:850;
+}
+.certificateIdentityForm input,
+.certificateIdentityForm select,
+.certificateValidationForm input{
+  min-width:0;
+  width:100%;
+  border:1px solid #b9cbe1;
+  border-radius:7px;
+  background:#fff;
+  color:#10233f;
+  padding:12px 13px;
+  font:inherit;
+}
+.certificateIdentityForm input:focus,
+.certificateIdentityForm select:focus,
+.certificateValidationForm input:focus{
+  outline:3px solid rgba(30,110,210,.18);
+  border-color:#1f66d1;
+}
+.certificateIdentityGrid{
+  display:grid;
+  grid-template-columns:minmax(190px,.7fr) minmax(0,1.3fr);
+  gap:12px;
+}
+.certificateIdentityGrid>div{
+  display:grid;
+  gap:8px;
+  min-width:0;
+}
+.certificateConsent{
+  display:grid;
+  grid-template-columns:20px minmax(0,1fr);
+  gap:10px;
+  align-items:start;
+  margin:8px 0;
+  font-weight:650!important;
+  line-height:1.45;
+}
+.certificateConsent input{
+  width:18px;
+  height:18px;
+  margin:2px 0 0;
+}
+.certificateCode{
+  display:grid;
+  gap:3px;
+  margin:18px 0;
+  padding:14px;
+  border:1px solid #b9d5f3;
+  border-radius:7px;
+  background:#f4f9ff;
+}
+.certificateCode span{
+  color:#52647b;
+  font-size:.78rem;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.certificateCode strong{
+  color:#102c50;
+  font-size:1.15rem;
+  overflow-wrap:anywhere;
+}
+.certificateSuccessIcon,
+.certificateValidationMark{
+  display:grid;
+  place-items:center;
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  background:#daf6e7;
+  color:#087443;
+  font-size:1.75rem;
+  font-weight:950;
+}
+.linkedinButton{
+  background:#0a66c2;
+  color:#fff;
+}
+.linkedinButton:hover{
+  background:#084f96;
+}
+.certificateValidationPage{
+  display:grid;
+  gap:18px;
+  padding:30px 0;
+}
+.certificateValidationHero{
+  padding:clamp(22px,4vw,42px);
+  border:1px solid #c9d9ec;
+  border-left:6px solid #1264c4;
+  background:#fff;
+}
+.certificateValidationHero h1{
+  margin:8px 0 10px;
+  color:#10233f;
+}
+.certificateValidationHero>p{
+  max-width:700px;
+  color:#52647b;
+}
+.certificateValidationForm{
+  display:grid;
+  gap:8px;
+  max-width:680px;
+  margin-top:20px;
+}
+.certificateValidationForm label{
+  color:#334b68;
+  font-size:.82rem;
+  font-weight:850;
+}
+.certificateValidationForm>div{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:9px;
+}
+.certificateValidationStatus,
+.certificateValidationResult{
+  padding:22px;
+  border:1px solid #c9d9ec;
+  background:#fff;
+}
+.certificateValidationResult.valid{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  gap:10px 18px;
+  border-left:6px solid #14935b;
+}
+.certificateValidationResult.invalid{
+  border-left:6px solid #c2413b;
+}
+.certificateValidationResult h2{
+  margin:6px 0;
+  color:#10233f;
+}
+.certificateValidationDetails{
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  margin:12px 0;
+}
+.certificateValidationDetails div{
+  min-width:0;
+  padding:10px;
+  border-left:3px solid #8ab6e5;
+  background:#f5f9fe;
+}
+.certificateValidationDetails dt{
+  color:#52647b;
+  font-size:.75rem;
+  font-weight:850;
+}
+.certificateValidationDetails dd{
+  margin:4px 0 0;
+  color:#10233f;
+  font-weight:850;
+  overflow-wrap:anywhere;
+}
+.certificateValidationResult .btnrow{
+  grid-column:1/-1;
+}
+.accountCertificates{
+  display:grid;
+  gap:12px;
+  padding:12px 0 20px;
+}
+.accountCertificateCard{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:16px;
+  align-items:center;
+  padding:18px;
+  border:1px solid #c9d9ec;
+  border-left:5px solid #14935b;
+  border-radius:8px;
+  background:#fff;
+}
+.accountCertificateSeal{
+  display:grid;
+  place-items:center;
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  background:#daf6e7;
+  color:#087443;
+  font-size:1.35rem;
+  font-weight:950;
+}
+.accountCertificateMain{
+  min-width:0;
+}
+.accountCertificateMain h3{
+  margin:7px 0 3px;
+  color:#10233f;
+}
+.accountCertificateMain p{
+  margin:0;
+  color:#52647b;
+}
+.accountCertificateMeta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px 14px;
+  margin-top:8px;
+  color:#52647b;
+  font-size:.82rem;
+}
+.accountCertificateMeta strong{
+  color:#174f94;
+  overflow-wrap:anywhere;
+}
+.accountCertificateActions{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:8px;
+  max-width:350px;
+}
+.adminCertificates{
+  display:grid;
+  gap:14px;
+}
+.adminCertificateTable{
+  overflow:hidden;
+  border:1px solid #cbd9eb;
+  border-radius:8px;
+  background:#fff;
+}
+.adminCertificateHeader,
+.adminCertificateRow{
+  display:grid;
+  grid-template-columns:minmax(145px,1fr) minmax(190px,1.35fr) minmax(190px,1.4fr) minmax(145px,1fr) minmax(165px,.9fr);
+  gap:12px;
+  align-items:center;
+}
+.adminCertificateHeader{
+  padding:11px 14px;
+  background:#102c50;
+  color:#fff;
+  font-size:.76rem;
+  font-weight:850;
+}
+.adminCertificateRow{
+  padding:14px;
+  border-top:1px solid #d8e2ef;
+}
+.adminCertificateRow:first-of-type{
+  border-top:0;
+}
+.adminCertificateRow>div{
+  display:grid;
+  gap:3px;
+  min-width:0;
+}
+.adminCertificateRow strong,
+.adminCertificateRow a,
+.adminCertificateRow small{
+  overflow-wrap:anywhere;
+}
+.adminCertificateRow strong{
+  color:#10233f;
+}
+.adminCertificateRow a,
+.adminCertificateRow small{
+  color:#52647b;
+}
+.adminCertificateActions{
+  grid-template-columns:1fr 1fr;
+  gap:7px!important;
+}
+.adminCertificateActions .btn{
+  min-width:0;
+  padding:9px;
+}
+
+@media(max-width:900px){
+  .accountCertificateCard{grid-template-columns:auto minmax(0,1fr)}
+  .accountCertificateActions{grid-column:1/-1;justify-content:flex-start;max-width:none}
+  .adminCertificateHeader{display:none}
+  .adminCertificateRow{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:700px){
+  .certificateModalCopy,.certificateModalLoading{padding:22px 18px}
+  .certificateIdentityGrid,.certificateValidationDetails{grid-template-columns:1fr}
+  .certificateValidationForm>div{grid-template-columns:1fr}
+  .certificatePrice{grid-template-columns:1fr}
+  .certificatePrice small{grid-column:1}
+  .certificateValidationResult.valid{grid-template-columns:1fr}
+  .certificateValidationResult .btnrow,.certificateValidationDetails{grid-column:1}
+  .accountCertificateCard{grid-template-columns:1fr}
+  .accountCertificateSeal{width:38px;height:38px}
+  .accountCertificateActions{grid-column:1;display:grid;grid-template-columns:1fr 1fr}
+  .accountCertificateActions .btn{min-width:0;padding:10px 8px}
+  .adminCertificateRow{grid-template-columns:1fr;padding:16px}
+  .adminCertificateActions{grid-template-columns:1fr 1fr}
+}
 @media(prefers-reduced-motion:reduce){
   .authCallbackSpinner{animation:none}
 }

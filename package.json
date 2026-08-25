@@ -1,6 +1,6 @@
 {
   "name": "academiaqa",
-  "version": "0.14.0",
+  "version": "0.16.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,9 @@
     "check": "npm run check:syntax && npm run check:version",
     "generate:seo": "node tools/generate-seo.mjs",
     "generate:brand": "node tools/generate-brand-assets.mjs",
-    "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs",
+    "generate:audio-manifest": "node tools/generate-audio-manifest.mjs",
+    "translate:syllabus": "node tools/translate-syllabus-content.mjs",
+    "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs && node tools/audio-manifest-unit.mjs",
     "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs",
     "test:integration": "node tools/catalog-smoke.mjs",
     "test:seo": "node tools/seo-smoke.mjs",
@@ -17,7 +19,9 @@
     "test:auth": "node tools/auth-smoke.mjs",
     "test:cloud": "node tools/cloud-account-smoke.mjs",
     "test:admin": "node tools/admin-smoke.mjs",
-    "test:e2e": "node tools/smoke.mjs"
+    "test:certificates": "node tools/certificate-smoke.mjs",
+    "test:e2e": "node tools/smoke.mjs",
+    "test:visual": "node tools/chapter-visual-smoke.mjs"
   },
   "devDependencies": {
     "playwright": "1.57.0"

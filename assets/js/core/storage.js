@@ -3,7 +3,7 @@
 (function initAcademyStorage(global) {
   const ACTIVE_KEY = 'academy_active_course';
   const LEGACY_ACTIVE_KEY = 'istqb_active_cert';
-  const SCHEMA_VERSION = 4;
+  const SCHEMA_VERSION = 5;
 
   function available() {
     try {
@@ -77,6 +77,22 @@
       })).filter((entry) => entry.id)
       : [];
 
+    const questionResultsInput = input.questionResults && typeof input.questionResults === 'object' && !Array.isArray(input.questionResults)
+      ? input.questionResults
+      : {};
+    const questionResults = {};
+    Object.entries(questionResultsInput).slice(-5_000).forEach(([questionId, item]) => {
+      if (!item || typeof item !== 'object') return;
+      const id = String(questionId || '').slice(0, 128);
+      if (!id) return;
+      questionResults[id] = {
+        correct: item.correct === true,
+        lo: String(item.lo || '').slice(0, 128),
+        chapter: Math.max(0, Math.trunc(Number(item.chapter) || 0)),
+        answeredAt: String(item.answeredAt || new Date(0).toISOString()).slice(0, 64)
+      };
+    });
+
     const chapterActivityInput = input.chapterActivity && typeof input.chapterActivity === 'object' && !Array.isArray(input.chapterActivity)
       ? input.chapterActivity
       : {};
@@ -102,6 +118,7 @@
       byLo: safeByLo,
       marked,
       questionHistory,
+      questionResults,
       studySeconds,
       chapterActivity
     };

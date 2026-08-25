@@ -32,7 +32,7 @@ const localStorage = new MemoryStorage();
 const storage = await loadStorage(localStorage);
 
 assert.equal(storage.available(), true, 'localStorage debe estar disponible.');
-assert.equal(storage.SCHEMA_VERSION, 4, 'La versión del esquema de progreso cambió.');
+assert.equal(storage.SCHEMA_VERSION, 5, 'La versión del esquema de progreso cambió.');
 
 const attempts = Array.from({ length: 35 }, (_, index) => ({
   date: `2026-08-${String((index % 28) + 1).padStart(2, '0')}T00:00:00Z`,
@@ -56,6 +56,11 @@ assert.equal(storage.saveProgress('course-a', {
     { id: 'Q-1', mode: 'practice-study', seenAt: '2026-08-06T10:00:00Z' },
     { id: 'Q-2', mode: 'simulator', seenAt: '2026-08-06T11:00:00Z' }
   ],
+  questionResults: {
+    'Q-1': { correct: true, lo: 'FL-1.1.1', chapter: 1, answeredAt: '2026-08-06T10:02:00Z' },
+    'Q-2': { correct: false, lo: 'FL-1.1.1', chapter: 1, answeredAt: '2026-08-06T11:02:00Z' },
+    unsafe: { correct: 1, lo: '', chapter: -4, answeredAt: '' }
+  },
   studySeconds: 3_900,
   chapterActivity: {
     1: { studySeconds: 1_800, visitedAt: '2026-08-11T10:00:00Z', lastStudiedAt: '2026-08-11T10:30:00Z' },
@@ -64,13 +69,16 @@ assert.equal(storage.saveProgress('course-a', {
 }).ok, true, 'No fue posible guardar el progreso.');
 
 const courseA = storage.getProgress('course-a');
-assert.equal(courseA._schema, 4);
+assert.equal(courseA._schema, 5);
 assert.equal(courseA.attempts.length, 30, 'El historial debe conservar solo 30 intentos.');
 assert.deepEqual([...courseA.marked], ['Q-1', 'Q-2'], 'Las preguntas marcadas deben ser únicas.');
 assert.equal(courseA.byLo['FL-1.1.1'].ok, 3);
 assert.equal(courseA.byLo.unsafe.ok, 0, 'Los contadores negativos deben normalizarse.');
 assert.equal(courseA.byLo.unsafe.bad, 4);
 assert.deepEqual([...courseA.questionHistory].map((entry) => entry.id), ['Q-1', 'Q-2'], 'El historial de selección debe conservarse.');
+assert.deepEqual(Object.keys(courseA.questionResults), ['Q-1', 'Q-2', 'unsafe'], 'Los resultados únicos deben conservarse por ID.');
+assert.equal(courseA.questionResults['Q-1'].correct, true, 'Debe conservar la respuesta más reciente de una pregunta.');
+assert.equal(courseA.questionResults.unsafe.chapter, 0, 'El capítulo del resultado debe normalizarse.');
 assert.equal(courseA.studySeconds, 3_900, 'Debe conservar el tiempo total de estudio.');
 assert.equal(courseA.chapterActivity['2'].studySeconds, 2_100, 'Debe conservar el tiempo por capítulo.');
 

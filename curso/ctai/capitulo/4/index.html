@@ -14,7 +14,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#0b315d">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
   <meta name="robots" content="index, follow">
   <meta name="description" content="Capítulo 4 de CT-AI 2.0: Cubre testeabilidad de sistemas IA bloqueados/adaptativos, enfoque estadístico, oráculos, pruebas de IA generativa y LLM, red...">
@@ -164,18 +164,18 @@
     }
   ]
 }</script>
-  <link rel="stylesheet" href="/assets/css/app.css?v=2026-08-16-admin-presence">
-  <script defer src="/assets/js/core/security.js?v=2026-08-16-admin-presence"></script>
-  <script defer src="/assets/js/core/registry.js?v=2026-08-16-admin-presence"></script>
-  <script defer src="/assets/js/core/storage.js?v=2026-08-16-admin-presence"></script>
-  <script defer src="/assets/js/core/question-selection.js?v=2026-08-16-admin-presence"></script>
-  <script defer src="/assets/js/config.js?v=2026-08-16-admin-presence"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=2026-08-24-audio-scroll-top">
+  <script defer src="/assets/js/core/security.js?v=2026-08-24-audio-scroll-top"></script>
+  <script defer src="/assets/js/core/registry.js?v=2026-08-24-audio-scroll-top"></script>
+  <script defer src="/assets/js/core/storage.js?v=2026-08-24-audio-scroll-top"></script>
+  <script defer src="/assets/js/core/question-selection.js?v=2026-08-24-audio-scroll-top"></script>
+  <script defer src="/assets/js/config.js?v=2026-08-24-audio-scroll-top"></script>
   <script defer src="/assets/vendor/supabase-2.112.3.js?v=2.112.3"></script>
-  <script defer src="/assets/js/auth.js?v=2026-08-16-admin-presence"></script>
-  <script defer src="/assets/js/cloud.js?v=2026-08-16-admin-presence"></script>
-  <script defer src="/assets/js/pwa.js?v=2026-08-16-admin-presence"></script>
-  <script defer src="/courses/catalog.js?v=2026-08-16-admin-presence"></script>
-  <script defer src="/assets/js/app-loader.js?v=2026-08-16-admin-presence"></script>
+  <script defer src="/assets/js/auth.js?v=2026-08-24-audio-scroll-top"></script>
+  <script defer src="/assets/js/cloud.js?v=2026-08-24-audio-scroll-top"></script>
+  <script defer src="/assets/js/pwa.js?v=2026-08-24-audio-scroll-top"></script>
+  <script defer src="/courses/catalog.js?v=2026-08-24-audio-scroll-top"></script>
+  <script defer src="/assets/js/app-loader.js?v=2026-08-24-audio-scroll-top"></script>
 </head>
 <body>
   <header id="inicio">
@@ -193,6 +193,7 @@
         <a href="/ruta-aprendizaje/" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
         <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
         <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
+        <a href="/validar-certificado/" data-view="verifyCertificate" data-view-anchor="validar-certificado">Validar certificado</a>
         <button class="coffeeLink" type="button">Invítame un café</button>
         <button class="pwaInstallButton" type="button" data-pwa-install hidden><span aria-hidden="true">&#8595;</span> Instalar app</button>
         <div class="authControl" id="authControl" data-auth-state="loading" aria-busy="true">
@@ -256,16 +257,11 @@
   <div class="certificateModal" id="certificateModal" role="dialog" aria-modal="true" aria-labelledby="certificateModalTitle" hidden>
     <div class="certificateDialog">
       <button class="modalClose" type="button" data-action="close-certificate-modal" aria-label="Cerrar">X</button>
-      <picture class="certificateComingSoonMedia">
-        <source type="image/avif" srcset="/assets/img/certificate-coming-soon-640.avif 640w, /assets/img/certificate-coming-soon-1200.avif 1200w" sizes="(max-width: 700px) 92vw, 620px">
-        <source type="image/webp" srcset="/assets/img/certificate-coming-soon-640.webp 640w, /assets/img/certificate-coming-soon-1200.webp 1200w" sizes="(max-width: 700px) 92vw, 620px">
-        <img src="/assets/img/certificate-coming-soon.jpg" width="1200" height="800" alt="Certificado profesional de AcademiaQA en preparación" loading="lazy" decoding="async">
-      </picture>
-      <div class="certificateComingSoonCopy">
-        <span class="sectionKicker">Próximamente</span>
-        <h2 id="certificateModalTitle">Tu certificado de curso está en camino</h2>
-        <p>Completaste <strong id="certificateCourseName">este curso</strong>. Estamos preparando la emisión y descarga segura de certificados desde AcademiaQA.</p>
-        <button class="btn" type="button" data-action="close-certificate-modal">Entendido</button>
+      <div class="certificateModalBody" id="certificateModalBody">
+        <div class="certificateModalLoading" role="status">
+          <span class="sectionKicker">Certificados AcademiaQA</span>
+          <h2 id="certificateModalTitle">Preparando información segura...</h2>
+        </div>
       </div>
     </div>
   </div>
@@ -316,5 +312,6 @@
     </div>
     <div class="footer" id="footerText"></div>
   </main>
+  <button class="backToTop" id="backToTop" type="button" data-action="back-to-top" aria-label="Volver al inicio" title="Volver al inicio" hidden><span aria-hidden="true">↑</span></button>
 </body>
 </html>

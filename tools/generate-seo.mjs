@@ -372,7 +372,7 @@ ${analyticsTags()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#0b315d">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
   <meta name="robots" content="${h(robots || 'index, follow')}">
   <meta name="description" content="${h(cleanDescription)}">
@@ -438,7 +438,7 @@ function shell({ page, content, catalog }, version) {
     questions: totals.questions,
     exam: `🎓 ${totals.courses}`
   };
-  const isPublicPage = ['/', '/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/', '/mi-cuenta/', '/admin/'].includes(page.path);
+  const isPublicPage = ['/', '/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/', '/validar-certificado/', '/mi-cuenta/', '/admin/'].includes(page.path);
   return `${head(page, version)}
 <body>
   <header id="inicio"${isPublicPage ? ' class="homeHeader"' : ''}>
@@ -456,6 +456,7 @@ function shell({ page, content, catalog }, version) {
         <a href="/ruta-aprendizaje/" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
         <a href="/contactanos/" data-view="contact" data-view-anchor="contactanos">Contáctanos</a>
         <a href="/legal/" data-view="legal" data-view-anchor="legal">Información legal</a>
+        <a href="/validar-certificado/" data-view="verifyCertificate" data-view-anchor="validar-certificado">Validar certificado</a>
         <button class="coffeeLink" type="button">Invítame un café</button>
         <button class="pwaInstallButton" type="button" data-pwa-install hidden><span aria-hidden="true">&#8595;</span> Instalar app</button>
         ${authControl()}
@@ -503,16 +504,11 @@ function shell({ page, content, catalog }, version) {
   <div class="certificateModal" id="certificateModal" role="dialog" aria-modal="true" aria-labelledby="certificateModalTitle" hidden>
     <div class="certificateDialog">
       <button class="modalClose" type="button" data-action="close-certificate-modal" aria-label="Cerrar">X</button>
-      <picture class="certificateComingSoonMedia">
-        <source type="image/avif" srcset="/assets/img/certificate-coming-soon-640.avif 640w, /assets/img/certificate-coming-soon-1200.avif 1200w" sizes="(max-width: 700px) 92vw, 620px">
-        <source type="image/webp" srcset="/assets/img/certificate-coming-soon-640.webp 640w, /assets/img/certificate-coming-soon-1200.webp 1200w" sizes="(max-width: 700px) 92vw, 620px">
-        <img src="/assets/img/certificate-coming-soon.jpg" width="1200" height="800" alt="Certificado profesional de AcademiaQA en preparación" loading="lazy" decoding="async">
-      </picture>
-      <div class="certificateComingSoonCopy">
-        <span class="sectionKicker">Próximamente</span>
-        <h2 id="certificateModalTitle">Tu certificado de curso está en camino</h2>
-        <p>Completaste <strong id="certificateCourseName">este curso</strong>. Estamos preparando la emisión y descarga segura de certificados desde AcademiaQA.</p>
-        <button class="btn" type="button" data-action="close-certificate-modal">Entendido</button>
+      <div class="certificateModalBody" id="certificateModalBody">
+        <div class="certificateModalLoading" role="status">
+          <span class="sectionKicker">Certificados AcademiaQA</span>
+          <h2 id="certificateModalTitle">Preparando información segura...</h2>
+        </div>
       </div>
     </div>
   </div>
@@ -542,6 +538,7 @@ ${content}
     </div>
     <div class="footer${page.path === '/' ? ' homeFooter' : ''}" id="footerText"${isPublicPage && page.path !== '/' ? ' hidden' : ''}>${page.path === '/' ? 'AcademiaQA' : ''}</div>
   </main>
+  <button class="backToTop" id="backToTop" type="button" data-action="back-to-top" aria-label="Volver al inicio" title="Volver al inicio" hidden><span aria-hidden="true">↑</span></button>
 </body>
 </html>
 `;
@@ -774,6 +771,26 @@ function pageDefinitions(catalog, courseDataByKey) {
       description: 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.',
       schema: [breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Información legal', path: '/legal/' }])],
       content: publicContent('legal', catalog)
+    },
+    {
+      key: 'verify-certificate',
+      path: '/validar-certificado/',
+      title: 'Validar certificado AcademiaQA | Consulta pública',
+      heroTitle: 'Validar certificado',
+      description: 'Consulta un certificado de finalización de AcademiaQA mediante su código único y verifica su estado, curso y fecha de emisión.',
+      schema: [breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Validar certificado', path: '/validar-certificado/' }])],
+      content: `        <div class="publicHome publicPage certificateValidationPage" id="validar-certificado">
+          <section class="certificateValidationHero" aria-labelledby="certificateValidationTitle">
+            <span class="sectionKicker">Validación pública</span>
+            <h1 id="certificateValidationTitle">Valida un certificado AcademiaQA</h1>
+            <p>Consulta el código único impreso en el PDF o abre la URL incluida en su código QR.</p>
+            <form class="certificateValidationForm" data-certificate-validation-form>
+              <label for="certificateCodeInput">Código del certificado</label>
+              <div><input id="certificateCodeInput" name="certificateCode" type="text" maxlength="17" placeholder="ACQA-XXXXXXXXXXXX" autocomplete="off" required><button class="btn" type="submit">Validar</button></div>
+            </form>
+          </section>
+          <div class="note certificateValidationDisclaimer"><b>Alcance:</b> AcademiaQA valida la finalización de sus cursos internos. Este registro no reemplaza ni representa una certificación oficial de ISTQB, CertiProf u otra entidad certificadora.</div>
+        </div>`
     }
   ];
 

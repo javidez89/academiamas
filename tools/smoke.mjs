@@ -4,7 +4,7 @@ import { MOCK_SESSION, useMockedSupabase } from './helpers/mock-supabase.mjs';
 import { completeCourseStudy } from './helpers/learning-progress.mjs';
 
 const baseUrl = process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/';
-const version = process.env.ACADEMIAQA_VERSION || '2026-08-16-admin-presence';
+const version = process.env.ACADEMIAQA_VERSION || '2026-08-24-audio-scroll-top';
 const url = `${baseUrl.replace(/\/$/, '')}/?v=${encodeURIComponent(version)}&smoke=${Date.now()}#inicio`;
 
 const browser = await chromium.launch({ headless: true });
@@ -22,6 +22,13 @@ try {
   await page.getByRole('heading', { name: /Prepárate para tu próxima certificación profesional/i }).waitFor();
   await page.locator('.newCoursesSlider picture').first().waitFor({ state: 'attached' });
   await page.locator('.newCoursesSlider picture source[type="image/avif"]').first().waitFor({ state: 'attached' });
+  const backToTop = page.getByRole('button', { name: /Volver al inicio/i });
+  assert.equal(await backToTop.isHidden(), true, 'Volver arriba debe permanecer oculto al inicio.');
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await backToTop.waitFor({ state: 'visible' });
+  await backToTop.click();
+  await page.waitForFunction(() => window.scrollY < 5);
+  assert.equal(await backToTop.isHidden(), true, 'Volver arriba debe ocultarse después de regresar al inicio.');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: /Abrir menú principal/i }).click();

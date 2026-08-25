@@ -5,9 +5,9 @@ import vm from 'node:vm';
 
 const ROOT = process.cwd();
 const REQUIREMENTS = Object.freeze({
-  ctfl: { minPerLO: 6, minFlashcardsPerLO: 1, syllabus: /4\.0\.1/ },
-  ctai: { minPerLO: 3, minFlashcardsPerLO: 2, syllabus: /v2\.0/i },
-  'ct-genai': { minPerLO: 4, minFlashcardsPerLO: 3, syllabus: /v1\.1/i }
+  ctfl: { minPerLO: 6, minFlashcardsPerLO: 1, syllabus: /4\.0\.1/, sourceLanguage: 'es' },
+  ctai: { minPerLO: 3, minFlashcardsPerLO: 2, syllabus: /v2\.0/i, sourceLanguage: 'es' },
+  'ct-genai': { minPerLO: 4, minFlashcardsPerLO: 3, syllabus: /v1\.1/i, sourceLanguage: 'es' }
 });
 
 function normalize(value) {
@@ -17,6 +17,24 @@ function normalize(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+function assertSpanishReading(value, label) {
+  const englishWords = ['the', 'and', 'of', 'to', 'is', 'are', 'for', 'with', 'that', 'from', 'this', 'these', 'when', 'which', 'using', 'used', 'should', 'summarize', 'recall', 'apply', 'practice', 'generate'];
+  const spanishWords = ['de', 'la', 'el', 'los', 'las', 'y', 'en', 'que', 'para', 'con', 'del', 'un', 'una', 'se', 'por', 'como', 'puede', 'son', 'al', 'su', 'resumir', 'recordar', 'aplicar', 'practicar', 'generar'];
+  const scores = (textValue) => {
+    const text = ` ${normalize(textValue)} `;
+    const count = (words) => words.reduce((total, word) => total + (text.match(new RegExp(`\\b${word}\\b`, 'g'))?.length || 0), 0);
+    return [count(englishWords), count(spanishWords)];
+  };
+  const [englishSignals, spanishSignals] = scores(value);
+  assert.ok(spanishSignals > englishSignals, `${label}: el contenido parece continuar principalmente en inglés (${englishSignals}/${spanishSignals}).`);
+  const suspectSegment = String(value).split(/\n+/).find((segment) => {
+    const [english, spanish] = scores(segment);
+    return english >= 3 && english > spanish * 1.5;
+  });
+  assert.ok(!suspectSegment, `${label}: conserva un segmento en inglés: "${String(suspectSegment || '').slice(0, 160)}".`);
+  assert.doesNotMatch(String(value), /[\uD800-\uDFFF\uFFFD]/, `${label}: contiene caracteres dañados.`);
 }
 
 async function loadCourse(key) {
@@ -41,6 +59,24 @@ for (const [key, requirement] of Object.entries(REQUIREMENTS)) {
   const chapterIds = new Set(course.chapters.map((chapter) => String(chapter.id)));
 
   assert.match(course.meta.versionLabel, requirement.syllabus, `${key}: versión de syllabus desactualizada.`);
+  for (const chapter of course.chapters) {
+    assert.ok(String(chapter.completeSyllabusText || '').length >= 500, `${key}: capítulo ${chapter.id} sin contenido fuente completo.`);
+    assert.ok(chapter.syllabusSource, `${key}: capítulo ${chapter.id} sin fuente de syllabus.`);
+    assert.equal(chapter.syllabusLanguage, requirement.sourceLanguage, `${key}: capítulo ${chapter.id} debe ofrecer su contenido de referencia en español.`);
+    assertSpanishReading(chapter.completeSyllabusText, `${key}: capítulo ${chapter.id}`);
+    assert.ok(chapter.caseStudy?.context && chapter.caseStudy?.challenge && chapter.caseStudy?.evidence, `${key}: capítulo ${chapter.id} sin caso práctico completo.`);
+    assert.doesNotMatch(chapter.completeSyllabusText, /\n\d+\.?\s+(?:Appendix|Apéndice)\b/i, `${key}: capítulo ${chapter.id} arrastra un apéndice.`);
+  }
+  for (const objective of course.objectives) {
+    assert.ok(String(objective.sourceText || '').startsWith(objective.lo), `${key}: ${objective.lo} no conserva el enunciado oficial.`);
+    assert.ok(String(objective.syllabusExtract || '').length >= 80, `${key}: ${objective.lo} no tiene extracto literal suficiente.`);
+    assert.ok(objective.syllabusSource, `${key}: ${objective.lo} no declara su fuente.`);
+    assert.equal(objective.syllabusLanguage, requirement.sourceLanguage, `${key}: ${objective.lo} debe ofrecer su contenido de referencia en español.`);
+    assertSpanishReading(objective.sourceText, `${key}: enunciado ${objective.lo}`);
+    assertSpanishReading(objective.syllabusExtract, `${key}: contenido de referencia ${objective.lo}`);
+    assert.doesNotMatch(objective.sourceText, /\b(?:Page|Página)\b|\d{2}\/\d{2}\/\d{4}/i, `${key}: ${objective.lo} contiene metadatos de página.`);
+    assert.doesNotMatch(objective.syllabusExtract, /\n\d+\.?\s+(?:Appendix|Apéndice)\b/i, `${key}: ${objective.lo} arrastra un apéndice.`);
+  }
   for (const question of course.questions) {
     assert.ok(!ids.has(question.id), `${key}: ID duplicado ${question.id}.`);
     ids.add(question.id);
@@ -98,6 +134,26 @@ for (const [key, requirement] of Object.entries(REQUIREMENTS)) {
   );
 
   console.log(`${key}: ${course.questions.length} preguntas, ${course.flashcards.length} flashcards, ${course.objectives.length} LO, minimo ${minimum} preguntas/LO y ${minimumFlashcards} flashcards/LO, respuestas ${answerPositions.join('/')}.`);
+}
+
+const courseDirectories = await fs.readdir(path.join(ROOT, 'courses'), { withFileTypes: true });
+for (const directory of courseDirectories.filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))) {
+  const file = path.join(ROOT, 'courses', directory.name, 'course-data.js');
+  try {
+    await fs.access(file);
+  } catch {
+    continue;
+  }
+  const course = await loadCourse(directory.name);
+  for (const chapter of course.chapters || []) {
+    assert.ok(chapter.caseStudy?.context, `${directory.name}: capítulo ${chapter.id} sin escenario aplicado.`);
+    assert.ok(chapter.caseStudy?.attribution, `${directory.name}: capítulo ${chapter.id} sin atribución didáctica.`);
+    assertSpanishReading(chapter.completeSyllabusText, `${directory.name}: material ampliado del capítulo ${chapter.id}`);
+  }
+  for (const objective of course.objectives || []) {
+    assert.ok(objective.example, `${directory.name}: ${objective.lo} sin ejemplo práctico.`);
+    assert.ok(objective.exampleAttribution, `${directory.name}: ${objective.lo} sin atribución del ejemplo.`);
+  }
 }
 
 console.log('Course content audit OK.');

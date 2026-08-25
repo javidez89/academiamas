@@ -1,5 +1,51 @@
 # Changelog
 
+## [v0.16.0] - 2026-08-24
+
+### Added
+
+- Extractos trazables del syllabus para los 144 objetivos de aprendizaje: CTFL conserva la traducción oficial al español y CT-AI y CT-GenAI ofrecen traducción al español basada en sus originales en inglés, sin incluir los PDF oficiales en el repositorio.
+- Contenido completo de referencia por capítulo, explicación docente diferenciada y escenarios prácticos aplicados a los ocho cursos.
+- Narración natural en español con voz Marin por capítulo, objetivo y contenido de referencia, reproducción consecutiva de textos largos, pausa, repetición, velocidades 0.75x, 1x y 1.25x, y barra de avance para volver a cualquier punto.
+- Botón global y accesible para volver al inicio al llegar al final de páginas extensas.
+
+### Changed
+
+- El avance de práctica se calcula con preguntas únicas respondidas y el dominio con el último resultado de cada pregunta; los reintentos ya no inflan las métricas.
+- El avance por capítulo combina tiempo activo de estudio y cobertura real de preguntas, y Mi cuenta y Administración consumen la misma evidencia académica.
+
+### Security
+
+- La voz OpenAI se solicita mediante una función segura de Supabase; la clave privada nunca llega al navegador.
+- Los audios se validan contra un manifiesto de contenidos, se almacenan en un bucket privado y tienen límite diario de generación por usuario.
+
+### Validation
+
+- Auditoría automatizada de idioma español, códigos LO, caracteres dañados, fuentes, escenarios, manifiesto de audio, progreso por preguntas únicas y diseño de capítulos en escritorio y móvil.
+- Las validaciones de narración y diseño descubren automáticamente todos los cursos del catálogo, incluidos los que se incorporen en el futuro.
+
+## [v0.15.0] - 2026-08-17
+
+### Added
+
+- Validación pública de certificados mediante código único, URL compartible y QR.
+- Certificados emitidos en Mi cuenta con descarga privada, consulta y opción de compartir en LinkedIn.
+- Directorio administrativo de certificados por usuario y curso.
+- Flujo de emisión por USD 25, conversión a COP con TRM, pago seguro en Wompi y captura posterior de nombre y documento.
+
+### Security
+
+- La aprobación del pago se confirma del lado servidor con Wompi; la redirección del navegador no autoriza por sí sola la emisión.
+- Los PDF se almacenan en un bucket privado y se descargan mediante URLs firmadas de corta duración.
+- La validación pública muestra el documento enmascarado y nunca expone el archivo privado.
+- La consulta pública se ejecuta en una función de borde aislada; los visitantes ya no pueden invocar funciones privilegiadas de PostgreSQL.
+- El certificado se identifica expresamente como constancia interna de finalización y no como certificación oficial de terceros.
+
+### Validation
+
+- Prueba de regresión para validación pública, certificados en Mi cuenta y consulta administrativa en móvil.
+- Sin cambios en cursos, bancos de preguntas, práctica, simulacros ni cálculo del progreso académico.
+
 ## [v0.14.0] - 2026-08-16
 
 ### Added

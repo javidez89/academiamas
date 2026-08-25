@@ -55,11 +55,30 @@ jobs:
       - name: Validar sintaxis y versión
         run: npm run check
 
+      - name: Configurar Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Validar funciones de certificados, pagos y audio
+        run: >-
+          deno check --frozen --node-modules-dir=auto
+          supabase/functions/certificate-service/index.ts
+          supabase/functions/validate-certificate/index.ts
+          supabase/functions/wompi-events/index.ts
+          supabase/functions/course-audio/index.ts
+
       - name: Probar persistencia y estadísticas
         run: npm run test:unit
 
       - name: Audit course content and simulator realism
         run: npm run test:content
+
+      - name: Regenerar manifiesto seguro de narraciones
+        run: npm run generate:audio-manifest
+
+      - name: Verificar narraciones para todos los cursos del catálogo
+        run: git diff --exit-code -- supabase/functions/_shared/course-audio-manifest.ts
 
       - name: Regenerar SEO
         run: npm run generate:seo
@@ -67,7 +86,7 @@ jobs:
       - name: Verificar artefactos SEO versionados
         run: >-
           git diff --exit-code --
-          robots.txt sitemap.xml cursos ruta-aprendizaje contactanos legal mi-cuenta curso
+          robots.txt sitemap.xml cursos ruta-aprendizaje contactanos legal validar-certificado mi-cuenta curso
           admin
 
   browser-gates:
@@ -139,7 +158,17 @@ jobs:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:admin
 
+      - name: Validar certificados, cuenta y administración
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:certificates
+
       - name: Validar flujo funcional crítico
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:e2e
+
+      - name: Validar capítulos en escritorio y móvil
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:visual

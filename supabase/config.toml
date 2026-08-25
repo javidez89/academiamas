@@ -1,0 +1,14 @@
+[functions.certificate-service]
+verify_jwt = true
+
+[functions.wompi-events]
+verify_jwt = false
+
+[functions.validate-certificate]
+verify_jwt = false
+
+[functions.wompi-test-return]
+verify_jwt = false
+
+[functions.course-audio]
+verify_jwt = true

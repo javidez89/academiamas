@@ -19,6 +19,7 @@
   const CONTACT_EMAIL = 'javidez89@gmail.com';
   const LINKEDIN_URL = 'https://www.linkedin.com/in/javierchilatra89/';
   const SESSION_CLOSED_KEY = 'academiaqa.auth.sessionClosed';
+  const READING_SCALE_KEY = 'academiaqa.accessibility.readingScale';
   const FINAL_EXAM_UNLOCK_PROGRESS = 95;
   const DEFAULT_PRACTICE_FILTER = Object.freeze({
     chapter: 'all',
@@ -135,13 +136,14 @@
     height: 907,
     alt: 'Nuevo curso de capacitación profesional avanzada en AcademiaQA'
   });
-  const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal', 'account', 'admin']);
+  const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal', 'verifyCertificate', 'account', 'admin']);
   const PUBLIC_VIEW_PATHS = Object.freeze({
     home: '/',
     courses: '/cursos/',
     routes: '/ruta-aprendizaje/',
     contact: '/contactanos/',
     legal: '/legal/',
+    verifyCertificate: '/validar-certificado/',
     account: '/mi-cuenta/',
     admin: '/admin/'
   });
@@ -187,6 +189,7 @@
     routes: renderRoutesPage,
     contact: renderContactPage,
     legal: renderLegalPage,
+    verifyCertificate: renderCertificateValidationPage,
     account: renderAccountPage,
     admin: renderAdminPage,
     authGate: renderCourseAuthGate,
@@ -223,6 +226,22 @@
   let studyTimer = null;
   let lastStudyTickAt = Date.now();
   let lastUserActivityAt = Date.now();
+  let certificatePaymentReturnHandled = false;
+  const narrationAudio = new Audio();
+  let narrationObjectUrl = '';
+  let narrationLoadToken = 0;
+  let narrationState = {
+    contentId: '',
+    text: '',
+    chunks: [],
+    chunkDurations: [],
+    chunkIndex: 0,
+    status: 'idle',
+    speed: 1,
+    source: '',
+    utterance: null
+  };
+  let readingScale = loadReadingScale();
   const loadingCourseScripts = new Map();
 
   function createState(view = 'home') {
@@ -249,11 +268,20 @@
       accountError: '',
       accountProfile: null,
       enrollments: [],
+      certificates: [],
+      certificateOrders: [],
+      certificateModal: null,
+      certificateValidationLoading: false,
+      certificateValidationError: '',
+      certificateValidationCode: '',
+      certificateValidationResult: null,
       adminLoading: false,
       adminError: '',
       adminSummary: {},
       adminUsers: [],
       adminTotal: 0,
+      adminCertificates: [],
+      adminCertificateTotal: 0,
       adminSearch: '',
       adminFilter: 'all',
       adminCoursesByKey: new Map(),
@@ -380,7 +408,7 @@
     dom.coffeeModal = $('coffeeModal');
     dom.coffeeCopHint = $('coffeeCopHint');
     dom.certificateModal = $('certificateModal');
-    dom.certificateCourseName = $('certificateCourseName');
+    dom.certificateModalBody = $('certificateModalBody');
     dom.mainLayout = $('mainLayout');
     dom.heroTitle = $('heroTitle');
     dom.heroSubtitle = $('heroSubtitle');
@@ -390,11 +418,13 @@
     dom.navCaps = $('navCaps');
     dom.navExamCount = $('navExamCount');
     dom.footerText = $('footerText');
+    dom.backToTop = $('backToTop');
     dom.resetProgress = $('resetProgress');
   }
 
   function bindEvents() {
     document.addEventListener('click', handleClick);
+    document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);
     document.addEventListener('submit', handleSubmit);
     document.addEventListener('keydown', handleKeyboardActivation);
@@ -405,6 +435,8 @@
     global.addEventListener('pagehide', persistStudyTime);
     global.addEventListener('hashchange', handleLocationRoute);
     global.addEventListener('popstate', handleLocationRoute);
+    global.addEventListener('scroll', syncBackToTop, { passive: true });
+    global.addEventListener('resize', syncBackToTop, { passive: true });
     global.addEventListener('academiaqa:auth-change', handleAuthStateChange);
     global.addEventListener('academiaqa:admin-change', handleAdminAccessChange);
     global.setInterval(() => {
@@ -447,7 +479,10 @@
       return;
     }
     if (state.view === 'account') {
-      if (authenticated) await refreshAccount();
+      if (authenticated) {
+        await refreshAccount();
+        await handleCertificatePaymentReturn();
+      }
       else render();
       return;
     }
@@ -479,6 +514,21 @@
   }
 
   async function handleSubmit(event) {
+    const certificateIdentityForm = event.target.closest('[data-certificate-identity-form]');
+    if (certificateIdentityForm) {
+      event.preventDefault();
+      await submitCertificateIdentity(certificateIdentityForm);
+      return;
+    }
+
+    const certificateValidationForm = event.target.closest('[data-certificate-validation-form]');
+    if (certificateValidationForm) {
+      event.preventDefault();
+      const data = new FormData(certificateValidationForm);
+      await openCertificateValidation(data.get('certificateCode'));
+      return;
+    }
+
     const form = event.target.closest('[data-admin-search-form]');
     if (!form) return;
     event.preventDefault();
@@ -615,8 +665,27 @@
       case 'close-coffee-modal':
         closeCoffeeModal();
         break;
-      case 'open-certificate-coming-soon':
-        openCertificateModal(actionTarget.dataset.course);
+      case 'start-certificate-flow':
+        await startCertificateFlow(actionTarget.dataset.course);
+        break;
+      case 'continue-certificate-wompi':
+        continueCertificateWompi();
+        break;
+      case 'retry-certificate-payment':
+        await confirmCertificatePayment(actionTarget.dataset.transaction);
+        break;
+      case 'download-certificate':
+        await downloadCertificate(actionTarget.dataset.code);
+        break;
+      case 'share-certificate-linkedin':
+        shareCertificateOnLinkedIn(actionTarget.dataset.code);
+        break;
+      case 'copy-certificate-url':
+        await copyCertificateUrl(actionTarget.dataset.code);
+        break;
+      case 'view-certificate':
+        closeCertificateModal();
+        await openCertificateValidation(actionTarget.dataset.code);
         break;
       case 'close-certificate-modal':
         closeCertificateModal();
@@ -629,6 +698,21 @@
         break;
       case 'open-chapter':
         openChapter(Number(actionTarget.dataset.chapter));
+        break;
+      case 'toggle-narration':
+        await toggleNarration(actionTarget.dataset.narrationId);
+        break;
+      case 'repeat-narration':
+        repeatNarration();
+        break;
+      case 'narration-speed':
+        setNarrationSpeed(Number(actionTarget.dataset.speed));
+        break;
+      case 'reading-size':
+        setReadingScale(Number(actionTarget.dataset.delta));
+        break;
+      case 'back-to-top':
+        scrollBackToTop();
         break;
       case 'practice':
         startPractice({
@@ -767,6 +851,7 @@
     if (anchor === 'ruta-aprendizaje') return { view: 'routes', anchor: 'ruta-aprendizaje' };
     if (['contactanos', 'redes'].includes(anchor)) return { view: 'contact', anchor: 'contactanos' };
     if (['legal', 'privacidad', 'terminos'].includes(anchor)) return { view: 'legal', anchor };
+    if (['validar-certificado', 'certificado'].includes(anchor)) return { view: 'verifyCertificate', anchor: 'validar-certificado' };
     if (['mi-cuenta', 'cuenta'].includes(anchor)) return { view: 'account', anchor: 'mi-cuenta' };
     if (['admin', 'administracion'].includes(anchor)) return { view: 'admin', anchor: 'admin' };
     if (['como-estudiar'].includes(anchor)) return { view: 'home', anchor };
@@ -785,6 +870,7 @@
       if (parts[0] === 'ruta-aprendizaje') return { view: 'routes', anchor: 'ruta-aprendizaje' };
       if (parts[0] === 'contactanos') return { view: 'contact', anchor: 'contactanos' };
       if (parts[0] === 'legal') return { view: 'legal', anchor: 'legal' };
+      if (parts[0] === 'validar-certificado') return { view: 'verifyCertificate', anchor: 'validar-certificado' };
       if (parts[0] === 'mi-cuenta') return { view: 'account', anchor: 'mi-cuenta' };
       if (parts[0] === 'admin') return { view: 'admin', anchor: 'admin' };
     }
@@ -849,20 +935,258 @@
     if (!dom.certificateModal || dom.certificateModal.hidden) document.body.classList.remove('modalOpen');
   }
 
-  function openCertificateModal(courseKey) {
+  function certificateValidationUrl(code, canonical = true) {
+    const base = canonical ? `${CANONICAL_ORIGIN}${publicPath('verifyCertificate')}` : publicPath('verifyCertificate');
+    return `${base}?codigo=${encodeURIComponent(String(code || '').trim().toUpperCase())}`;
+  }
+
+  function syncBackToTop() {
+    if (!dom.backToTop) return;
+    const root = document.documentElement;
+    const scrollTop = Math.max(0, global.scrollY || root.scrollTop || 0);
+    const viewportHeight = Math.max(1, global.innerHeight || root.clientHeight || 1);
+    const documentHeight = Math.max(root.scrollHeight, document.body?.scrollHeight || 0);
+    const nearBottom = scrollTop + viewportHeight >= documentHeight - Math.max(220, viewportHeight * 0.25);
+    dom.backToTop.hidden = !(scrollTop > viewportHeight * 0.75 && nearBottom);
+  }
+
+  function scrollBackToTop() {
+    global.scrollTo({ top: 0, behavior: 'smooth' });
+    dom.backToTop?.setAttribute('hidden', '');
+  }
+
+  function formatCertificateCop(amountInCents) {
+    return formatCopAmount(Math.round(number(amountInCents) / 100));
+  }
+
+  function renderCertificateModal() {
+    if (!dom.certificateModalBody || !state.certificateModal) return;
+    const model = state.certificateModal;
+    const entry = catalogEntry(model.courseKey) || {};
+    const courseName = model.courseName || entry.meta?.name || model.courseKey || 'Curso AcademiaQA';
+
+    if (model.phase === 'loading') {
+      dom.certificateModalBody.innerHTML = `<div class="certificateModalLoading" role="status">
+        <span class="sectionKicker">Certificados AcademiaQA</span>
+        <h2 id="certificateModalTitle">Preparando tu solicitud...</h2>
+        <p>Validamos la finalización del curso y consultamos el valor seguro en Wompi.</p>
+      </div>`;
+      return;
+    }
+
+    if (model.phase === 'error') {
+      dom.certificateModalBody.innerHTML = `<div class="certificateModalCopy">
+        <span class="sectionKicker">Certificados AcademiaQA</span>
+        <h2 id="certificateModalTitle">No fue posible continuar</h2>
+        <div class="badbox">${h(model.message || 'Intenta nuevamente más tarde.')}</div>
+        <div class="btnrow">${model.transactionId ? `<button class="btn" type="button" data-action="retry-certificate-payment" data-transaction="${h(model.transactionId)}">Reintentar confirmación</button>` : ''}<button class="btn secondary" type="button" data-action="close-certificate-modal">Cerrar</button></div>
+      </div>`;
+      return;
+    }
+
+    if (model.phase === 'offer') {
+      dom.certificateModalBody.innerHTML = `<div class="certificateModalCopy">
+        <span class="sectionKicker">Emisión verificable</span>
+        <h2 id="certificateModalTitle">Obtén tu certificado de finalización</h2>
+        <p class="certificateCourseLead">${h(courseName)}</p>
+        <div class="certificatePrice"><strong>USD ${number(model.priceUsd, 25)}</strong><span>${h(formatCertificateCop(model.amountInCents))}</span><small>Conversión con TRM consultada al crear la orden.</small></div>
+        <ul class="certificateBenefits">
+          <li>PDF descargable con código único y QR.</li>
+          <li>URL pública de validación para compartir.</li>
+          <li>Acceso permanente desde Mi cuenta mientras el certificado esté vigente.</li>
+        </ul>
+        <div class="note"><b>Importante:</b> es un certificado de finalización emitido por AcademiaQA. No equivale a una certificación oficial de ISTQB, CertiProf ni de otra entidad certificadora.</div>
+        <div class="btnrow"><button class="btn good" type="button" data-action="continue-certificate-wompi">Pagar de forma segura con Wompi</button><button class="btn secondary" type="button" data-action="close-certificate-modal">Ahora no</button></div>
+      </div>`;
+      return;
+    }
+
+    if (model.phase === 'payment-pending') {
+      dom.certificateModalBody.innerHTML = `<div class="certificateModalCopy">
+        <span class="sectionKicker">Confirmación de pago</span>
+        <h2 id="certificateModalTitle">Wompi está procesando la transacción</h2>
+        <p>No emitiremos el certificado hasta confirmar el pago directamente con Wompi.</p>
+        <div class="note"><b>Estado:</b> ${h(model.paymentStatus || 'PENDING')}</div>
+        <div class="btnrow"><button class="btn" type="button" data-action="retry-certificate-payment" data-transaction="${h(model.transactionId || '')}">Actualizar estado</button><button class="btn secondary" type="button" data-action="close-certificate-modal">Cerrar</button></div>
+      </div>`;
+      return;
+    }
+
+    if (model.phase === 'identity') {
+      const suggestedName = model.fullName || state.accountProfile?.full_name || authUserName();
+      const selectedDocumentType = model.documentType || 'CC';
+      const documentOptions = [
+        ['CC', 'Cédula de ciudadanía'], ['CE', 'Cédula de extranjería'], ['PP', 'Pasaporte'],
+        ['TI', 'Tarjeta de identidad'], ['DNI', 'DNI'], ['NIT', 'NIT'], ['RG', 'RG'], ['OTHER', 'Otro']
+      ].map(([value, label]) => `<option value="${value}" ${selectedDocumentType === value ? 'selected' : ''}>${label}</option>`).join('');
+      dom.certificateModalBody.innerHTML = `<div class="certificateModalCopy">
+        <span class="sectionKicker">Datos del certificado</span>
+        <h2 id="certificateModalTitle">Confirma la información que aparecerá en el PDF</h2>
+        <p class="certificateCourseLead">${h(courseName)}</p>
+        <form class="certificateIdentityForm" data-certificate-identity-form>
+          <label for="certificateFullName">Nombre completo</label>
+          <input id="certificateFullName" name="fullName" type="text" minlength="3" maxlength="120" autocomplete="name" value="${h(suggestedName)}" required>
+          <div class="certificateIdentityGrid">
+            <div><label for="certificateDocumentType">Tipo de documento</label><select id="certificateDocumentType" name="documentType" required>${documentOptions}</select></div>
+            <div><label for="certificateDocumentNumber">Número de documento</label><input id="certificateDocumentNumber" name="documentNumber" type="text" minlength="4" maxlength="30" autocomplete="off" value="${h(model.documentNumber || '')}" required></div>
+          </div>
+          <label class="certificateConsent"><input name="publicConsent" type="checkbox" value="yes" ${model.publicConsent ? 'checked' : ''} required><span>Autorizo que mi nombre, curso, fechas y documento enmascarado se consulten mediante el código público de validación. El número completo solo aparecerá en mi PDF privado.</span></label>
+          ${model.formError ? `<div class="badbox">${h(model.formError)}</div>` : ''}
+          <div class="btnrow"><button class="btn good" type="submit" ${model.submitting ? 'disabled' : ''}>${model.submitting ? 'Generando certificado...' : 'Emitir certificado'}</button><button class="btn secondary" type="button" data-action="close-certificate-modal">Cancelar</button></div>
+        </form>
+      </div>`;
+      return;
+    }
+
+    if (model.phase === 'issued') {
+      const certificate = model.certificate || {};
+      dom.certificateModalBody.innerHTML = `<div class="certificateModalCopy certificateIssued">
+        <span class="certificateSuccessIcon" aria-hidden="true">✓</span>
+        <span class="sectionKicker">Certificado emitido</span>
+        <h2 id="certificateModalTitle">Tu certificado ya está disponible</h2>
+        <p>${h(certificate.course_name || courseName)}</p>
+        <div class="certificateCode"><span>Código único</span><strong>${h(certificate.certificate_code)}</strong></div>
+        <div class="btnrow"><button class="btn good" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Descargar PDF</button><button class="btn linkedinButton" type="button" data-action="share-certificate-linkedin" data-code="${h(certificate.certificate_code)}">Compartir en LinkedIn</button><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Ver validación</button></div>
+      </div>`;
+    }
+  }
+
+  function openCertificateModal(model) {
     if (!dom.certificateModal) return;
     closeCoffeeModal();
-    const entry = catalogEntry(courseKey);
-    setTextIfChanged(dom.certificateCourseName, entry?.meta?.name || courseKey || 'este curso');
+    state.certificateModal = model;
+    renderCertificateModal();
     dom.certificateModal.hidden = false;
     document.body.classList.add('modalOpen');
-    global.setTimeout(() => dom.certificateModal.querySelector('[data-action="close-certificate-modal"]')?.focus(), 0);
+    global.setTimeout(() => dom.certificateModal.querySelector('button:not([disabled]), input:not([disabled])')?.focus(), 0);
+  }
+
+  async function startCertificateFlow(courseKey) {
+    const key = String(courseKey || '').trim().toLowerCase();
+    openCertificateModal({ phase: 'loading', courseKey: key });
+    try {
+      const result = await Cloud.createCertificateCheckout(key);
+      if (result.status === 'ISSUED' && result.certificate) {
+        state.certificateModal = { phase: 'issued', courseKey: key, certificate: result.certificate };
+      } else if (result.status === 'APPROVED' && result.order) {
+        state.certificateModal = { phase: 'identity', courseKey: key, courseName: result.course?.name, orderId: result.order.id };
+      } else {
+        state.certificateModal = {
+          phase: 'offer',
+          courseKey: key,
+          courseName: result.course?.name,
+          orderId: result.order?.id,
+          priceUsd: result.checkout?.priceUsd || result.order?.price_usd || 25,
+          amountInCents: result.checkout?.amountInCents || result.order?.amount_in_cents,
+          checkoutUrl: result.checkout?.checkoutUrl
+        };
+      }
+      renderCertificateModal();
+    } catch (error) {
+      console.error(error);
+      state.certificateModal = { phase: 'error', courseKey: key, message: error?.message || 'No fue posible preparar el certificado.' };
+      renderCertificateModal();
+    }
   }
 
   function closeCertificateModal() {
     if (!dom.certificateModal || dom.certificateModal.hidden) return;
     dom.certificateModal.hidden = true;
+    state.certificateModal = null;
     if (!dom.coffeeModal || dom.coffeeModal.hidden) document.body.classList.remove('modalOpen');
+  }
+
+  function continueCertificateWompi() {
+    const checkoutUrl = state.certificateModal?.checkoutUrl;
+    if (!checkoutUrl || !/^https:\/\/checkout\.wompi\.co\/p\//.test(checkoutUrl)) {
+      notify('No fue posible abrir el pago seguro.', 'error');
+      return;
+    }
+    global.location.assign(checkoutUrl);
+  }
+
+  async function confirmCertificatePayment(transactionId) {
+    const id = String(transactionId || '').trim();
+    openCertificateModal({ phase: 'loading' });
+    try {
+      const result = await Cloud.confirmCertificatePayment(id);
+      if (result.status === 'APPROVED') {
+        state.certificateModal = {
+          phase: 'identity',
+          courseKey: result.order?.course_key,
+          courseName: result.course?.name,
+          orderId: result.order?.id,
+          transactionId: id
+        };
+      } else {
+        state.certificateModal = {
+          phase: 'payment-pending',
+          courseKey: result.order?.course_key,
+          transactionId: id,
+          paymentStatus: result.status
+        };
+      }
+      renderCertificateModal();
+      await refreshAccount();
+    } catch (error) {
+      console.error(error);
+      state.certificateModal = { phase: 'error', transactionId: id, message: error?.message || 'No fue posible confirmar el pago.' };
+      renderCertificateModal();
+    }
+  }
+
+  async function handleCertificatePaymentReturn() {
+    const parameters = new URLSearchParams(global.location.search || '');
+    if (parameters.get('certificado') !== 'pago') return false;
+    if (!Auth?.isAuthenticated?.()) {
+      notify('Inicia sesión con la misma cuenta para confirmar el pago del certificado.', 'info', 10_000);
+      return false;
+    }
+    if (certificatePaymentReturnHandled) return true;
+
+    const transactionId = String(parameters.get('id') || '').trim();
+    certificatePaymentReturnHandled = true;
+    if (!transactionId) {
+      openCertificateModal({
+        phase: 'error',
+        message: 'Wompi no devolvió un identificador de transacción. La orden seguirá disponible en Mi cuenta.'
+      });
+      return true;
+    }
+
+    await confirmCertificatePayment(transactionId);
+    const cleanUrl = publicPath('account');
+    global.history?.replaceState?.(null, '', cleanUrl);
+    return true;
+  }
+
+  async function downloadCertificate(code) {
+    const popup = global.open('about:blank', '_blank', 'noopener');
+    try {
+      const result = await Cloud.getCertificateDownload(code);
+      if (!result.downloadUrl) throw new Error('No se recibió el archivo del certificado.');
+      if (popup) popup.location.replace(result.downloadUrl);
+      else global.location.assign(result.downloadUrl);
+    } catch (error) {
+      popup?.close?.();
+      console.error(error);
+      notify(error?.message || 'No fue posible descargar el certificado.', 'error');
+    }
+  }
+
+  function shareCertificateOnLinkedIn(code) {
+    const validationUrl = certificateValidationUrl(code);
+    global.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(validationUrl)}`, '_blank', 'noopener,noreferrer');
+  }
+
+  async function copyCertificateUrl(code) {
+    const validationUrl = certificateValidationUrl(code);
+    try {
+      await navigator.clipboard.writeText(validationUrl);
+      notify('URL del certificado copiada.', 'success');
+    } catch {
+      global.prompt('Copia la URL pública del certificado:', validationUrl);
+    }
   }
 
   function selectCoffeeTier(target) {
@@ -973,7 +1297,18 @@
     if (!popup) global.location.href = WOMPI_PAYMENT_URL;
   }
 
-  function handleChange(event) {
+  function handleInput(event) {
+    const seek = event.target.closest('[data-narration-seek]');
+    if (!seek || seek.disabled) return;
+    previewNarrationSeek(seek);
+  }
+
+  async function handleChange(event) {
+    const seek = event.target.closest('[data-narration-seek]');
+    if (seek && !seek.disabled) {
+      await seekNarration(Number(seek.value));
+      return;
+    }
     if (event.target.id === 'flashFilter') {
       state.flashFilter = event.target.value;
       state.flashIndex = 0;
@@ -989,6 +1324,7 @@
     state.timer = null;
     state.pendingAdvance = null;
     setExamFocus(false);
+    stopNarration();
   }
 
   function noteUserActivity() {
@@ -1208,7 +1544,10 @@
       const normalized = Storage.normalizeProgress(progress);
       learningSnapshot.progressByCourse.set(activeCourseKey, normalized);
       const enrollment = learningSnapshot.enrollments.find((item) => item.course_key === activeCourseKey);
-      if (enrollment) enrollment.study_seconds = Math.max(number(enrollment.study_seconds), number(normalized.studySeconds));
+      if (enrollment) {
+        enrollment.study_seconds = Math.max(number(enrollment.study_seconds), number(normalized.studySeconds));
+        enrollment.practice_answers = Object.keys(normalized.questionResults || {}).length;
+      }
       Cloud.queueProgressSync(activeCourseKey, progress);
     }
   }
@@ -1281,6 +1620,7 @@
       routes: ['Rutas para aprender QA, Testing, IA y Scrum | AcademiaQA', 'Elige una ruta gratuita en QA, testing, IA, Scrum, gestión de proyectos o ciberseguridad y avanza hasta el simulacro.'],
       contact: ['Contáctanos | AcademiaQA', 'Contacta a AcademiaQA para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.'],
       legal: ['Información legal y privacidad | AcademiaQA', 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.'],
+      verifyCertificate: ['Validar certificado AcademiaQA | Consulta pública', 'Consulta un certificado de finalización de AcademiaQA mediante su código único y verifica su estado, curso y fecha de emisión.'],
       account: ['Mi cuenta | AcademiaQA', 'Consulta tus matrículas, avance y actividad de aprendizaje en AcademiaQA.'],
       admin: ['Administración | AcademiaQA', 'Panel privado de usuarios y aprendizaje de AcademiaQA.']
     };
@@ -1356,6 +1696,7 @@
       routes: 'Ruta de aprendizaje',
       contact: 'Contáctanos',
       legal: 'Información legal',
+      verifyCertificate: 'Validar certificado',
       account: 'Mi cuenta',
       admin: 'Administración',
       authGate: gateEntry?.meta?.name || 'Acceso al curso'
@@ -1366,6 +1707,7 @@
       routes: 'Rutas sugeridas para avanzar por testing, IA, Scrum, gestión y ciberseguridad.',
       contact: 'Cuéntanos una idea, problema, error académico o propuesta de colaboración.',
       legal: 'Política de privacidad, términos y condiciones de uso de AcademiaQA.',
+      verifyCertificate: 'Consulta el código único de un certificado de finalización emitido por AcademiaQA.',
       account: 'Tu información, matrículas y actividad de aprendizaje guardadas en la nube.',
       admin: 'Consulta protegida de usuarios, matrículas, progreso y actividad académica.',
       authGate: 'Inicia sesión con Google para inscribirte y guardar tu progreso.'
@@ -1446,6 +1788,7 @@
     } catch (error) {
       showFatalError(error);
     }
+    global.requestAnimationFrame(syncBackToTop);
   }
 
   function courseLabel() {
@@ -1467,6 +1810,15 @@
     return learningSnapshot.enrollments.find((item) => item.course_key === key) || null;
   }
 
+  function practiceEvidenceIds(courseData, progressValue, predicate = () => true) {
+    const questionIds = new Set((courseData?.questions || []).filter(predicate).map((question) => String(question.id)));
+    const evidence = new Set();
+    Object.keys(progressValue?.questionResults || {}).forEach((questionId) => {
+      if (questionIds.has(questionId)) evidence.add(questionId);
+    });
+    return evidence;
+  }
+
   function chapterProgressForCourse(courseData, progressValue, chapterId) {
     const progress = Storage.normalizeProgress(progressValue);
     const objectives = (courseData?.objectives || []).filter((objective) => Number(objective.chapter) === Number(chapterId));
@@ -1480,22 +1832,36 @@
       if (ok + bad > 0) summary.touched += 1;
       return summary;
     }, { ok: 0, bad: 0, answered: 0, touched: 0 });
+    const chapterQuestions = (courseData?.questions || []).filter((question) => Number(question.chapter) === Number(chapterId));
+    const evidenceIds = practiceEvidenceIds(courseData, progress, (question) => Number(question.chapter) === Number(chapterId));
+    const exactResults = Object.entries(progress.questionResults || {})
+      .filter(([questionId]) => chapterQuestions.some((question) => String(question.id) === questionId))
+      .map(([, result]) => result);
+    const exactCorrect = exactResults.filter((result) => result.correct).length;
     const chapter = (courseData?.chapters || []).find((item) => Number(item.id) === Number(chapterId)) || {};
     const activity = progress.chapterActivity?.[String(chapterId)] || {};
     const studySeconds = number(activity.studySeconds);
     const suggestedSeconds = Math.max(60, number(chapter.minutes) * 60);
     const suggestedMinutes = Math.max(1, Math.round(suggestedSeconds / 60));
     const readingProgress = Math.min(100, pct(studySeconds, suggestedSeconds));
-    const objectiveProgressPct = objectives.length ? pct(chapterStats.touched, objectives.length) : readingProgress;
-    const coverage = Math.min(100, Math.round((readingProgress * 0.4) + (objectiveProgressPct * 0.6)));
-    const accuracy = pct(chapterStats.ok, chapterStats.answered);
-    const domain = Math.min(100, Math.round((accuracy * objectiveProgressPct) / 100));
+    const touchedLos = new Set(exactResults.map((result) => result.lo).filter(Boolean));
+    const objectiveProgressPct = objectives.length
+      ? pct(touchedLos.size || chapterStats.touched, objectives.length)
+      : readingProgress;
+    const practiceCoverage = chapterQuestions.length ? pct(evidenceIds.size, chapterQuestions.length) : objectiveProgressPct;
+    const coverage = Math.min(100, Math.round((readingProgress * 0.4) + (practiceCoverage * 0.6)));
+    const accuracy = exactResults.length ? pct(exactCorrect, exactResults.length) : pct(chapterStats.ok, chapterStats.answered);
+    const domain = chapterQuestions.length ? pct(exactCorrect, chapterQuestions.length) : Math.min(100, Math.round((accuracy * objectiveProgressPct) / 100));
 
     return {
       ...chapterStats,
       chapterId: Number(chapterId),
       title: chapter.title || `Capítulo ${chapterId}`,
       objectiveCount: objectives.length,
+      questionCount: chapterQuestions.length,
+      uniqueAnswered: evidenceIds.size,
+      uniqueCorrect: exactCorrect,
+      practiceCoverage,
       accuracy,
       domain,
       objectiveProgress: objectiveProgressPct,
@@ -1513,17 +1879,17 @@
     const attempts = progress.attempts || [];
     const simulatorAttempts = attempts.filter((attempt) => attempt.mode === 'exam');
     const best = simulatorAttempts.length ? Math.max(...simulatorAttempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
-    const answered = Object.values(progress.byLo || {}).reduce((sum, item) => sum + number(item.ok) + number(item.bad), 0);
     const marked = Array.isArray(progress.marked) ? progress.marked.length : 0;
     const courseData = learningSnapshot.coursesByKey.get(key) || Registry.get(key) || (Array.isArray(item?.chapters) ? item : null);
+    const answered = practiceEvidenceIds(courseData, progress).size;
     const chapters = (courseData?.chapters || []).map((chapter) => chapterProgressForCourse(courseData, progress, chapter.id));
     const chapterAverage = chapters.length
       ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.coverage, 0) / chapters.length)
       : 0;
     const enrollment = enrollmentValue;
-    const objectiveTotal = chapters.reduce((sum, chapter) => sum + number(chapter.objectiveCount), 0);
-    const chapterDomainAverage = objectiveTotal
-      ? Math.round(chapters.reduce((sum, chapter) => sum + (chapter.domain * chapter.objectiveCount), 0) / objectiveTotal)
+    const questionTotal = chapters.reduce((sum, chapter) => sum + number(chapter.questionCount), 0);
+    const chapterDomainAverage = questionTotal
+      ? Math.round(chapters.reduce((sum, chapter) => sum + (chapter.domain * chapter.questionCount), 0) / questionTotal)
       : chapters.length ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.domain, 0) / chapters.length) : 0;
     const localFinalExamScores = attempts
       .filter((attempt) => attempt.mode === 'final-exam')
@@ -2155,15 +2521,127 @@
     </div>`;
   }
 
+  function normalizeCertificateCode(value) {
+    return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+  }
+
+  async function openCertificateValidation(value) {
+    const code = normalizeCertificateCode(value);
+    if (state.view !== 'verifyCertificate') await showView('verifyCertificate');
+    state.certificateValidationCode = code;
+    state.certificateValidationResult = null;
+    state.certificateValidationError = '';
+    if (!/^ACQA-[A-Z0-9]{12}$/.test(code)) {
+      state.certificateValidationError = code ? 'Ingresa un código con formato ACQA-XXXXXXXXXXXX.' : '';
+      render();
+      return;
+    }
+
+    state.certificateValidationLoading = true;
+    pushRoute(`${publicPath('verifyCertificate')}?codigo=${encodeURIComponent(code)}`);
+    render();
+    try {
+      state.certificateValidationResult = await Cloud.validateCertificate(code);
+    } catch (error) {
+      console.error(error);
+      state.certificateValidationError = 'No fue posible consultar el registro. Intenta nuevamente.';
+    } finally {
+      state.certificateValidationLoading = false;
+      if (state.view === 'verifyCertificate') render();
+    }
+  }
+
+  function renderCertificateValidationPage() {
+    const result = state.certificateValidationResult;
+    const hasLookup = Boolean(state.certificateValidationCode);
+    const statusPanel = state.certificateValidationLoading
+      ? '<div class="certificateValidationStatus" role="status">Consultando el registro seguro...</div>'
+      : state.certificateValidationError
+        ? `<div class="badbox">${h(state.certificateValidationError)}</div>`
+        : result?.valid
+          ? `<article class="certificateValidationResult valid" aria-labelledby="certificateResultTitle">
+              <div class="certificateValidationMark" aria-hidden="true">✓</div>
+              <div><span class="sectionKicker">Certificado válido</span><h2 id="certificateResultTitle">${h(result.course_name)}</h2><p>Este certificado de finalización coincide con el registro de AcademiaQA.</p></div>
+              <dl class="certificateValidationDetails">
+                <div><dt>Estudiante</dt><dd>${h(result.full_name)}</dd></div>
+                <div><dt>Identificación</dt><dd>${h(result.document)}</dd></div>
+                <div><dt>Código</dt><dd>${h(result.code)}</dd></div>
+                <div><dt>Intensidad estimada</dt><dd>${number(result.estimated_hours)} h</dd></div>
+                <div><dt>Curso finalizado</dt><dd>${h(formatDate(result.completed_at))}</dd></div>
+                <div><dt>Fecha de emisión</dt><dd>${h(formatDate(result.issued_at))}</dd></div>
+              </dl>
+              <div class="btnrow"><button class="btn linkedinButton" type="button" data-action="share-certificate-linkedin" data-code="${h(result.code)}">Compartir en LinkedIn</button><button class="btn secondary" type="button" data-action="copy-certificate-url" data-code="${h(result.code)}">Copiar URL</button></div>
+            </article>`
+          : hasLookup
+            ? `<article class="certificateValidationResult invalid"><span class="sectionKicker">Sin coincidencia</span><h2>Certificado no válido o no encontrado</h2><p>Revisa cada carácter del código. Si el certificado fue revocado, tampoco aparecerá como válido.</p></article>`
+            : '';
+
+    return `<div class="publicHome publicPage certificateValidationPage" id="validar-certificado">
+      <section class="certificateValidationHero" aria-labelledby="certificateValidationTitle">
+        <span class="sectionKicker">Validación pública</span>
+        <h1 id="certificateValidationTitle">Valida un certificado AcademiaQA</h1>
+        <p>Consulta el código único impreso en el PDF o abre la URL incluida en su código QR.</p>
+        <form class="certificateValidationForm" data-certificate-validation-form>
+          <label for="certificateCodeInput">Código del certificado</label>
+          <div><input id="certificateCodeInput" name="certificateCode" type="text" maxlength="17" placeholder="ACQA-XXXXXXXXXXXX" value="${h(state.certificateValidationCode)}" autocomplete="off" required><button class="btn" type="submit">Validar</button></div>
+        </form>
+      </section>
+      ${statusPanel}
+      <div class="note certificateValidationDisclaimer"><b>Alcance:</b> AcademiaQA valida la finalización de sus cursos internos. Este registro no reemplaza ni representa una certificación oficial de ISTQB, CertiProf u otra entidad certificadora.</div>
+    </div>`;
+  }
+
+  async function submitCertificateIdentity(form) {
+    const model = state.certificateModal;
+    if (!model?.orderId || model.phase !== 'identity') return;
+    const data = new FormData(form);
+    const input = {
+      orderId: model.orderId,
+      fullName: String(data.get('fullName') || '').trim(),
+      documentType: String(data.get('documentType') || '').trim(),
+      documentNumber: String(data.get('documentNumber') || '').trim(),
+      publicConsent: data.get('publicConsent') === 'yes'
+    };
+    state.certificateModal = { ...model, ...input, submitting: true, formError: '' };
+    renderCertificateModal();
+    try {
+      const result = await Cloud.issueCertificate(input);
+      state.certificateModal = {
+        phase: 'issued',
+        courseKey: result.certificate?.course_key || model.courseKey,
+        certificate: result.certificate,
+        downloadUrl: result.downloadUrl
+      };
+      await refreshAccount();
+      renderCertificateModal();
+    } catch (error) {
+      console.error(error);
+      state.certificateModal = {
+        ...model,
+        ...input,
+        phase: 'identity',
+        submitting: false,
+        formError: error?.message || 'No fue posible emitir el certificado.'
+      };
+      renderCertificateModal();
+    }
+  }
+
   async function refreshAccount() {
     if (state.view !== 'account' || !Auth?.isAuthenticated?.()) return;
     state.accountLoading = true;
     state.accountError = '';
     render();
     try {
-      await refreshLearningSnapshot({ includeProfile: true });
+      const [, certificates, certificateOrders] = await Promise.all([
+        refreshLearningSnapshot({ includeProfile: true }),
+        Cloud.listCertificates(),
+        Cloud.listCertificateOrders()
+      ]);
       state.accountProfile = learningSnapshot.profile;
       state.enrollments = learningSnapshot.enrollments;
+      state.certificates = certificates;
+      state.certificateOrders = certificateOrders;
     } catch (error) {
       console.error(error);
       state.accountError = 'No fue posible consultar tu información en la nube.';
@@ -2233,6 +2711,8 @@
     const user = Auth.getUser();
     const profile = state.accountProfile || {};
     const enrollments = Array.isArray(state.enrollments) ? state.enrollments : [];
+    const certificates = Array.isArray(state.certificates) ? state.certificates : [];
+    const certificateOrders = Array.isArray(state.certificateOrders) ? state.certificateOrders : [];
     const enrolled = enrollments.filter((item) => item.status !== 'cancelled');
     const active = enrolled.length;
     const simulatorTotal = enrollments.reduce((sum, item) => sum + number(item.simulator_attempts), 0);
@@ -2259,8 +2739,14 @@
       const details = courseProgressDetails(item.course_key, courseData || catalogCourseSummary(entry));
       const isCompleted = details.finalExamPassed && details.progressPercent === 100;
       const certificateAvailable = isCompleted;
+      const issuedCertificate = certificates.find((certificate) => certificate.course_key === item.course_key);
+      const currentCertificateOrder = certificateOrders.find((order) => (
+        order.course_key === item.course_key
+        && !order.consumed_at
+        && ['PENDING', 'APPROVED'].includes(order.status)
+      ));
       const chapterRows = details.chapters.map((chapter) => `<li>
-        <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${chapter.touched}/${chapter.objectiveCount} LO · ${chapter.answered} respuestas</span></div>
+        <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${chapter.uniqueAnswered}/${chapter.questionCount} preguntas únicas · ${chapter.practiceCoverage}% cubierto</span></div>
         <div><strong>Avance ${chapter.coverage}%</strong><span>Dominio del capítulo ${chapter.domain}% · ${chapter.studyMinutes}/${chapter.suggestedMinutes} min</span></div>
         <div class="accountChapterProgressBars">
           <div><span>Avance</span><div class="progressbar" aria-label="Avance del capítulo ${number(chapter.chapterId)}: ${chapter.coverage}%"><div style="width:${chapter.coverage}%"></div></div></div>
@@ -2289,7 +2775,7 @@
           <div><dt>Mejor simulacro</dt><dd>${number(item.best_simulator_score)}%</dd></div>
           <div><dt>Exámenes finales</dt><dd>${number(item.final_exam_attempts)}</dd></div>
           <div><dt>Mejor examen final</dt><dd>${number(item.best_final_exam_score)}%</dd></div>
-          <div><dt>Respuestas registradas</dt><dd>${number(item.practice_answers)}</dd></div>
+          <div><dt>Preguntas únicas respondidas</dt><dd>${number(item.practice_answers)}</dd></div>
         </dl>
         <div class="${isCompleted ? 'okbox' : 'note'} accountFinalStatus"><b>Examen final:</b> ${isCompleted
           ? `Aprobado · ${number(item.best_final_exam_score)}% · curso al 100%`
@@ -2299,8 +2785,10 @@
           ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Aún no hay capítulos con actividad registrada.</p>'}
         </details>
         <div class="btnrow">
-          ${certificateAvailable
-            ? `<button class="btn good certificateAction" type="button" data-action="open-certificate-coming-soon" data-course="${h(item.course_key)}">Obtener certificado de curso</button>`
+          ${issuedCertificate
+            ? `<button class="btn good certificateAction" type="button" data-action="download-certificate" data-code="${h(issuedCertificate.certificate_code)}">Descargar certificado</button><button class="btn secondary certificateAction" type="button" data-action="view-certificate" data-code="${h(issuedCertificate.certificate_code)}">Ver certificado</button>`
+            : certificateAvailable
+              ? `<button class="btn good certificateAction" type="button" data-action="start-certificate-flow" data-course="${h(item.course_key)}">${currentCertificateOrder?.status === 'APPROVED' ? 'Completar emisión del certificado' : 'Obtener certificado · USD 25'}</button>`
             : '<button class="btn secondary certificateAction" type="button" disabled aria-disabled="true">Certificado disponible al 100%</button>'}
           ${isEnrolled
             ? `<a class="btn" href="${h(coursePath(item.course_key))}" data-action="select-course" data-course="${h(item.course_key)}">Continuar curso</a>
@@ -2310,6 +2798,17 @@
         </div>
       </article>`;
     }).join('');
+
+    const certificateCards = certificates.map((certificate) => `<article class="accountCertificateCard">
+      <div class="accountCertificateSeal" aria-hidden="true">✓</div>
+      <div class="accountCertificateMain">
+        <span class="accountStatus completed">${certificate.status === 'VALID' ? 'Válido' : 'Revocado'}</span>
+        <h3>${h(certificate.course_name)}</h3>
+        <p>${h(certificate.full_name)} · ${h(certificate.document_type)} ••••${h(certificate.document_last4)}</p>
+        <div class="accountCertificateMeta"><span>Emitido ${h(formatDate(certificate.issued_at))}</span><strong>${h(certificate.certificate_code)}</strong></div>
+      </div>
+      <div class="accountCertificateActions"><button class="btn good" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Descargar PDF</button><button class="btn linkedinButton" type="button" data-action="share-certificate-linkedin" data-code="${h(certificate.certificate_code)}">LinkedIn</button><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Ver</button><button class="btn secondary" type="button" data-action="copy-certificate-url" data-code="${h(certificate.certificate_code)}">Copiar URL</button></div>
+    </article>`).join('');
 
     return `<div class="publicHome publicPage accountPage" id="mi-cuenta">
       <section class="accountHeader" aria-labelledby="accountTitle">
@@ -2327,6 +2826,10 @@
       </section>
       ${state.accountLoading ? '<div class="card accountLoading" role="status">Consultando tu información en la nube...</div>' : ''}
       ${state.accountError ? `<div class="badbox">${h(state.accountError)}</div>` : ''}
+      <section class="accountCertificates" aria-labelledby="accountCertificatesTitle">
+        <div class="sectionIntro"><span class="sectionKicker">Credenciales</span><h2 id="accountCertificatesTitle">Certificados emitidos</h2><p>Descarga, valida o comparte tus certificados de finalización.</p></div>
+        ${certificateCards || (!state.accountLoading ? '<div class="card accountCertificateEmpty"><p>Aún no tienes certificados emitidos. Completa un curso y aprueba su examen final para habilitar la solicitud.</p></div>' : '')}
+      </section>
       <section class="accountCourses" aria-labelledby="accountCoursesTitle">
         <div class="sectionIntro">
           <h2 id="accountCoursesTitle">Mis cursos</h2>
@@ -2343,9 +2846,10 @@
     state.adminError = '';
     if (!silent) render();
     try {
-      const [summary, result] = await Promise.all([
+      const [summary, result, certificateResult] = await Promise.all([
         Cloud.getAdminDashboardSummary(),
-        Cloud.listAdminUsers({ search: state.adminSearch, limit: 50, offset: 0 })
+        Cloud.listAdminUsers({ search: state.adminSearch, limit: 50, offset: 0 }),
+        Cloud.listAdminCertificates({ search: state.adminSearch, limit: 100, offset: 0 })
       ]);
       const users = Array.isArray(result?.users) ? result.users : [];
       const courseKeys = [...new Set(users.flatMap((user) => (
@@ -2364,6 +2868,8 @@
       state.adminSummary = summary || {};
       state.adminUsers = users;
       state.adminTotal = number(result?.total);
+      state.adminCertificates = Array.isArray(certificateResult?.certificates) ? certificateResult.certificates : [];
+      state.adminCertificateTotal = number(certificateResult?.total);
       state.adminCoursesByKey = new Map(loadedCourses.filter(([, value]) => value));
     } catch (error) {
       console.error(error);
@@ -2497,6 +3003,7 @@
       Date.now() - new Date(snapshot.lastSeenAt).getTime() <= 30 * 24 * 60 * 60 * 1000
     )).length;
     const enrolledCount = rows.filter(({ snapshot }) => snapshot.learningEnrollments.length > 0).length;
+    const adminCertificates = Array.isArray(state.adminCertificates) ? state.adminCertificates : [];
     const userRows = visibleRows.map(({ user, snapshot }) => {
       const name = user.full_name || user.email?.split('@')[0] || 'Usuario';
       return `<article class="adminManagerRow">
@@ -2530,6 +3037,13 @@
       ['enrolled', 'Con cursos', enrolledCount],
       ['unenrolled', 'Sin cursos', Math.max(0, users.length - enrolledCount)]
     ];
+    const certificateRows = adminCertificates.map((certificate) => `<article class="adminCertificateRow">
+      <div><span class="accountStatus ${certificate.status === 'VALID' ? 'completed' : 'cancelled'}">${certificate.status === 'VALID' ? 'Válido' : 'Revocado'}</span><strong>${h(certificate.certificate_code)}</strong></div>
+      <div><strong>${h(certificate.full_name)}</strong><a href="mailto:${h(certificate.email || '')}">${h(certificate.email || 'Sin correo')}</a></div>
+      <div><strong>${h(certificate.course_name)}</strong><small>${h(certificate.document)}</small></div>
+      <div><strong>${h(formatDate(certificate.issued_at))}</strong><small>${number(certificate.estimated_hours)} h estimadas</small></div>
+      <div class="adminCertificateActions"><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Validar</button><button class="btn" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Ver PDF</button></div>
+    </article>`).join('');
 
     return `<div class="publicHome publicPage adminPage" id="admin">
       <section class="adminHeader" aria-labelledby="adminTitle">
@@ -2545,6 +3059,7 @@
           <div class="metric"><span>Matrículas activas</span><strong>${number(summary.active_enrollments)}</strong></div>
           <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(summary.study_seconds))}</strong></div>
           <div class="metric"><span>Simulacros / finales</span><strong>${number(summary.simulator_attempts)} / ${number(summary.final_exam_attempts)}</strong></div>
+          <div class="metric"><span>Certificados emitidos</span><strong>${number(summary.issued_certificates)}</strong></div>
         </div>
       </section>
       <section class="adminDirectory" aria-labelledby="adminUsersTitle">
@@ -2566,6 +3081,10 @@
           <div class="adminUserList">${userRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron usuarios para este filtro.</p>' : '')}</div>
         </div>
       </section>
+      <section class="adminCertificates" aria-labelledby="adminCertificatesTitle">
+        <div class="adminDirectoryHead"><div><h2 id="adminCertificatesTitle">Certificados obtenidos</h2><p>${state.adminCertificateTotal} certificado${state.adminCertificateTotal === 1 ? '' : 's'} registrado${state.adminCertificateTotal === 1 ? '' : 's'}.</p></div></div>
+        <div class="adminCertificateTable"><div class="adminCertificateHeader"><span>Certificado</span><span>Usuario</span><span>Curso</span><span>Emisión</span><span>Acciones</span></div>${certificateRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron certificados para este filtro.</p>' : '')}</div>
+      </section>
     </div>`;
   }
 
@@ -2584,12 +3103,14 @@
             <p>Las matrículas, fechas de inicio, avance por capítulo, tiempo activo de estudio, respuestas acumuladas y resultados de simulacros o exámenes finales se guardan en Supabase para recuperar el aprendizaje entre dispositivos y generar métricas de uso. El navegador conserva una copia local para dar continuidad a la experiencia.</p>
             <p>Cancelar un curso detiene su estado activo, pero conserva el historial para que puedas reactivarlo. Después de cancelarlo, puedes usar <b>Eliminar curso</b> en Mi cuenta para borrar permanentemente su matrícula, avance, tiempo e intentos; para solicitar la eliminación completa de la cuenta o de otros datos personales usa el formulario de contacto.</p>
             <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
-            <p>El botón de aportes abre Wompi como servicio externo. Los enlaces a exámenes y canales externos abren sitios de terceros con sus propias políticas.</p>
+            <p>Wompi procesa los pagos de certificados y aportes. AcademiaQA conserva la referencia, el estado y el valor de la transacción, pero no recibe ni almacena números de tarjeta ni credenciales bancarias.</p>
+            <p>Para emitir un certificado se solicita nombre completo, tipo y número de documento. El número completo aparece únicamente en el PDF privado; la validación pública muestra solo los últimos caracteres enmascarados. El usuario autoriza expresamente esa consulta pública antes de la emisión.</p>
           </article>
           <article class="legalCard" id="terminos">
             <h3>Términos y condiciones</h3>
-            <p>El contenido se ofrece para estudio personal. No garantiza aprobación de certificaciones, no emite certificados y no sustituye materiales, reglas o exámenes oficiales.</p>
-            <p>Los cursos, preguntas, simulacros y exámenes finales internos son herramientas educativas. Aprobar un curso en AcademiaQA no equivale a aprobar una certificación oficial. Los exámenes externos, certificados, insignias y condiciones dependen de cada entidad certificadora.</p>
+            <p>El contenido se ofrece para estudio personal y no garantiza la aprobación de certificaciones oficiales ni sustituye materiales, reglas o exámenes de las entidades certificadoras.</p>
+            <p>AcademiaQA puede emitir certificados internos de finalización después de completar el curso, aprobar su examen final y confirmar el pago. Estos documentos acreditan únicamente la finalización dentro de AcademiaQA y no equivalen a una certificación oficial de ISTQB, CertiProf ni de otra entidad.</p>
+            <p>El valor se presenta en USD 25 como referencia y se cobra en pesos colombianos usando la TRM consultada al crear la orden. El importe exacto en COP se informa antes de abrir Wompi.</p>
           </article>
           <article class="legalCard">
             <h3>Aviso independiente</h3>
@@ -2663,7 +3184,7 @@
       ${renderFreeCertBand()}
 
       <section class="legalNotice" aria-label="Aviso legal">
-        <b>Aviso legal:</b> AcademiaQA es una plataforma independiente de preparación y aprendizaje. No emite certificaciones ni sustituye syllabus, glosarios, reglas, materiales o exámenes oficiales de las entidades certificadoras.
+        <b>Aviso legal:</b> AcademiaQA es una plataforma independiente de preparación y aprendizaje. Sus certificados internos de finalización no son certificaciones oficiales ni sustituyen syllabus, glosarios, reglas, materiales o exámenes de las entidades certificadoras.
         <div class="legalQuickLinks">
           <a class="btn secondary" href="${h(publicPath('legal'))}" data-view="legal" data-view-anchor="privacidad">Política de privacidad</a>
           <a class="btn secondary" href="${h(publicPath('legal'))}" data-view="legal" data-view-anchor="terminos">Términos y condiciones</a>
@@ -2796,15 +3317,26 @@
   }
 
   function objectiveProgress(lo) {
+    const progress = getProgress();
     const item = getProgress().byLo?.[lo] || {};
     const ok = number(item.ok, 0);
     const bad = number(item.bad, 0);
     const total = ok + bad;
+    const loQuestions = questions.filter((question) => question.lo === lo);
+    const evidence = practiceEvidenceIds(course, progress, (question) => question.lo === lo);
+    const results = loQuestions
+      .map((question) => progress.questionResults?.[question.id])
+      .filter(Boolean);
+    const uniqueCorrect = results.filter((result) => result.correct).length;
     return {
       ok,
       bad,
       total,
-      accuracy: pct(ok, total)
+      uniqueAnswered: evidence.size,
+      uniqueCorrect,
+      questionCount: loQuestions.length,
+      coverage: pct(evidence.size, loQuestions.length),
+      accuracy: results.length ? pct(uniqueCorrect, results.length) : pct(ok, total)
     };
   }
 
@@ -2828,7 +3360,7 @@
         <p class="small">Tiempo sugerido: ${number(chapter.minutes)} min · LO: ${objectiveCount} · Preguntas: ${questionCount} · Págs. syllabus: ${h(chapter.completeSyllabusPages || 'N/D')}</p>
         <div class="chapterProgressCompare">
           <div><span>Avance</span><strong>${chapterProgress.coverage}%</strong><small>${chapterProgress.touched}/${chapterProgress.objectiveCount} LO recorridos</small></div>
-          <div><span>Dominio del capítulo</span><strong>${chapterProgress.domain}%</strong><small>${chapterProgress.ok}/${chapterProgress.answered} correctas · precisión ${chapterProgress.accuracy}%</small></div>
+          <div><span>Dominio del capítulo</span><strong>${chapterProgress.domain}%</strong><small>${chapterProgress.uniqueCorrect}/${chapterProgress.questionCount} dominadas · ${chapterProgress.uniqueAnswered} únicas respondidas</small></div>
           <div><span>Tiempo</span><strong>${chapterProgress.studyMinutes}/${chapterProgress.suggestedMinutes} min</strong><small>estudiados / sugeridos</small></div>
         </div>
         <div class="chapterProgressBars">
@@ -2867,13 +3399,470 @@
     return `<div class="okbox"><h3>${h(section.title)}</h3><p>${h(section.body)}</p>${bullets}</div>`;
   }
 
+  function normalizeNarrationText(parts) {
+    return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function splitNarrationText(value, limit = 3_900) {
+    const text = String(value || '').trim();
+    if (!text) return [];
+    const chunks = [];
+    let remaining = text;
+    while (remaining.length > limit) {
+      const window = remaining.slice(0, limit + 1);
+      const sentenceBoundary = Math.max(window.lastIndexOf('. '), window.lastIndexOf('? '), window.lastIndexOf('! '), window.lastIndexOf('; '));
+      const wordBoundary = window.lastIndexOf(' ');
+      const boundary = sentenceBoundary >= Math.floor(limit * 0.55) ? sentenceBoundary + 1 : wordBoundary >= Math.floor(limit * 0.55) ? wordBoundary : limit;
+      chunks.push(remaining.slice(0, boundary).trim());
+      remaining = remaining.slice(boundary).trim();
+    }
+    if (remaining) chunks.push(remaining);
+    return chunks;
+  }
+
+  function narrationSegmentId(contentId, index, total) {
+    return total > 1 ? `${contentId}-part-${index + 1}` : contentId;
+  }
+
+  function narrationTextFor(contentId) {
+    if (!course) return '';
+    if (contentId.startsWith('chapter-reference-')) {
+      const chapterId = Number(contentId.slice('chapter-reference-'.length));
+      const chapter = course.chapters.find((item) => Number(item.id) === chapterId);
+      if (!chapter) return '';
+      return normalizeNarrationText([
+        `Material de estudio ampliado del capítulo ${chapter.id}. ${chapter.title}.`,
+        chapter.completeSyllabusText
+      ]);
+    }
+
+    if (contentId.startsWith('lo-reference-')) {
+      const lo = contentId.slice('lo-reference-'.length);
+      const objective = course.objectives.find((item) => String(item.lo).toLowerCase() === lo);
+      if (!objective) return '';
+      return normalizeNarrationText([
+        `Contenido de referencia del objetivo de aprendizaje ${objective.lo}.`,
+        objective.sourceText,
+        objective.syllabusExtract
+      ]);
+    }
+
+    if (contentId.startsWith('chapter-')) {
+      const chapterId = Number(contentId.slice('chapter-'.length));
+      const chapter = course.chapters.find((item) => Number(item.id) === chapterId);
+      if (!chapter) return '';
+      const sections = (chapter.theorySections || []).flatMap((section) => [
+        section.title,
+        section.body,
+        ...(section.bullets || [])
+      ]);
+      const caseStudy = chapter.caseStudy ? [
+        `Caso práctico: ${chapter.caseStudy.title || ''}`,
+        chapter.caseStudy.context,
+        chapter.caseStudy.challenge,
+        chapter.caseStudy.approach,
+        chapter.caseStudy.evidence
+      ] : [];
+      return normalizeNarrationText([`Capítulo ${chapter.id}. ${chapter.title}.`, chapter.summary, ...sections, ...caseStudy, ...(chapter.examples || [])]);
+    }
+
+    if (contentId.startsWith('lo-')) {
+      const lo = contentId.slice('lo-'.length);
+      const objective = course.objectives.find((item) => String(item.lo).toLowerCase() === lo);
+      if (!objective) return '';
+      return normalizeNarrationText([
+        `Objetivo de aprendizaje ${objective.lo}, nivel ${objective.k}.`,
+        objective.text,
+        objective.theory,
+        objective.remember ? `Recuerda: ${objective.remember}` : '',
+        objective.example ? `Escenario práctico: ${objective.example}` : '',
+        objective.trap ? `Evita esta confusión: ${objective.trap}` : ''
+      ]);
+    }
+    return '';
+  }
+
+  function narrationControls(contentId, label) {
+    const active = narrationState.contentId === contentId;
+    const status = active ? narrationState.status : 'idle';
+    const primaryLabel = status === 'playing' ? 'Pausar' : status === 'paused' ? 'Continuar' : status === 'loading' ? 'Preparando' : 'Escuchar';
+    const icon = status === 'playing' ? 'Ⅱ' : '🔊';
+    const segmentStatus = active && narrationState.chunks?.length > 1 ? ` · parte ${narrationState.chunkIndex + 1} de ${narrationState.chunks.length}` : '';
+    const timeline = narrationTimelineSnapshot(contentId);
+    return `<div class="narrationControls" data-narration-controls="${h(contentId)}">
+      <button class="narrationPrimary" type="button" data-action="toggle-narration" data-narration-id="${h(contentId)}" data-narration-label="${h(label)}" aria-label="${h(primaryLabel)} ${h(label)}" ${status === 'loading' ? 'disabled' : ''}><span class="narrationIcon" aria-hidden="true">${icon}</span><span class="narrationButtonText">${h(primaryLabel)}</span></button>
+      <button class="narrationIconButton" type="button" data-action="repeat-narration" aria-label="Repetir narración" title="Repetir" ${active && narrationState.text ? '' : 'disabled'}>↻</button>
+      <div class="narrationSpeed" role="group" aria-label="Velocidad de narración">${[0.75, 1, 1.25].map((speed) => `<button type="button" data-action="narration-speed" data-speed="${speed}" aria-pressed="${narrationState.speed === speed}">${speed}x</button>`).join('')}</div>
+      <span class="narrationStatus" aria-live="polite">${status === 'loading' ? `Generando voz${segmentStatus}...` : active && narrationState.source === 'device' ? 'Voz del dispositivo' : `Narración generada con IA${segmentStatus}`}</span>
+      <div class="narrationTimeline">
+        <input type="range" min="0" max="${timeline.total || 1}" step="0.1" value="${timeline.current}" data-narration-seek="${h(contentId)}" aria-label="Posición de ${h(label)}" aria-valuetext="${h(formatNarrationTime(timeline.current))} de ${h(formatNarrationTime(timeline.total))}" ${timeline.enabled ? '' : 'disabled'}>
+        <div class="narrationTimes" aria-hidden="true"><span data-narration-current>${h(formatNarrationTime(timeline.current))}</span><span data-narration-duration>${h(formatNarrationTime(timeline.total))}</span></div>
+      </div>
+    </div>`;
+  }
+
+  function estimatedNarrationDuration(text) {
+    const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
+    return Math.max(1, words / 2.45);
+  }
+
+  function narrationDurations() {
+    return (narrationState.chunks || []).map((chunk, index) => {
+      const duration = Number(narrationState.chunkDurations?.[index]);
+      return Number.isFinite(duration) && duration > 0 ? duration : estimatedNarrationDuration(chunk);
+    });
+  }
+
+  function narrationTimelineSnapshot(contentId = narrationState.contentId) {
+    if (!contentId || narrationState.contentId !== contentId || !narrationState.chunks?.length) {
+      return { current: 0, total: 0, enabled: false };
+    }
+    const durations = narrationDurations();
+    const offset = durations.slice(0, narrationState.chunkIndex).reduce((total, duration) => total + duration, 0);
+    const localTime = narrationState.source === 'openai' && Number.isFinite(narrationAudio.currentTime)
+      ? narrationAudio.currentTime
+      : 0;
+    const total = durations.reduce((sum, duration) => sum + duration, 0);
+    return {
+      current: Math.min(total, Math.max(0, offset + localTime)),
+      total,
+      enabled: narrationState.source === 'openai' && narrationState.status !== 'loading'
+    };
+  }
+
+  function formatNarrationTime(value) {
+    const totalSeconds = Math.max(0, Math.round(Number(value) || 0));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return hours > 0
+      ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+      : `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  function narrationPositionAt(globalTime) {
+    const durations = narrationDurations();
+    const total = durations.reduce((sum, duration) => sum + duration, 0);
+    let remaining = Math.min(total, Math.max(0, Number(globalTime) || 0));
+    for (let index = 0; index < durations.length; index += 1) {
+      const duration = durations[index];
+      if (remaining <= duration || index === durations.length - 1) {
+        return { index, localTime: Math.min(duration, remaining) };
+      }
+      remaining -= duration;
+    }
+    return { index: 0, localTime: 0 };
+  }
+
+  function updateNarrationTimeline() {
+    const timeline = narrationTimelineSnapshot();
+    document.querySelectorAll('[data-narration-controls]').forEach((control) => {
+      const active = control.dataset.narrationControls === narrationState.contentId;
+      const seek = control.querySelector('[data-narration-seek]');
+      if (!seek) return;
+      const current = active ? timeline.current : 0;
+      const total = active ? timeline.total : 0;
+      seek.max = String(total || 1);
+      seek.value = String(current);
+      seek.disabled = !(active && timeline.enabled);
+      seek.setAttribute('aria-valuetext', `${formatNarrationTime(current)} de ${formatNarrationTime(total)}`);
+      setTextIfChanged(control.querySelector('[data-narration-current]'), formatNarrationTime(current));
+      setTextIfChanged(control.querySelector('[data-narration-duration]'), formatNarrationTime(total));
+    });
+  }
+
+  function previewNarrationSeek(seek) {
+    const control = seek.closest('[data-narration-controls]');
+    if (!control || control.dataset.narrationControls !== narrationState.contentId) return;
+    const current = Number(seek.value) || 0;
+    const total = Number(seek.max) || 0;
+    seek.setAttribute('aria-valuetext', `${formatNarrationTime(current)} de ${formatNarrationTime(total)}`);
+    setTextIfChanged(control.querySelector('[data-narration-current]'), formatNarrationTime(current));
+  }
+
+  function updateNarrationControls() {
+    document.querySelectorAll('[data-narration-controls]').forEach((control) => {
+      const contentId = control.dataset.narrationControls;
+      const active = narrationState.contentId === contentId;
+      const status = active ? narrationState.status : 'idle';
+      const button = control.querySelector('[data-action="toggle-narration"]');
+      const repeat = control.querySelector('[data-action="repeat-narration"]');
+      const label = status === 'playing' ? 'Pausar' : status === 'paused' ? 'Continuar' : status === 'loading' ? 'Preparando' : 'Escuchar';
+      if (button) {
+        button.disabled = status === 'loading';
+        setTextIfChanged(button.querySelector('.narrationIcon'), status === 'playing' ? 'Ⅱ' : '🔊');
+        setTextIfChanged(button.querySelector('.narrationButtonText'), label);
+        const contextLabel = button.dataset.narrationLabel || 'este contenido';
+        button.setAttribute('aria-label', `${label} ${contextLabel}`);
+      }
+      if (repeat) repeat.disabled = !(active && narrationState.text);
+      control.querySelectorAll('[data-action="narration-speed"]').forEach((speedButton) => {
+        speedButton.setAttribute('aria-pressed', String(Number(speedButton.dataset.speed) === narrationState.speed));
+      });
+      const statusElement = control.querySelector('.narrationStatus');
+      const segmentStatus = active && narrationState.chunks?.length > 1 ? ` · parte ${narrationState.chunkIndex + 1} de ${narrationState.chunks.length}` : '';
+      setTextIfChanged(statusElement, status === 'loading'
+        ? `Generando voz${segmentStatus}...`
+        : active && narrationState.source === 'device' ? 'Voz del dispositivo · avance no disponible' : `Narración generada con IA${segmentStatus}`);
+    });
+    updateNarrationTimeline();
+  }
+
+  function releaseNarrationAudio() {
+    narrationAudio.onended = null;
+    narrationAudio.ontimeupdate = null;
+    narrationAudio.onloadedmetadata = null;
+    narrationAudio.onerror = null;
+    narrationAudio.pause();
+    narrationAudio.removeAttribute('src');
+    narrationAudio.load();
+    if (narrationObjectUrl) URL.revokeObjectURL(narrationObjectUrl);
+    narrationObjectUrl = '';
+  }
+
+  function stopNarration() {
+    narrationLoadToken += 1;
+    releaseNarrationAudio();
+    global.speechSynthesis?.cancel?.();
+    narrationState = { ...narrationState, contentId: '', text: '', chunks: [], chunkDurations: [], chunkIndex: 0, status: 'idle', source: '', utterance: null };
+    updateNarrationControls();
+  }
+
+  function spanishDeviceVoice() {
+    const voices = (global.speechSynthesis?.getVoices?.() || []).filter((voice) => /^es(?:-|_)/i.test(voice.lang));
+    const score = (voice) => {
+      const lang = String(voice.lang || '').replace('_', '-').toLowerCase();
+      const name = String(voice.name || '');
+      let value = 0;
+      if (lang === 'es-co') value += 50;
+      else if (['es-mx', 'es-us', 'es-419'].includes(lang)) value += 40;
+      else if (lang.startsWith('es-')) value += 25;
+      if (/natural|neural/i.test(name)) value += 35;
+      if (/online|google|microsoft/i.test(name)) value += 20;
+      if (voice.localService === false) value += 10;
+      return value;
+    };
+    return voices.sort((left, right) => score(right) - score(left))[0] || null;
+  }
+
+  function playWithDeviceVoice() {
+    if (!global.speechSynthesis || !global.SpeechSynthesisUtterance) throw new Error('Este navegador no ofrece narración local.');
+    global.speechSynthesis.cancel();
+    const utterance = new global.SpeechSynthesisUtterance(narrationState.text);
+    utterance.lang = 'es-CO';
+    utterance.rate = narrationState.speed;
+    const voice = spanishDeviceVoice();
+    if (voice) utterance.voice = voice;
+    utterance.onend = () => {
+      narrationState.status = 'idle';
+      updateNarrationControls();
+    };
+    utterance.onerror = () => {
+      narrationState.status = 'idle';
+      updateNarrationControls();
+    };
+    narrationState = { ...narrationState, status: 'playing', source: 'device', utterance };
+    global.speechSynthesis.speak(utterance);
+    updateNarrationControls();
+  }
+
+  async function toggleNarration(contentId) {
+    if (!contentId) return;
+    if (narrationState.contentId === contentId && narrationState.status === 'playing') {
+      if (narrationState.source === 'device') global.speechSynthesis.pause();
+      else narrationAudio.pause();
+      narrationState.status = 'paused';
+      updateNarrationControls();
+      return;
+    }
+    if (narrationState.contentId === contentId && narrationState.status === 'paused') {
+      if (narrationState.source === 'device') global.speechSynthesis.resume();
+      else await narrationAudio.play();
+      narrationState.status = 'playing';
+      updateNarrationControls();
+      return;
+    }
+
+    const text = narrationTextFor(contentId);
+    if (!text) return;
+    const chunks = splitNarrationText(text);
+    stopNarration();
+    narrationState = {
+      ...narrationState,
+      contentId,
+      text,
+      chunks,
+      chunkDurations: chunks.map(estimatedNarrationDuration),
+      chunkIndex: 0,
+      status: 'loading',
+      source: '',
+      utterance: null
+    };
+    updateNarrationControls();
+    try {
+      await playOpenAiNarrationChunk(0);
+    } catch (error) {
+      console.warn('Narración OpenAI no disponible; se usará la voz del dispositivo.', error);
+      try {
+        playWithDeviceVoice();
+        notify('La voz en la nube no está disponible; se está usando la voz en español del dispositivo.', 'info', 6_000);
+      } catch (fallbackError) {
+        narrationState.status = 'idle';
+        updateNarrationControls();
+        notify(fallbackError?.message || 'No fue posible reproducir la narración.', 'error');
+      }
+    }
+  }
+
+  async function playOpenAiNarrationChunk(index, { seekTime = 0, autoplay = true } = {}) {
+    const chunks = narrationState.chunks || [];
+    const chunk = chunks[index];
+    if (!chunk) return;
+    const loadToken = ++narrationLoadToken;
+    releaseNarrationAudio();
+    narrationState = { ...narrationState, chunkIndex: index, status: 'loading', source: 'openai', utterance: null };
+    updateNarrationControls();
+    const segmentId = narrationSegmentId(narrationState.contentId, index, chunks.length);
+    const blob = await Cloud.getCourseAudio(activeCourseKey, segmentId, chunk);
+    if (loadToken !== narrationLoadToken) return;
+    narrationObjectUrl = URL.createObjectURL(blob);
+    narrationAudio.src = narrationObjectUrl;
+    narrationAudio.playbackRate = narrationState.speed;
+    await new Promise((resolve, reject) => {
+      narrationAudio.onloadedmetadata = () => {
+        if (loadToken !== narrationLoadToken) return resolve();
+        const duration = Number(narrationAudio.duration);
+        if (Number.isFinite(duration) && duration > 0) narrationState.chunkDurations[index] = duration;
+        narrationAudio.currentTime = Math.min(
+          Math.max(0, Number(seekTime) || 0),
+          Math.max(0, (Number.isFinite(duration) ? duration : 0) - 0.05)
+        );
+        updateNarrationTimeline();
+        resolve();
+      };
+      narrationAudio.onerror = () => reject(new Error('No fue posible cargar el audio generado.'));
+      narrationAudio.load();
+    });
+    if (loadToken !== narrationLoadToken) return;
+    narrationAudio.ontimeupdate = updateNarrationTimeline;
+    narrationAudio.onended = () => {
+      if (index + 1 < chunks.length) {
+        playOpenAiNarrationChunk(index + 1).catch((error) => {
+          console.warn('No fue posible continuar la narración.', error);
+          narrationState.status = 'idle';
+          updateNarrationControls();
+          notify('La narración se detuvo antes de completar el contenido.', 'error');
+        });
+        return;
+      }
+      narrationState.status = 'idle';
+      updateNarrationControls();
+    };
+    narrationState = { ...narrationState, status: autoplay ? 'playing' : 'paused', source: 'openai' };
+    if (autoplay) await narrationAudio.play();
+    updateNarrationControls();
+  }
+
+  async function seekNarration(globalTime) {
+    if (narrationState.source !== 'openai' || !narrationState.chunks?.length) return;
+    const position = narrationPositionAt(globalTime);
+    const shouldPlay = narrationState.status === 'playing';
+    if (position.index === narrationState.chunkIndex && narrationAudio.readyState >= 1) {
+      narrationAudio.currentTime = Math.min(
+        position.localTime,
+        Math.max(0, (Number(narrationAudio.duration) || position.localTime) - 0.05)
+      );
+      if (narrationState.status === 'idle') narrationState.status = 'paused';
+      updateNarrationControls();
+      return;
+    }
+    try {
+      await playOpenAiNarrationChunk(position.index, { seekTime: position.localTime, autoplay: shouldPlay });
+    } catch (error) {
+      console.warn('No fue posible cambiar la posición de la narración.', error);
+      notify('No fue posible ir a ese punto de la narración.', 'error');
+    }
+  }
+
+  function repeatNarration() {
+    if (!narrationState.text) return;
+    if (narrationState.source === 'device') {
+      playWithDeviceVoice();
+      return;
+    }
+    playOpenAiNarrationChunk(0).catch(() => notify('No fue posible repetir la narración.', 'error'));
+  }
+
+  function setNarrationSpeed(speed) {
+    if (![0.75, 1, 1.25].includes(speed)) return;
+    narrationState.speed = speed;
+    narrationAudio.playbackRate = speed;
+    if (narrationState.source === 'device' && narrationState.text && ['playing', 'paused'].includes(narrationState.status)) playWithDeviceVoice();
+    updateNarrationControls();
+  }
+
+  function loadReadingScale() {
+    try {
+      const saved = Number(global.localStorage?.getItem(READING_SCALE_KEY));
+      if (Number.isFinite(saved) && saved >= 0.85 && saved <= 1.4) return saved;
+    } catch (_) {
+      // La preferencia es opcional; la lectura funciona aunque el navegador bloquee el almacenamiento.
+    }
+    return 1;
+  }
+
+  function readingSizeControls() {
+    const percent = Math.round(readingScale * 100);
+    return `<div class="readingSizeControls" role="group" aria-label="Tamaño del texto de estudio">
+      <button type="button" data-action="reading-size" data-delta="-0.1" aria-label="Disminuir tamaño del texto" title="Disminuir texto" ${readingScale <= 0.85 ? 'disabled' : ''}>A−</button>
+      <output aria-live="polite" aria-label="Tamaño actual del texto">${percent}%</output>
+      <button type="button" data-action="reading-size" data-delta="0.1" aria-label="Aumentar tamaño del texto" title="Aumentar texto" ${readingScale >= 1.4 ? 'disabled' : ''}>A+</button>
+    </div>`;
+  }
+
+  function updateReadingScaleControls() {
+    const chapterReading = document.querySelector('#chapterDetail .chapterReading');
+    if (!chapterReading) return;
+    chapterReading.style.setProperty('--reading-scale', String(readingScale));
+    const output = chapterReading.querySelector('.readingSizeControls output');
+    setTextIfChanged(output, `${Math.round(readingScale * 100)}%`);
+    chapterReading.querySelectorAll('[data-action="reading-size"]').forEach((button) => {
+      const delta = Number(button.dataset.delta);
+      button.disabled = delta < 0 ? readingScale <= 0.85 : readingScale >= 1.4;
+    });
+  }
+
+  function setReadingScale(delta) {
+    if (![-0.1, 0.1].includes(delta)) return;
+    readingScale = Math.max(0.85, Math.min(1.4, Math.round((readingScale + delta) * 10) / 10));
+    try {
+      global.localStorage?.setItem(READING_SCALE_KEY, String(readingScale));
+    } catch (_) {
+      // Mantiene la preferencia durante la sesión aunque no se pueda persistir.
+    }
+    updateReadingScaleControls();
+  }
+
+  function renderCaseStudy(caseStudy) {
+    if (!caseStudy) return '';
+    return `<section class="courseCaseStudy"><span class="sectionKicker">Caso de trabajo</span><h3>${h(caseStudy.title || 'Escenario de la vida real')}</h3>
+      ${caseStudy.context ? `<p><b>Contexto:</b> ${h(caseStudy.context)}</p>` : ''}
+      ${caseStudy.challenge ? `<p><b>Reto:</b> ${h(caseStudy.challenge)}</p>` : ''}
+      ${caseStudy.approach ? `<p><b>Cómo actuar:</b> ${h(caseStudy.approach)}</p>` : ''}
+      ${caseStudy.evidence ? `<p><b>Evidencia esperada:</b> ${h(caseStudy.evidence)}</p>` : ''}
+      ${caseStudy.attribution ? `<small>${h(caseStudy.attribution)}</small>` : ''}
+    </section>`;
+  }
+
   function renderObjectiveTheory(objective) {
     return `<details class="contentDetails"><summary><b>${h(objective.lo)}</b> · ${h(objective.k)} · ${h(objective.text)}</summary>
+      ${narrationControls(`lo-${String(objective.lo).toLowerCase()}`, `el objetivo ${objective.lo}`)}
       <p>${h(objective.theory || 'Teoría específica integrada en el capítulo.')}</p>
       ${objective.remember ? `<p><b>Recuerda:</b> ${h(objective.remember)}</p>` : ''}
       ${objective.trap ? `<p><b>Trampa típica:</b> ${h(objective.trap)}</p>` : ''}
-      ${objective.example ? `<p><b>Ejemplo:</b> ${h(objective.example)}</p>` : ''}
-      ${objective.syllabusExtract ? `<details><summary>Extracto del syllabus para este LO</summary><div class="prebox small">${h(objective.syllabusExtract)}</div></details>` : ''}
+      ${objective.example ? `<p><b>Ejemplo práctico:</b> ${h(objective.example)}</p>${objective.exampleAttribution ? `<small>${h(objective.exampleAttribution)}</small>` : ''}` : ''}
+      ${objective.sourceText ? `<div class="sourceStatement"><b>Objetivo de aprendizaje:</b><span>${h(objective.sourceText)}</span></div>` : ''}
+      ${objective.syllabusExtract ? `<details><summary>Contenido de referencia</summary>${narrationControls(`lo-reference-${String(objective.lo).toLowerCase()}`, `el contenido de referencia del objetivo ${objective.lo}`)}<div class="prebox small referenceReading">${h(objective.syllabusExtract)}</div>${objective.syllabusSource ? `<div class="sourceMeta sourceReference"><b>Referencia académica:</b> ${h(objective.syllabusSource)}</div>` : ''}</details>` : ''}
     </details>`;
   }
 
@@ -2903,7 +3892,7 @@
       return `<tr>
       <td data-label="LO"><b>${h(objective.lo)}</b></td><td data-label="K">${h(objective.k)}</td><td data-label="Objetivo">${h(objective.text)}</td>
       <td data-label="Preguntas">${questions.filter((question) => question.lo === objective.lo).length}</td>
-      <td data-label="Avance">${loProgress.total ? `${loProgress.total} resp. · ${loProgress.accuracy}%` : 'Sin práctica'}</td>
+      <td data-label="Avance">${loProgress.uniqueAnswered ? `${loProgress.uniqueAnswered}/${loProgress.questionCount} preguntas únicas · ${loProgress.accuracy}% precisión` : 'Sin práctica'}</td>
       <td data-label="Acción"><button class="btn secondary" type="button" data-action="practice" data-chapter="${number(id)}" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
     </tr>`;
     }).join('');
@@ -2913,22 +3902,26 @@
       updateDocumentMetadata();
     }
 
-    host.innerHTML = `<div class="card">
-      <h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2><p>${h(chapter.summary)}</p>
+    host.innerHTML = `<div class="card chapterReading" style="--reading-scale:${readingScale}">
+      <div class="chapterHeadingRow"><h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2>${readingSizeControls()}</div>${narrationControls(`chapter-${number(id)}`, `el capítulo ${number(id)}`)}<p class="chapterLead">${h(chapter.summary)}</p>
       <div class="grid3 chapterProgressGrid">
         <div class="metric"><span>Avance</span><strong>${progress.coverage}%</strong><small>${progress.touched}/${progress.objectiveCount} LO recorridos</small></div>
-        <div class="metric"><span>Dominio del capítulo</span><strong>${progress.domain}%</strong><small>${progress.ok}/${progress.answered} correctas · precisión ${progress.accuracy}%</small></div>
+        <div class="metric"><span>Dominio del capítulo</span><strong>${progress.domain}%</strong><small>${progress.uniqueCorrect}/${progress.questionCount} dominadas · ${progress.uniqueAnswered} únicas respondidas</small></div>
         <div class="metric"><span>Tiempo estudiado</span><strong>${progress.studyMinutes}/${progress.suggestedMinutes} min</strong><small>estudiados / sugeridos</small></div>
       </div>
-      <h3>Teoría del syllabus resumida</h3>${(chapter.theorySections || []).map(renderTheorySection).join('')}
-      <details open class="contentDetails"><summary>Texto completo evaluable · páginas ${h(chapter.completeSyllabusPages || 'N/D')}</summary><div class="prebox small">${h(chapter.completeSyllabusText || 'No hay texto ampliado cargado para este capítulo.')}</div></details>
-      <h3>Términos clave</h3><div>${(chapter.terms || []).map((term) => `<span class="pill">${h(term)}</span>`).join('')}</div>
-      <h3>Objetivos de aprendizaje con teoría</h3>${objectives.map(renderObjectiveTheory).join('')}
-      <h3>Mapa LO y práctica</h3><table class="table responsiveTable loPracticeTable"><tr><th>LO</th><th>K</th><th>Objetivo</th><th>Preguntas</th><th>Avance</th><th>Acción</th></tr>${rows}</table>
-      <h3>Trampas frecuentes</h3><ul>${(chapter.pitfalls || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
-      <h3>Ejemplos aplicados</h3><ul>${(chapter.examples || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
-      <div class="btnrow"><button class="btn" type="button" data-action="practice" data-chapter="${number(id)}" data-count="20" data-mode="study">Practicar capítulo</button><button class="btn secondary" type="button" data-view="objectives">Ver mapa LO</button></div>
+      <div class="chapterLearningContent">
+        <h3>Aprende este capítulo</h3>${(chapter.theorySections || []).map(renderTheorySection).join('')}
+        ${renderCaseStudy(chapter.caseStudy)}
+        <details class="contentDetails"><summary>Material de estudio ampliado</summary>${narrationControls(`chapter-reference-${number(id)}`, `el material ampliado del capítulo ${number(id)}`)}<div class="prebox small referenceReading">${h(chapter.completeSyllabusText || 'No hay texto ampliado cargado para este capítulo.')}</div>${chapter.syllabusSource ? `<div class="sourceMeta sourceReference"><b>Referencia académica:</b> ${h(chapter.syllabusSource)}</div>` : ''}</details>
+        <h3>Términos clave</h3><div>${(chapter.terms || []).map((term) => `<span class="pill">${h(term)}</span>`).join('')}</div>
+        <h3>Objetivos de aprendizaje</h3>${objectives.map(renderObjectiveTheory).join('')}
+        <h3>Mapa LO y práctica</h3><table class="table responsiveTable loPracticeTable"><tr><th>LO</th><th>K</th><th>Objetivo</th><th>Preguntas</th><th>Avance</th><th>Acción</th></tr>${rows}</table>
+        <h3>Trampas frecuentes</h3><ul>${(chapter.pitfalls || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
+        <h3>Ejemplos aplicados</h3><ul>${(chapter.examples || []).map((item) => `<li>${h(item)}</li>`).join('')}</ul>
+        <div class="btnrow"><button class="btn" type="button" data-action="practice" data-chapter="${number(id)}" data-count="20" data-mode="study">Practicar capítulo</button><button class="btn secondary" type="button" data-view="objectives">Ver mapa LO</button></div>
+      </div>
     </div>`;
+    updateReadingScaleControls();
     if (options.scroll !== false) host.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -2938,13 +3931,15 @@
       <td data-label="Teoría"><b>${h(objective.text)}</b><br><span class="small">${h(objective.theory || '')}</span>
         ${objective.remember ? `<br><span class="small"><b>Recuerda:</b> ${h(objective.remember)}</span>` : ''}
         ${objective.trap ? `<br><span class="small"><b>Trampa:</b> ${h(objective.trap)}</span>` : ''}
-        ${objective.syllabusExtract ? `<details><summary class="small"><b>Extracto del syllabus</b></summary><div class="prebox small">${h(objective.syllabusExtract)}</div></details>` : ''}
+        ${narrationControls(`lo-${String(objective.lo).toLowerCase()}`, `el objetivo ${objective.lo}`)}
+        ${objective.sourceText ? `<div class="sourceStatement small"><b>Objetivo de aprendizaje:</b><span>${h(objective.sourceText)}</span></div>` : ''}
+        ${objective.syllabusExtract ? `<details><summary class="small"><b>Contenido de referencia</b></summary>${narrationControls(`lo-reference-${String(objective.lo).toLowerCase()}`, `el contenido de referencia del objetivo ${objective.lo}`)}<div class="prebox small referenceReading">${h(objective.syllabusExtract)}</div>${objective.syllabusSource ? `<div class="sourceMeta sourceReference"><b>Referencia académica:</b> ${h(objective.syllabusSource)}</div>` : ''}</details>` : ''}
       </td>
       <td data-label="Preguntas">${questions.filter((question) => question.lo === objective.lo).length}</td>
       <td data-label="Acción"><button class="btn secondary" type="button" data-action="practice" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
     </tr>`).join('');
 
-    return `<div class="card"><h2>Mapa completo de objetivos de aprendizaje</h2><p>Esta vista combina teoría, extracto del temario y práctica por objetivo.</p><table class="table responsiveTable objectivesTable"><tr><th>LO</th><th>Cap.</th><th>K</th><th>Teoría del objetivo</th><th>Preguntas</th><th></th></tr>${rows}</table></div>`;
+    return `<div class="card"><h2>Mapa completo de objetivos de aprendizaje</h2><p>Esta vista combina teoría, narración y práctica por objetivo.</p><table class="table responsiveTable objectivesTable"><tr><th>LO</th><th>Cap.</th><th>K</th><th>Teoría del objetivo</th><th>Preguntas</th><th></th></tr>${rows}</table></div>`;
   }
 
   function selectedAttr(value, current) {
@@ -3106,6 +4101,13 @@
     };
     if (isCorrect) progress.byLo[key].ok += 1;
     else progress.byLo[key].bad += 1;
+    progress.questionResults = progress.questionResults || {};
+    progress.questionResults[question.id] = {
+      correct: isCorrect,
+      lo: question.lo,
+      chapter: question.chapter,
+      answeredAt: new Date().toISOString()
+    };
     saveProgress(progress);
   }
 
@@ -3478,7 +4480,13 @@
         render();
         if (initialRoute.view === 'account' && Auth?.isAuthenticated?.()) await refreshAccount();
         if (initialRoute.view === 'admin' && Auth?.isAuthenticated?.() && Auth?.isAdmin?.()) await refreshAdmin();
+        if (initialRoute.view === 'verifyCertificate') {
+          const certificateCode = new URLSearchParams(global.location.search || '').get('codigo');
+          if (certificateCode) await openCertificateValidation(certificateCode);
+        }
       }
+
+      if (initialRoute.view === 'account') await handleCertificatePaymentReturn();
 
       scrollToAnchor(initialRoute.anchor);
       try {
@@ -3490,6 +4498,7 @@
         console.warn('No fue posible mostrar la confirmación de cierre de sesión.', error);
       }
       if (!Storage.available()) notify('El navegador no permite guardar progreso local. La academia seguirá funcionando sin persistencia.', 'warning', 10_000);
+      syncBackToTop();
     } catch (error) {
       showFatalError(error);
     }

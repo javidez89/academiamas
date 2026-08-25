@@ -12,6 +12,12 @@
     return { client, user };
   }
 
+  function requireClient() {
+    const client = Auth?.getClient?.();
+    if (!client) throw new Error('No fue posible conectar con el servicio en la nube.');
+    return client;
+  }
+
   function normalizeCourseKey(value) {
     const key = String(value || '').trim().toLowerCase();
     if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(key)) throw new Error('Curso no válido.');
@@ -49,6 +55,12 @@
       historyMap.set([entry.id, entry.mode, entry.seenAt].join('|'), entry);
     });
 
+    const questionResults = { ...cloud.questionResults };
+    Object.entries(local.questionResults || {}).forEach(([questionId, item]) => {
+      const existing = questionResults[questionId];
+      if (!existing || String(item.answeredAt) >= String(existing.answeredAt)) questionResults[questionId] = item;
+    });
+
     const chapterActivity = { ...cloud.chapterActivity };
     Object.entries(local.chapterActivity).forEach(([chapterId, item]) => {
       const existing = chapterActivity[chapterId] || {};
@@ -68,15 +80,14 @@
       questionHistory: [...historyMap.values()]
         .sort((left, right) => String(left.seenAt).localeCompare(String(right.seenAt)))
         .slice(-5_000),
+      questionResults,
       studySeconds: Math.max(Number(local.studySeconds || 0), Number(cloud.studySeconds || 0)),
       chapterActivity
     });
   }
 
   function answeredCount(progress) {
-    return Object.values(progress?.byLo || {}).reduce((sum, item) => (
-      sum + Number(item?.ok || 0) + Number(item?.bad || 0)
-    ), 0);
+    return Object.keys(progress?.questionResults || {}).length;
   }
 
   async function getProfile() {
@@ -97,6 +108,86 @@
       .order('started_at', { ascending: false });
     if (error) throw error;
     return Array.isArray(data) ? data : [];
+  }
+
+  async function listCertificates() {
+    const { client } = requireUser();
+    const { data, error } = await client
+      .from('certificates')
+      .select('certificate_code,course_key,course_name,full_name,document_type,document_last4,estimated_hours,started_at,completed_at,issued_at,status')
+      .order('issued_at', { ascending: false });
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function listCertificateOrders() {
+    const { client } = requireUser();
+    const { data, error } = await client
+      .from('certificate_orders')
+      .select('id,course_key,reference,price_usd,trm_cop_per_usd,amount_in_cents,currency,status,wompi_status,created_at,expires_at,approved_at,consumed_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function certificateService(action, payload = {}) {
+    const { client } = requireUser();
+    const { data, error } = await client.functions.invoke('certificate-service', {
+      body: { action, ...payload }
+    });
+    if (!error) return data && typeof data === 'object' ? data : {};
+
+    let message = error.message || 'No fue posible procesar el certificado.';
+    try {
+      const details = await error.context?.json?.();
+      if (details?.error) message = details.error;
+    } catch {
+      // The generic error is preserved when the response body is unavailable.
+    }
+    throw new Error(message);
+  }
+
+  async function createCertificateCheckout(courseKey) {
+    return certificateService('create-checkout', { courseKey: normalizeCourseKey(courseKey) });
+  }
+
+  async function confirmCertificatePayment(transactionId) {
+    return certificateService('confirm-payment', { transactionId: String(transactionId || '').trim() });
+  }
+
+  async function issueCertificate(input) {
+    const value = input && typeof input === 'object' ? input : {};
+    return certificateService('issue-certificate', {
+      orderId: String(value.orderId || '').trim(),
+      fullName: String(value.fullName || '').trim(),
+      documentType: String(value.documentType || '').trim(),
+      documentNumber: String(value.documentNumber || '').trim(),
+      publicConsent: value.publicConsent === true
+    });
+  }
+
+  async function getCertificateDownload(certificateCode) {
+    return certificateService('download-certificate', {
+      certificateCode: String(certificateCode || '').trim().toUpperCase()
+    });
+  }
+
+  async function validateCertificate(certificateCode) {
+    const client = requireClient();
+    const { data, error } = await client.functions.invoke('validate-certificate', {
+      body: { certificateCode: String(certificateCode || '').trim().toUpperCase() }
+    });
+    if (error) {
+      let message = error.message || 'No fue posible validar el certificado.';
+      try {
+        const details = await error.context?.json?.();
+        if (details?.error) message = details.error;
+      } catch {
+        // The generic error is preserved when the response body is unavailable.
+      }
+      throw new Error(message);
+    }
+    return data && typeof data === 'object' ? data : { valid: false };
   }
 
   async function enroll(courseKey, estimatedHours) {
@@ -164,6 +255,27 @@
     });
     if (activity.error) throw activity.error;
     return progress;
+  }
+
+  async function getCourseAudio(courseKey, contentId, text) {
+    const { client } = requireUser();
+    const { data, error } = await client.functions.invoke('course-audio', {
+      body: {
+        courseKey: normalizeCourseKey(courseKey),
+        contentId: String(contentId || '').slice(0, 120),
+        text: String(text || '').slice(0, 4_096)
+      }
+    });
+    if (error) {
+      let message = error.message || 'No fue posible cargar la narración.';
+      try {
+        const payload = await error.context?.json?.();
+        if (payload?.error) message = payload.error;
+      } catch {}
+      throw new Error(message);
+    }
+    if (!(data instanceof Blob)) throw new Error('La respuesta de narración no contiene audio.');
+    return data;
   }
 
   function queueProgressSync(courseKey, progressValue, delay = 700) {
@@ -241,14 +353,33 @@
     return data && typeof data === 'object' ? data : { total: 0, users: [] };
   }
 
+  async function listAdminCertificates({ search = '', limit = 100, offset = 0 } = {}) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_list_certificates', {
+      p_search: String(search || '').trim().slice(0, 120),
+      p_limit: Math.max(1, Math.min(200, Math.trunc(Number(limit) || 100))),
+      p_offset: Math.max(0, Math.trunc(Number(offset) || 0))
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : { total: 0, certificates: [] };
+  }
+
   global.AcademyCloud = Object.freeze({
     getProfile,
     listEnrollments,
+    listCertificates,
+    listCertificateOrders,
+    createCertificateCheckout,
+    confirmCertificatePayment,
+    issueCertificate,
+    getCertificateDownload,
+    validateCertificate,
     enroll,
     cancelEnrollment,
     deleteEnrollment,
     loadProgress,
     syncProgress,
+    getCourseAudio,
     queueProgressSync,
     flushProgress,
     recordSimulatorCompletion,
@@ -256,6 +387,7 @@
     isAdmin,
     getAdminDashboardSummary,
     listAdminUsers,
+    listAdminCertificates,
     mergeProgress
   });
 }(window));

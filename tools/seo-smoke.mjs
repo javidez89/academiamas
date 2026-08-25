@@ -54,7 +54,7 @@ function hasSchemaType(items, type) {
 }
 
 function expectedPaths(catalog, courseDataByKey) {
-  const publicPaths = ['/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/'];
+  const publicPaths = ['/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/', '/validar-certificado/'];
   const coursePaths = catalog.flatMap(({ key }) => {
     const chapters = courseDataByKey.get(key)?.chapters || [];
     return [
@@ -121,6 +121,8 @@ function validatePageMetadata(html, path) {
   assert.match(contentSecurityPolicy || '', /https:\/\/www\.googletagmanager\.com/, `La CSP bloquea Google Tag Manager en ${path}.`);
   assert.match(contentSecurityPolicy || '', /https:\/\/www\.google-analytics\.com/, `La CSP bloquea Google Analytics en ${path}.`);
   assert.match(contentSecurityPolicy || '', /https:\/\/www\.google\.com/, `La CSP bloquea el endpoint de medición de Google en ${path}.`);
+  assert.match(contentSecurityPolicy || '', /media-src\s+'self'\s+blob:/, `La CSP bloquea la reproducción segura de narraciones en ${path}.`);
+  assert.match(html, /<button\b[^>]*id="backToTop"[^>]*aria-label="Volver al inicio"[^>]*hidden/i, `Falta el control global para volver arriba en ${path}.`);
   assert.match(html, /<html\b[^>]*lang=["']es-CO["']/i, `Idioma HTML incorrecto en ${path}.`);
   assert.equal(h1Count, 1, `Se esperaban un H1 en ${path}, encontrados: ${h1Count}.`);
   assert.ok(schema.length > 0, `Falta JSON-LD en ${path}.`);
@@ -183,7 +185,7 @@ async function validateStaticSeo(catalog, courseDataByKey) {
     if (path === '/') {
       assert.ok(hasSchemaType(pageMetadata.schema, 'EducationalOrganization'), 'La portada no declara EducationalOrganization.');
       assert.ok(hasSchemaType(pageMetadata.schema, 'WebSite'), 'La portada no declara WebSite.');
-      for (const publicPath of ['/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/']) {
+      for (const publicPath of ['/cursos/', '/ruta-aprendizaje/', '/contactanos/', '/legal/', '/validar-certificado/']) {
         assert.match(html, new RegExp(`href=["']${publicPath.replaceAll('/', '\\/')}["']`), `La portada no enlaza limpiamente a ${publicPath}.`);
       }
     } else if (path === '/cursos/' || path === '/ruta-aprendizaje/') {

@@ -8,6 +8,7 @@ export async function completeCourseStudy(page, courseKey) {
     const now = new Date().toISOString();
     progress.chapterActivity ||= {};
     progress.byLo ||= {};
+    progress.questionResults ||= {};
 
     let studySeconds = 0;
     for (const chapter of course.chapters || []) {
@@ -32,6 +33,15 @@ export async function completeCourseStudy(page, courseKey) {
         chapter: objective.chapter,
         k: objective.k,
         objective: objective.text
+      };
+    }
+
+    for (const question of course.questions || []) {
+      progress.questionResults[String(question.id)] = {
+        correct: true,
+        lo: question.lo,
+        chapter: question.chapter,
+        answeredAt: now
       };
     }
 

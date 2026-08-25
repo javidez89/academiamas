@@ -1,5 +1,5 @@
-export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {} }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary }) => {
+export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [] }) {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -13,11 +13,35 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       admin: Boolean(mockedAdmin),
       adminUsers: structuredClone(mockedAdminUsers || []),
       adminSummary: structuredClone(mockedAdminSummary || {}),
+      certificates: structuredClone(mockedCertificates || []),
+      certificateOrders: structuredClone(mockedCertificateOrders || []),
+      adminCertificates: structuredClone(mockedAdminCertificates || []),
       rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
     window.__supabaseMock = state;
     window.__authCalls = state.calls;
+
+    function silentWavBlob(durationSeconds = 8, sampleRate = 8_000) {
+      const sampleCount = Math.max(1, Math.trunc(durationSeconds * sampleRate));
+      const buffer = new ArrayBuffer(44 + sampleCount * 2);
+      const view = new DataView(buffer);
+      const write = (offset, value) => [...value].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
+      write(0, 'RIFF');
+      view.setUint32(4, 36 + sampleCount * 2, true);
+      write(8, 'WAVE');
+      write(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      write(36, 'data');
+      view.setUint32(40, sampleCount * 2, true);
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
 
     function enrollment(courseKey) {
       return state.enrollments.find((item) => item.course_key === courseKey) || null;
@@ -81,7 +105,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
           if (table === 'course_progress') {
             const saved = progressByCourse.get(filters.course_key);
             return {
-              data: saved ? { progress: saved, schema_version: 4, updated_at: new Date().toISOString() } : null,
+              data: saved ? { progress: saved, schema_version: 5, updated_at: new Date().toISOString() } : null,
               error: null
             };
           }
@@ -90,6 +114,12 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
         async order() {
           if (table === 'course_enrollments') {
             return { data: structuredClone(state.enrollments), error: null };
+          }
+          if (table === 'certificates') {
+            return { data: structuredClone(state.certificates), error: null };
+          }
+          if (table === 'certificate_orders') {
+            return { data: structuredClone(state.certificateOrders), error: null };
           }
           return { data: [], error: null };
         }
@@ -159,6 +189,16 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 || String(item.full_name || '').toLowerCase().includes(search));
               return { data: { total: matches.length, users: structuredClone(matches) }, error: null };
             }
+            if (name === 'admin_list_certificates') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const search = String(args?.p_search || '').toLowerCase();
+              const matches = state.adminCertificates.filter((item) => !search
+                || String(item.email || '').toLowerCase().includes(search)
+                || String(item.full_name || '').toLowerCase().includes(search)
+                || String(item.certificate_code || '').toLowerCase().includes(search)
+                || String(item.course_name || '').toLowerCase().includes(search));
+              return { data: { total: matches.length, certificates: structuredClone(matches) }, error: null };
+            }
             if (name === 'enroll_in_course') {
               return { data: [structuredClone(ensureEnrollment(args.p_course_key, args.p_estimated_hours))], error: null };
             }
@@ -183,7 +223,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             if (name === 'sync_course_activity') {
               const item = enrollment(args.p_course_key);
               if (item) {
-                item.practice_answers = Math.max(item.practice_answers || 0, args.p_practice_answers || 0);
+                item.practice_answers = Math.max(0, args.p_practice_answers || 0);
                 item.study_seconds = Math.max(item.study_seconds || 0, args.p_study_seconds || 0);
               }
               return { data: item ? [structuredClone(item)] : [], error: null };
@@ -213,6 +253,78 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               return { data: item ? [structuredClone(item)] : [], error: null };
             }
             return { data: [], error: null };
+          },
+          functions: {
+            async invoke(name, options = {}) {
+              if (name === 'course-audio') return { data: silentWavBlob(), error: null };
+              if (name === 'validate-certificate') {
+                const code = String(options.body?.certificateCode || '').toUpperCase();
+                const certificate = state.certificates.find((item) => item.certificate_code === code && item.status === 'VALID')
+                  || state.adminCertificates.find((item) => item.certificate_code === code && item.status === 'VALID');
+                return {
+                  data: certificate ? {
+                    valid: true,
+                    code: certificate.certificate_code,
+                    status: certificate.status,
+                    full_name: certificate.full_name,
+                    document: certificate.document || `${certificate.document_type || 'CC'} ••••${certificate.document_last4 || '0000'}`,
+                    course_key: certificate.course_key,
+                    course_name: certificate.course_name,
+                    estimated_hours: certificate.estimated_hours,
+                    started_at: certificate.started_at,
+                    completed_at: certificate.completed_at,
+                    issued_at: certificate.issued_at
+                  } : { valid: false, code },
+                  error: null
+                };
+              }
+              if (name !== 'certificate-service') return { data: {}, error: null };
+              const body = options.body || {};
+              state.calls.certificateService ||= [];
+              state.calls.certificateService.push(structuredClone(body));
+              if (body.action === 'download-certificate') {
+                return { data: { downloadUrl: 'data:application/pdf;base64,JVBERi0xLjQ=' }, error: null };
+              }
+              if (body.action === 'create-checkout') {
+                const certificate = state.certificates.find((item) => item.course_key === body.courseKey);
+                if (certificate) return { data: { status: 'ISSUED', certificate: structuredClone(certificate) }, error: null };
+                const approved = state.certificateOrders.find((item) => item.course_key === body.courseKey && item.status === 'APPROVED');
+                if (approved) return { data: { status: 'APPROVED', order: structuredClone(approved), course: { key: body.courseKey, name: approved.course_name || body.courseKey } }, error: null };
+                const pending = state.certificateOrders.find((item) => item.course_key === body.courseKey && item.status === 'PENDING') || {
+                  id: 'b56bffef-261a-4dd4-a1ad-9c1a10939d8b',
+                  course_key: body.courseKey,
+                  status: 'PENDING',
+                  price_usd: 25,
+                  amount_in_cents: 10000000,
+                  currency: 'COP'
+                };
+                return { data: { status: 'PENDING', order: structuredClone(pending), course: { key: body.courseKey, name: pending.course_name || body.courseKey }, checkout: { priceUsd: 25, amountInCents: pending.amount_in_cents, checkoutUrl: 'https://checkout.wompi.co/p/?reference=ACQA-CERT-TEST' } }, error: null };
+              }
+              if (body.action === 'confirm-payment') {
+                const order = state.certificateOrders[0] || { id: 'b56bffef-261a-4dd4-a1ad-9c1a10939d8b', course_key: 'ctfl' };
+                order.status = 'APPROVED';
+                return { data: { status: 'APPROVED', order: structuredClone(order), course: { key: order.course_key, name: order.course_name || 'CTFL 4.0' } }, error: null };
+              }
+              if (body.action === 'issue-certificate') {
+                const order = state.certificateOrders.find((item) => item.id === body.orderId) || state.certificateOrders[0] || {};
+                const certificate = {
+                  certificate_code: 'ACQA-123456789ABC',
+                  course_key: order.course_key || 'ctfl',
+                  course_name: order.course_name || 'ISTQB Certified Tester Foundation Level 4.0 (CTFL)',
+                  full_name: body.fullName,
+                  document_type: body.documentType,
+                  document_last4: String(body.documentNumber || '').replace(/[^A-Z0-9]/gi, '').slice(-4),
+                  estimated_hours: 40,
+                  started_at: '2026-08-01T00:00:00.000Z',
+                  completed_at: '2026-08-15T00:00:00.000Z',
+                  issued_at: new Date().toISOString(),
+                  status: 'VALID'
+                };
+                state.certificates.push(certificate);
+                return { data: { certificate: structuredClone(certificate), downloadUrl: 'data:application/pdf;base64,JVBERi0xLjQ=' }, error: null };
+              }
+              return { data: {}, error: null };
+            }
           }
         };
       }
@@ -231,7 +343,10 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedEnrollments: enrollments,
     mockedAdmin: Boolean(options.admin),
     mockedAdminUsers: options.adminUsers || [],
-    mockedAdminSummary: options.adminSummary || {}
+    mockedAdminSummary: options.adminSummary || {},
+    mockedCertificates: options.certificates || [],
+    mockedCertificateOrders: options.certificateOrders || [],
+    mockedAdminCertificates: options.adminCertificates || []
   });
 }
 

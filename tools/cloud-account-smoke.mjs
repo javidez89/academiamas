@@ -42,11 +42,22 @@ try {
     },
     byLo: {
       'FL-1.1.1': { ok: 2, bad: 1, chapter: 1, k: 'K2', objective: 'Objetivo de prueba' }
+    },
+    questionResults: {
+      'CTFL-C1-001': {
+        correct: true,
+        lo: 'FL-1.1.1',
+        chapter: 1,
+        answeredAt: '2026-08-11T11:04:00Z'
+      }
     }
   }));
   assert.equal(await page.evaluate(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.study_seconds
   )), 3_900, 'El tiempo de estudio debe sincronizarse en la matrícula.');
+  assert.equal(await page.evaluate(() => (
+    window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.practice_answers
+  )), 1, 'Los reintentos del mismo LO no deben inflar el total de preguntas únicas respondidas.');
 
   await page.locator('[data-view="exam"]').first().click();
   await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).click();
@@ -68,11 +79,63 @@ try {
   const firstChapterCardText = await page.locator('.chapterCard').first().innerText();
   assert.match(firstChapterCardText, /Avance\s+100%/i, 'El temario debe mostrar el avance real del capitulo.');
   assert.match(firstChapterCardText, /Dominio del cap[ií]tulo\s+\d+%/i, 'El temario debe mostrar el dominio propio del capitulo.');
-  assert.match(firstChapterCardText, /\d+\/\d+ correctas/i, 'El dominio del capitulo debe mostrar su evidencia de respuestas.');
+  assert.match(firstChapterCardText, /\d+\/\d+ (?:correctas|dominadas)/i, 'El dominio del capitulo debe mostrar su evidencia de respuestas únicas.');
   assert.match(firstChapterCardText, /\d+\/\d+ min/i, 'El temario debe comparar minutos estudiados y sugeridos.');
   const courseMasteryText = await page.locator('.studyMasterySummary').innerText();
   assert.match(courseMasteryText, /Dominio real del curso\s+\d+%/i, 'El dominio real debe representar el curso completo.');
   assert.match(courseMasteryText, /Todos los cap[ií]tulos \d+%.*examen final \d+%/i, 'El dominio real debe desglosar capitulos y examen final.');
+  await page.locator('.chapterCard').first().click();
+  await page.locator('#chapterDetail').getByRole('heading', { name: /Cap[ií]tulo 1 · Fundamentos de la Prueba/i }).waitFor();
+  await page.getByRole('button', { name: /Escuchar el cap[ií]tulo 1/i }).waitFor();
+  assert.equal(await page.getByRole('button', { name: /Repetir narraci[oó]n/i }).first().isDisabled(), true, 'Repetir debe iniciar deshabilitado hasta preparar una narración.');
+  const narrationSeek = page.locator('[data-narration-controls="chapter-1"] [data-narration-seek="chapter-1"]');
+  await narrationSeek.waitFor();
+  assert.equal(await narrationSeek.getAttribute('type'), 'range', 'La narración debe incluir una barra de avance accesible.');
+  assert.equal(await narrationSeek.isDisabled(), true, 'La barra debe permanecer bloqueada hasta cargar el audio.');
+  assert.match(await narrationSeek.getAttribute('aria-valuetext'), /^0:00 de 0:00$/, 'La barra debe anunciar tiempo transcurrido y duración.');
+  const speed125 = page.locator('[data-narration-controls="chapter-1"] [data-speed="1.25"]');
+  await speed125.click();
+  assert.equal(await speed125.getAttribute('aria-pressed'), 'true', 'La velocidad 1.25x debe quedar seleccionada de forma accesible.');
+  await page.getByRole('button', { name: /Escuchar el cap[ií]tulo 1/i }).click();
+  await page.waitForFunction(() => {
+    const seek = document.querySelector('[data-narration-controls="chapter-1"] [data-narration-seek="chapter-1"]');
+    return seek && !seek.disabled && Number(seek.max) >= 7;
+  });
+  const narrationStart = Number(await narrationSeek.inputValue());
+  assert.ok(narrationStart <= 0.5, `La barra debe iniciar cerca de 0:00, no en ${narrationStart.toFixed(2)} s.`);
+  assert.match(await narrationSeek.getAttribute('aria-valuetext'), /^0:0[01] de 0:08$/, 'La narración debe anunciar su avance desde el inicio.');
+  await page.waitForFunction((start) => {
+    const seek = document.querySelector('[data-narration-controls="chapter-1"] [data-narration-seek="chapter-1"]');
+    return Number(seek?.value || 0) > start + 0.5;
+  }, narrationStart);
+  const narrationDuration = Number(await narrationSeek.getAttribute('max'));
+  await narrationSeek.evaluate((element, value) => {
+    element.value = String(value);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, narrationDuration / 2);
+  await page.waitForFunction(() => {
+    const seek = document.querySelector('[data-narration-controls="chapter-1"] [data-narration-seek="chapter-1"]');
+    return Number(seek?.value || 0) >= 3;
+  });
+  assert.doesNotMatch(await narrationSeek.getAttribute('aria-valuetext'), /^0:00 de /, 'Mover la barra debe cambiar la posición reproducida.');
+  await page.getByRole('button', { name: /Pausar el cap[ií]tulo 1/i }).click();
+  const increaseText = page.getByRole('button', { name: /Aumentar tamaño del texto/i });
+  await increaseText.click();
+  assert.equal(await page.locator('.readingSizeControls output').textContent(), '110%', 'El lector debe aumentar el texto en pasos accesibles.');
+  assert.equal(await page.evaluate(() => localStorage.getItem('academiaqa.accessibility.readingScale')), '1.1', 'La preferencia de lectura debe conservarse en el navegador.');
+  await page.getByRole('heading', { name: /Aprende este cap[ií]tulo/i }).waitFor();
+  const expandedMaterial = page.locator('#chapterDetail details.contentDetails').filter({ hasText: 'Material de estudio ampliado' }).first();
+  await expandedMaterial.locator(':scope > summary').click();
+  await expandedMaterial.getByRole('button', { name: /Escuchar el material ampliado del cap[ií]tulo 1/i }).waitFor();
+  const firstObjectiveSummary = page.locator('#chapterDetail details.contentDetails > summary').filter({ hasText: 'FL-1.1.1' }).first();
+  await firstObjectiveSummary.click();
+  const firstObjective = firstObjectiveSummary.locator('..');
+  const objectiveReference = firstObjective.locator('details').filter({ hasText: 'Contenido de referencia' }).first();
+  await objectiveReference.locator('summary').click();
+  await objectiveReference.getByRole('button', { name: /Escuchar el contenido de referencia del objetivo FL-1.1.1/i }).waitFor();
+  assert.equal(await page.getByText(/Explicaci[oó]n docente en espa[nñ]ol|fuente en espa[nñ]ol|Texto literal del syllabus/i).count(), 0, 'Los rótulos técnicos no deben aparecer en la experiencia del estudiante.');
+  await page.getByText(/Caso de trabajo/i).waitFor();
   const enabledFinalExam = page.locator('[data-view="finalExam"]').first();
   assert.equal(await enabledFinalExam.isDisabled(), false, 'El examen final debe habilitarse al alcanzar el 95%.');
   await enabledFinalExam.click();
@@ -115,14 +178,14 @@ try {
   assert.match(accountCourseText, /Cap[ií]tulos \d+%.*examen final \d+%/i, 'Mi cuenta debe desglosar el dominio del curso y del examen final.');
   await page.getByText(/Aprobado · 100%/i).waitFor();
   await page.getByText('Completado', { exact: true }).waitFor();
-  const certificateButton = page.getByRole('button', { name: 'Obtener certificado de curso' });
+  const certificateButton = page.getByRole('button', { name: /Obtener certificado · USD 25/i });
   await certificateButton.waitFor();
   assert.equal(await certificateButton.isEnabled(), true, 'El certificado debe habilitarse al completar el 100%.');
   await certificateButton.click();
-  await page.getByRole('heading', { name: /Tu certificado de curso está en camino/i }).waitFor();
-  await page.getByText('Próximamente', { exact: true }).waitFor();
-  await page.locator('.certificateComingSoonMedia img').waitFor();
-  await page.getByRole('button', { name: 'Entendido' }).click();
+  await page.getByRole('heading', { name: /Obtén tu certificado de finalización/i }).waitFor();
+  await page.getByText('USD 25', { exact: true }).waitFor();
+  await page.getByText(/No equivale a una certificación oficial/i).waitFor();
+  await page.getByRole('button', { name: 'Ahora no' }).click();
   assert.equal(await courseCard.getByRole('button', { name: 'Eliminar curso' }).count(), 0, 'La eliminacion no debe aparecer mientras el curso este activo o completado.');
 
   page.once('dialog', (dialog) => dialog.accept());
