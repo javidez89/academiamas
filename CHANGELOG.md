@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.17.0] - 2026-08-25
+
+### Added
+- Presencia académica verificable en Supabase para prácticas, simulacros y exámenes finales autenticados.
+- Métricas públicas agregadas de personas registradas, cursos activos y estudiantes estudiando en tiempo real.
+
+### Changed
+- El indicador del inicio se actualiza cada 15 segundos y elimina cualquier dependencia de cifras simuladas.
+- Las sesiones académicas usan latidos de 30 segundos y caducan en 90 segundos si el navegador deja de responder.
+
 ## [v0.16.2] - 2026-08-25
 
 ### Fixed

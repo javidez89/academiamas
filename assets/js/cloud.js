@@ -24,6 +24,14 @@
     return key;
   }
 
+  function normalizeLearningActivityType(value) {
+    const type = String(value || '').trim().toLowerCase();
+    if (!['practice', 'simulator', 'final_exam'].includes(type)) {
+      throw new Error('Tipo de actividad académica no válido.');
+    }
+    return type;
+  }
+
   function unwrap(data) {
     return Array.isArray(data) ? data[0] || null : data || null;
   }
@@ -328,6 +336,41 @@
     return unwrap(data);
   }
 
+  async function beginLearningActivity(courseKey, activityType) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('begin_learning_activity', {
+      p_course_key: normalizeCourseKey(courseKey),
+      p_activity_type: normalizeLearningActivityType(activityType)
+    });
+    if (error) throw error;
+    const value = unwrap(data);
+    if (!value?.session_id) throw new Error('No fue posible iniciar la actividad académica.');
+    return {
+      sessionId: String(value.session_id),
+      courseKey: String(value.course_key || courseKey),
+      activityType: String(value.activity_type || activityType),
+      startedAt: String(value.started_at || '')
+    };
+  }
+
+  async function touchLearningActivity(sessionId) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('touch_learning_activity', {
+      p_session_id: String(sessionId || '').trim()
+    });
+    if (error) throw error;
+    return data === true;
+  }
+
+  async function endLearningActivity(sessionId) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('end_learning_activity', {
+      p_session_id: String(sessionId || '').trim()
+    });
+    if (error) throw error;
+    return data === true;
+  }
+
   async function isAdmin() {
     const { client } = requireUser();
     const { data, error } = await client.rpc('is_platform_admin');
@@ -342,7 +385,8 @@
     const value = data && typeof data === 'object' ? data : {};
     return {
       registeredStudents: Math.max(0, Math.trunc(Number(value.registered_students) || 0)),
-      onlineStudents: Math.max(0, Math.trunc(Number(value.online_students) || 0)),
+      activeCourses: Math.max(0, Math.trunc(Number(value.active_courses) || 0)),
+      activeStudents: Math.max(0, Math.trunc(Number(value.active_students ?? value.online_students) || 0)),
       measuredAt: String(value.measured_at || '')
     };
   }
@@ -396,6 +440,9 @@
     flushProgress,
     recordSimulatorCompletion,
     recordFinalExamCompletion,
+    beginLearningActivity,
+    touchLearningActivity,
+    endLearningActivity,
     getPublicLearningActivity,
     isAdmin,
     getAdminDashboardSummary,

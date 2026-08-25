@@ -8,7 +8,7 @@
   const Auth = global.AcademyAuth;
   const Cloud = global.AcademyCloud;
   const Config = global.ACADEMY_CONFIG || {};
-  const ASSET_VERSION = String(Config.assetVersion || '2026-08-25-audio-presence');
+  const ASSET_VERSION = String(Config.assetVersion || '2026-08-25-verified-activity');
   const APP_VERSION = String(Config.version || '0.0.0');
   const CANONICAL_ORIGIN = 'https://academiaqaoficial.com';
   const WOMPI_PAYMENT_URL = 'https://checkout.wompi.co/l/VPOS_52PXST';
@@ -22,7 +22,8 @@
   const READING_SCALE_KEY = 'academiaqa.accessibility.readingScale';
   const FINAL_EXAM_UNLOCK_PROGRESS = 95;
   const DEVICE_NARRATION_CHUNK_LIMIT = 260;
-  const COMMUNITY_ACTIVITY_REFRESH_MS = 60_000;
+  const COMMUNITY_ACTIVITY_REFRESH_MS = 15_000;
+  const LEARNING_ACTIVITY_HEARTBEAT_MS = 30_000;
   const DEFAULT_PRACTICE_FILTER = Object.freeze({
     chapter: 'all',
     k: 'all',
@@ -227,12 +228,16 @@
   };
   let communityActivity = {
     registeredStudents: 0,
-    onlineStudents: 0,
+    activeCourses: 0,
+    activeStudents: 0,
     measuredAt: '',
     loading: true,
     error: false
   };
   let communityActivityRequest = null;
+  let learningActivitySession = null;
+  let learningActivityHeartbeatTimer = null;
+  let learningActivityGeneration = 0;
   let studyTimer = null;
   let lastStudyTickAt = Date.now();
   let lastUserActivityAt = Date.now();
@@ -454,7 +459,7 @@
       document.addEventListener(eventName, noteUserActivity, { passive: true });
     });
     document.addEventListener('visibilitychange', handleStudyVisibilityChange);
-    global.addEventListener('pagehide', persistStudyTime);
+    global.addEventListener('pagehide', handlePageHide);
     global.addEventListener('hashchange', handleLocationRoute);
     global.addEventListener('popstate', handleLocationRoute);
     global.addEventListener('scroll', syncBackToTop, { passive: true });
@@ -467,7 +472,9 @@
       }
     }, 60_000);
     global.setInterval(() => {
-      if (document.visibilityState === 'visible') refreshCommunityActivity({ silent: true });
+      if (state.view === 'home' && document.visibilityState === 'visible') {
+        refreshCommunityActivity({ silent: true });
+      }
     }, COMMUNITY_ACTIVITY_REFRESH_MS);
 
     dom.resetProgress.addEventListener('click', async () => {
@@ -1367,8 +1374,71 @@
     if (state.pendingAdvance) global.clearTimeout(state.pendingAdvance);
     state.timer = null;
     state.pendingAdvance = null;
+    endVerifiedLearningActivity();
     setExamFocus(false);
     stopNarration();
+  }
+
+  function clearLearningActivityHeartbeat() {
+    if (learningActivityHeartbeatTimer) global.clearInterval(learningActivityHeartbeatTimer);
+    learningActivityHeartbeatTimer = null;
+  }
+
+  function endVerifiedLearningActivity() {
+    learningActivityGeneration += 1;
+    clearLearningActivityHeartbeat();
+    const current = learningActivitySession;
+    learningActivitySession = null;
+    if (!current?.sessionId) return Promise.resolve(false);
+    return Promise.resolve(Cloud.endLearningActivity(current.sessionId))
+      .then((ended) => {
+        if (state.view === 'home') refreshCommunityActivity({ silent: true });
+        return ended;
+      })
+      .catch(() => false);
+  }
+
+  async function touchVerifiedLearningActivity() {
+    const current = learningActivitySession;
+    if (!current?.sessionId || document.visibilityState !== 'visible' || !state.session.length) return false;
+    try {
+      const touched = await Cloud.touchLearningActivity(current.sessionId);
+      if (!touched && learningActivitySession?.sessionId === current.sessionId) {
+        learningActivitySession = null;
+        clearLearningActivityHeartbeat();
+      }
+      return touched;
+    } catch {
+      return false;
+    }
+  }
+
+  function startVerifiedLearningActivity(activityType) {
+    if (!Auth?.isAuthenticated?.() || !activeCourseKey || !state.session.length) return;
+    const generation = ++learningActivityGeneration;
+    clearLearningActivityHeartbeat();
+    const previous = learningActivitySession;
+    learningActivitySession = null;
+    if (previous?.sessionId) Promise.resolve(Cloud.endLearningActivity(previous.sessionId)).catch(() => {});
+
+    Promise.resolve(Cloud.beginLearningActivity(activeCourseKey, activityType))
+      .then((session) => {
+        if (generation !== learningActivityGeneration || !state.session.length) {
+          return Promise.resolve(Cloud.endLearningActivity(session.sessionId)).catch(() => false);
+        }
+        learningActivitySession = session;
+        learningActivityHeartbeatTimer = global.setInterval(() => {
+          touchVerifiedLearningActivity();
+        }, LEARNING_ACTIVITY_HEARTBEAT_MS);
+        if (state.view === 'home') refreshCommunityActivity({ silent: true });
+        return true;
+      })
+      .catch(() => {
+        if (generation === learningActivityGeneration) {
+          learningActivitySession = null;
+          clearLearningActivityHeartbeat();
+        }
+      });
   }
 
   function noteUserActivity() {
@@ -1423,7 +1493,13 @@
     else {
       lastStudyTickAt = Date.now();
       lastUserActivityAt = Date.now();
+      touchVerifiedLearningActivity();
     }
+  }
+
+  function handlePageHide() {
+    persistStudyTime();
+    endVerifiedLearningActivity();
   }
 
   function setExamFocus(active) {
@@ -2061,25 +2137,32 @@
     const registered = communityActivity.loading || communityActivity.error
       ? '—'
       : communityActivity.registeredStudents.toLocaleString('es-CO');
-    const online = communityActivity.loading || communityActivity.error
+    const activeCourses = communityActivity.loading || communityActivity.error
       ? '—'
-      : communityActivity.onlineStudents.toLocaleString('es-CO');
+      : communityActivity.activeCourses.toLocaleString('es-CO');
+    const activeStudents = communityActivity.loading || communityActivity.error
+      ? '—'
+      : communityActivity.activeStudents.toLocaleString('es-CO');
     const status = communityActivity.loading
       ? 'Actualizando actividad...'
-      : communityActivity.error ? 'Actividad temporalmente no disponible.' : 'Datos agregados actualizados cada minuto.';
+      : communityActivity.error ? 'Actividad temporalmente no disponible.' : 'Actividad académica verificada · actualización cada 15 segundos.';
     return `<section class="communityActivity" aria-labelledby="communityActivityTitle" aria-live="polite">
       <div class="communityActivityCopy">
         <span class="sectionKicker">Comunidad AcademiaQA</span>
         <h2 id="communityActivityTitle">Aprendemos en comunidad.</h2>
-        <p>${h(status)} No se muestran identidades ni datos personales.</p>
+        <p>${h(status)} La actividad en vivo solo cuenta prácticas, simulacros y exámenes finales iniciados por usuarios autenticados. No se muestran identidades ni datos personales.</p>
       </div>
       <div class="communityMetric">
         <strong data-community-registered>${h(registered)}</strong>
         <span>Personas registradas</span>
       </div>
+      <div class="communityMetric">
+        <strong data-community-courses>${h(activeCourses)}</strong>
+        <span>Cursos activos</span>
+      </div>
       <div class="communityMetric communityMetricOnline">
-        <strong data-community-online>${h(online)}</strong>
-        <span>En línea ahora</span>
+        <strong data-community-active>${h(activeStudents)}</strong>
+        <span>Estudiando ahora</span>
       </div>
     </section>`;
   }
@@ -4318,6 +4401,7 @@
     document.querySelectorAll('.navbtn[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === 'practice'));
     dom.app.innerHTML = renderPractice();
     renderSession();
+    startVerifiedLearningActivity('practice');
   }
 
   function renderSession() {
@@ -4612,6 +4696,7 @@
     dom.app.innerHTML = renderExam();
     global.scrollTo({ top: 0, behavior: 'smooth' });
     renderSession();
+    startVerifiedLearningActivity('simulator');
     startCountdown(number(course.blueprint.minutes) * 60);
   }
 
@@ -4640,6 +4725,7 @@
     dom.app.innerHTML = renderFinalExam();
     global.scrollTo({ top: 0, behavior: 'smooth' });
     renderSession();
+    startVerifiedLearningActivity('final_exam');
     startCountdown(number(course.blueprint.minutes) * 60);
   }
 

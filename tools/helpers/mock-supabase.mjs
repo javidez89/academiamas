@@ -18,6 +18,8 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       adminCertificates: structuredClone(mockedAdminCertificates || []),
       audioFailure: Boolean(mockedAudioFailure),
       publicActivitySummary: structuredClone(mockedPublicActivitySummary || {}),
+      learningActivity: null,
+      learningActivityCalls: [],
       rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
@@ -177,6 +179,38 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             }
             if (name === 'public_learning_activity_summary') {
               return { data: structuredClone(state.publicActivitySummary), error: null };
+            }
+            if (name === 'begin_learning_activity') {
+              const item = enrollment(args.p_course_key);
+              if (!user || !item || item.status === 'cancelled') {
+                return { data: null, error: { code: '42501', message: 'Active enrollment required' } };
+              }
+              state.learningActivity = {
+                session_id: `00000000-0000-4000-8000-${String(state.rpcCounts[name]).padStart(12, '0')}`,
+                course_key: args.p_course_key,
+                activity_type: args.p_activity_type,
+                started_at: new Date().toISOString(),
+                last_seen_at: new Date().toISOString(),
+                ended_at: null
+              };
+              state.learningActivityCalls.push({ name, args: structuredClone(args), sessionId: state.learningActivity.session_id });
+              return { data: structuredClone(state.learningActivity), error: null };
+            }
+            if (name === 'touch_learning_activity') {
+              const touched = Boolean(state.learningActivity
+                && state.learningActivity.session_id === args.p_session_id
+                && !state.learningActivity.ended_at);
+              if (touched) state.learningActivity.last_seen_at = new Date().toISOString();
+              state.learningActivityCalls.push({ name, args: structuredClone(args), touched });
+              return { data: touched, error: null };
+            }
+            if (name === 'end_learning_activity') {
+              const ended = Boolean(state.learningActivity
+                && state.learningActivity.session_id === args.p_session_id
+                && !state.learningActivity.ended_at);
+              if (ended) state.learningActivity.ended_at = new Date().toISOString();
+              state.learningActivityCalls.push({ name, args: structuredClone(args), ended });
+              return { data: ended, error: null };
             }
             if (name === 'is_platform_admin') {
               return { data: state.admin, error: null };
@@ -359,7 +393,8 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedAudioFailure: Boolean(options.audioFailure),
     mockedPublicActivitySummary: options.publicActivitySummary || {
       registered_students: 18,
-      online_students: 3,
+      active_courses: 7,
+      active_students: 3,
       measured_at: '2026-08-25T13:00:00.000Z'
     }
   });

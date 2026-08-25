@@ -62,7 +62,19 @@ try {
   await page.locator('[data-view="exam"]').first().click();
   await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).click();
   await page.locator('.questionBox').waitFor();
+  await page.waitForFunction(() => window.__supabaseMock?.learningActivity?.activity_type === 'simulator');
+  const simulatorActivity = await page.evaluate(() => structuredClone(window.__supabaseMock.learningActivity));
+  assert.equal(simulatorActivity.course_key, 'ctfl', 'La presencia del simulacro debe quedar asociada al curso real.');
+  assert.match(simulatorActivity.session_id, /^[0-9a-f-]{36}$/i, 'La presencia debe usar un identificador de sesión verificable.');
+  assert.equal(await page.evaluate((sessionId) => (
+    window.AcademyCloud.touchLearningActivity(sessionId)
+  ), simulatorActivity.session_id), true, 'El latido autenticado debe mantener activa la sesión académica.');
+  assert.equal(await page.evaluate(() => window.__supabaseMock.rpcCounts.touch_learning_activity), 1, 'El latido debe ejecutarse mediante la RPC protegida.');
   await page.getByRole('button', { name: 'Finalizar', exact: true }).click();
+  await page.waitForFunction((sessionId) => (
+    window.__supabaseMock?.learningActivity?.session_id === sessionId
+      && Boolean(window.__supabaseMock.learningActivity.ended_at)
+  ), simulatorActivity.session_id);
   await page.waitForFunction(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.simulator_attempts === 1
   ));
@@ -143,8 +155,10 @@ try {
   await page.getByRole('heading', { name: /^Examen final ·/i }).waitFor();
   await page.getByRole('button', { name: /Iniciar examen final/i }).click();
   await page.locator('.questionBox').waitFor();
+  await page.waitForFunction(() => window.__supabaseMock?.learningActivity?.activity_type === 'final_exam');
   await page.getByRole('button', { name: 'Finalizar', exact: true }).click();
   await page.getByRole('heading', { name: /Resultado del examen final/i }).waitFor();
+  await page.waitForFunction(() => Boolean(window.__supabaseMock?.learningActivity?.ended_at));
   assert.equal(await page.getByRole('columnheader', { name: /Respuesta correcta/i }).count(), 0, 'El examen final no debe revelar el banco en la revisión.');
   await page.waitForFunction(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.final_exam_attempts === 1
@@ -206,7 +220,9 @@ try {
   await page.getByText('1 cursos inscritos', { exact: true }).waitFor();
   await page.locator('[data-community-registered]').waitFor();
   assert.equal(await page.locator('[data-community-registered]').textContent(), '18', 'El inicio debe mostrar el total agregado de personas registradas.');
-  assert.equal(await page.locator('[data-community-online]').textContent(), '3', 'El inicio debe mostrar el total agregado de personas en línea.');
+  assert.equal(await page.locator('[data-community-courses]').textContent(), '7', 'El inicio debe mostrar los cursos activos obtenidos de la nube.');
+  assert.equal(await page.locator('[data-community-active]').textContent(), '3', 'El inicio debe mostrar estudiantes con actividad académica verificada.');
+  assert.match(await page.locator('.communityActivity').innerText(), /prácticas, simulacros y exámenes finales/i, 'El indicador debe explicar qué actividad cuenta como estudio en vivo.');
 
   await page.evaluate(() => document.querySelector('a[data-view="account"]')?.click());
   await page.getByRole('heading', { name: /Mis cursos/i }).waitFor();
