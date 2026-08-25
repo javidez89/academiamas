@@ -39,4 +39,15 @@ const practiceFirst = Selection.selectLeastSeen(practicePool, 4, [], randomInt);
 const practiceSecond = Selection.selectLeastSeen(practicePool, 4, practiceFirst.map((question) => question.id), randomInt);
 assert.equal(practiceFirst.filter((question) => practiceSecond.some((candidate) => candidate.id === question.id)).length, 0, 'La práctica debe priorizar preguntas no vistas.');
 
-console.log('Selection unit OK: matriz, aleatoriedad controlada y protección contra repeticiones verificadas.');
+const mixedQuestions = [
+  ...questions.map((question, index) => ({ ...question, courseKey: 'curso-a', designReferenceId: `fuente-${index % 2}` })),
+  ...questions.map((question, index) => ({ ...question, id: `B-${question.id}`, courseKey: 'curso-b', designReferenceId: `otra-${index % 2}` }))
+];
+const isolated = Selection.buildMatrixSelection(mixedQuestions, blueprint, [], randomInt, 'curso-a').questions;
+assert.equal(isolated.length, 5, 'El curso activo debe conservar la capacidad de su matriz.');
+assert.ok(isolated.every((question) => question.courseKey === 'curso-a'), 'Un simulacro nunca debe mezclar preguntas de otro curso.');
+const isolatedPractice = Selection.selectLeastSeen(mixedQuestions, 6, [], randomInt, 'curso-b');
+assert.ok(isolatedPractice.every((question) => question.courseKey === 'curso-b'), 'La práctica nunca debe mezclar preguntas de otro curso.');
+assert.ok(new Set(isolated.map((question) => question.designReferenceId)).size >= 2, 'La selección debe diversificar las referencias documentales disponibles.');
+
+console.log('Selection unit OK: matriz, aleatoriedad, referencias documentales, aislamiento y protección contra repeticiones verificados.');

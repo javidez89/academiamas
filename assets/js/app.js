@@ -230,12 +230,19 @@
   const narrationAudio = new Audio();
   let narrationObjectUrl = '';
   let narrationLoadToken = 0;
+  let narrationSeekActive = false;
+  let narrationDeviceTimer = null;
   let narrationState = {
     contentId: '',
     text: '',
     chunks: [],
     chunkDurations: [],
     chunkIndex: 0,
+    deviceSegments: [],
+    deviceDurations: [],
+    deviceIndex: 0,
+    deviceElapsed: 0,
+    deviceStartedAt: 0,
     status: 'idle',
     speed: 1,
     source: '',
@@ -426,6 +433,9 @@
     document.addEventListener('click', handleClick);
     document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);
+    document.addEventListener('pointerdown', handleNarrationSeekStart);
+    document.addEventListener('pointerup', handleNarrationSeekEnd);
+    document.addEventListener('pointercancel', handleNarrationSeekEnd);
     document.addEventListener('submit', handleSubmit);
     document.addEventListener('keydown', handleKeyboardActivation);
     ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach((eventName) => {
@@ -1300,13 +1310,19 @@
   function handleInput(event) {
     const seek = event.target.closest('[data-narration-seek]');
     if (!seek || seek.disabled) return;
+    narrationSeekActive = true;
     previewNarrationSeek(seek);
   }
 
   async function handleChange(event) {
     const seek = event.target.closest('[data-narration-seek]');
     if (seek && !seek.disabled) {
-      await seekNarration(Number(seek.value));
+      try {
+        await seekNarration(Number(seek.value));
+      } finally {
+        narrationSeekActive = false;
+        updateNarrationTimeline();
+      }
       return;
     }
     if (event.target.id === 'flashFilter') {
@@ -1315,6 +1331,19 @@
       state.flashShow = false;
       render();
     }
+  }
+
+  function handleNarrationSeekStart(event) {
+    const seek = event.target.closest('[data-narration-seek]');
+    if (seek && !seek.disabled) narrationSeekActive = true;
+  }
+
+  function handleNarrationSeekEnd(event) {
+    if (!narrationSeekActive) return;
+    global.setTimeout(() => {
+      narrationSeekActive = false;
+      updateNarrationTimeline();
+    }, 0);
   }
 
   function clearRuntimeTimers() {
@@ -1455,7 +1484,10 @@
 
     course = loadedCourse;
     activeCourseKey = normalizedKey;
-    questions = [...course.questions];
+    questions = QuestionSelection.questionsForCourse(course.questions, normalizedKey);
+    if (questions.length !== course.questions.length) {
+      throw new Error(`El banco de ${normalizedKey} contiene preguntas de otro curso.`);
+    }
     progressStorageKey = course.meta?.storageKey || `academy_${normalizedKey}_progress`;
     state = createState(options.view || 'dashboard');
     state.studyChapter = Number(options.chapter) || null;
@@ -3301,7 +3333,8 @@
       questions,
       { ...course.blueprint, matrix: officialMatrix() },
       getProgress().questionHistory,
-      randomInt
+      randomInt,
+      activeCourseKey
     );
     if (result.warnings.length) notify(`Las preguntas no cubren toda la matriz. Se completó con preguntas disponibles. ${result.warnings.join(' ')}`, 'warning', 10_000);
     return result.questions;
@@ -3507,10 +3540,25 @@
   }
 
   function narrationDurations() {
-    return (narrationState.chunks || []).map((chunk, index) => {
-      const duration = Number(narrationState.chunkDurations?.[index]);
+    const segments = narrationState.source === 'device'
+      ? narrationState.deviceSegments || []
+      : narrationState.chunks || [];
+    const knownDurations = narrationState.source === 'device'
+      ? narrationState.deviceDurations || []
+      : narrationState.chunkDurations || [];
+    return segments.map((chunk, index) => {
+      const duration = Number(knownDurations[index]);
       return Number.isFinite(duration) && duration > 0 ? duration : estimatedNarrationDuration(chunk);
     });
+  }
+
+  function deviceNarrationLocalTime() {
+    const durations = narrationDurations();
+    const duration = Number(durations[narrationState.deviceIndex]) || 0;
+    const running = narrationState.status === 'playing' && narrationState.deviceStartedAt > 0
+      ? ((Date.now() - narrationState.deviceStartedAt) / 1_000) * narrationState.speed
+      : 0;
+    return Math.min(duration, Math.max(0, Number(narrationState.deviceElapsed) || 0) + running);
   }
 
   function narrationTimelineSnapshot(contentId = narrationState.contentId) {
@@ -3518,15 +3566,16 @@
       return { current: 0, total: 0, enabled: false };
     }
     const durations = narrationDurations();
-    const offset = durations.slice(0, narrationState.chunkIndex).reduce((total, duration) => total + duration, 0);
-    const localTime = narrationState.source === 'openai' && Number.isFinite(narrationAudio.currentTime)
-      ? narrationAudio.currentTime
-      : 0;
+    const activeIndex = narrationState.source === 'device' ? narrationState.deviceIndex : narrationState.chunkIndex;
+    const offset = durations.slice(0, activeIndex).reduce((total, duration) => total + duration, 0);
+    const localTime = narrationState.source === 'openai'
+      ? (Number.isFinite(narrationAudio.currentTime) ? narrationAudio.currentTime : 0)
+      : narrationState.source === 'device' ? deviceNarrationLocalTime() : 0;
     const total = durations.reduce((sum, duration) => sum + duration, 0);
     return {
       current: Math.min(total, Math.max(0, offset + localTime)),
       total,
-      enabled: narrationState.source === 'openai' && narrationState.status !== 'loading'
+      enabled: ['openai', 'device'].includes(narrationState.source) && narrationState.status !== 'loading'
     };
   }
 
@@ -3563,10 +3612,12 @@
       const current = active ? timeline.current : 0;
       const total = active ? timeline.total : 0;
       seek.max = String(total || 1);
-      seek.value = String(current);
       seek.disabled = !(active && timeline.enabled);
-      seek.setAttribute('aria-valuetext', `${formatNarrationTime(current)} de ${formatNarrationTime(total)}`);
-      setTextIfChanged(control.querySelector('[data-narration-current]'), formatNarrationTime(current));
+      if (!(active && narrationSeekActive)) {
+        seek.value = String(current);
+        seek.setAttribute('aria-valuetext', `${formatNarrationTime(current)} de ${formatNarrationTime(total)}`);
+        setTextIfChanged(control.querySelector('[data-narration-current]'), formatNarrationTime(current));
+      }
       setTextIfChanged(control.querySelector('[data-narration-duration]'), formatNarrationTime(total));
     });
   }
@@ -3603,7 +3654,7 @@
       const segmentStatus = active && narrationState.chunks?.length > 1 ? ` · parte ${narrationState.chunkIndex + 1} de ${narrationState.chunks.length}` : '';
       setTextIfChanged(statusElement, status === 'loading'
         ? `Generando voz${segmentStatus}...`
-        : active && narrationState.source === 'device' ? 'Voz del dispositivo · avance no disponible' : `Narración generada con IA${segmentStatus}`);
+        : active && narrationState.source === 'device' ? 'Voz del dispositivo · avance estimado' : `Narración generada con IA${segmentStatus}`);
     });
     updateNarrationTimeline();
   }
@@ -3620,11 +3671,48 @@
     narrationObjectUrl = '';
   }
 
+  function clearDeviceNarrationTimer() {
+    if (narrationDeviceTimer) global.clearInterval(narrationDeviceTimer);
+    narrationDeviceTimer = null;
+  }
+
+  function startDeviceNarrationTimer() {
+    clearDeviceNarrationTimer();
+    narrationDeviceTimer = global.setInterval(() => {
+      if (narrationState.source !== 'device' || narrationState.status !== 'playing') return;
+      updateNarrationTimeline();
+    }, 200);
+  }
+
+  function freezeDeviceNarrationPosition() {
+    if (narrationState.source !== 'device') return;
+    narrationState.deviceElapsed = deviceNarrationLocalTime();
+    narrationState.deviceStartedAt = 0;
+    clearDeviceNarrationTimer();
+  }
+
   function stopNarration() {
     narrationLoadToken += 1;
     releaseNarrationAudio();
+    clearDeviceNarrationTimer();
     global.speechSynthesis?.cancel?.();
-    narrationState = { ...narrationState, contentId: '', text: '', chunks: [], chunkDurations: [], chunkIndex: 0, status: 'idle', source: '', utterance: null };
+    narrationSeekActive = false;
+    narrationState = {
+      ...narrationState,
+      contentId: '',
+      text: '',
+      chunks: [],
+      chunkDurations: [],
+      chunkIndex: 0,
+      deviceSegments: [],
+      deviceDurations: [],
+      deviceIndex: 0,
+      deviceElapsed: 0,
+      deviceStartedAt: 0,
+      status: 'idle',
+      source: '',
+      utterance: null
+    };
     updateNarrationControls();
   }
 
@@ -3645,41 +3733,97 @@
     return voices.sort((left, right) => score(right) - score(left))[0] || null;
   }
 
-  function playWithDeviceVoice() {
+  function deviceSegmentRemainder(segment, localTime, duration) {
+    const words = String(segment || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length || localTime <= 0 || duration <= 0) return String(segment || '').trim();
+    const startIndex = Math.min(words.length - 1, Math.floor((localTime / duration) * words.length));
+    return words.slice(startIndex).join(' ');
+  }
+
+  function playWithDeviceVoice({ globalTime = 0, autoplay = true } = {}) {
     if (!global.speechSynthesis || !global.SpeechSynthesisUtterance) throw new Error('Este navegador no ofrece narración local.');
+    const deviceSegments = narrationState.deviceSegments?.length
+      ? narrationState.deviceSegments
+      : splitNarrationText(narrationState.text, 320);
+    const deviceDurations = deviceSegments.map((segment, index) => (
+      Number(narrationState.deviceDurations?.[index]) || estimatedNarrationDuration(segment)
+    ));
+    narrationState = { ...narrationState, source: 'device', deviceSegments, deviceDurations };
+    const position = narrationPositionAt(globalTime);
+    const segment = deviceSegments[position.index];
+    if (!segment) return;
+    const token = ++narrationLoadToken;
     global.speechSynthesis.cancel();
-    const utterance = new global.SpeechSynthesisUtterance(narrationState.text);
+    clearDeviceNarrationTimer();
+    const utterance = new global.SpeechSynthesisUtterance(deviceSegmentRemainder(
+      segment,
+      position.localTime,
+      deviceDurations[position.index]
+    ));
     utterance.lang = 'es-CO';
     utterance.rate = narrationState.speed;
     const voice = spanishDeviceVoice();
     if (voice) utterance.voice = voice;
     utterance.onend = () => {
-      narrationState.status = 'idle';
+      if (token !== narrationLoadToken) return;
+      clearDeviceNarrationTimer();
+      if (position.index + 1 < deviceSegments.length) {
+        const nextTime = deviceDurations.slice(0, position.index + 1).reduce((sum, duration) => sum + duration, 0);
+        playWithDeviceVoice({ globalTime: nextTime, autoplay: true });
+        return;
+      }
+      narrationState = {
+        ...narrationState,
+        status: 'idle',
+        deviceIndex: deviceSegments.length - 1,
+        deviceElapsed: deviceDurations.at(-1) || 0,
+        deviceStartedAt: 0,
+        utterance: null
+      };
       updateNarrationControls();
     };
-    utterance.onerror = () => {
-      narrationState.status = 'idle';
+    utterance.onerror = (event) => {
+      if (token !== narrationLoadToken || ['canceled', 'interrupted'].includes(String(event?.error || ''))) return;
+      clearDeviceNarrationTimer();
+      narrationState = { ...narrationState, status: 'idle', deviceStartedAt: 0, utterance: null };
       updateNarrationControls();
     };
-    narrationState = { ...narrationState, status: 'playing', source: 'device', utterance };
-    global.speechSynthesis.speak(utterance);
+    narrationState = {
+      ...narrationState,
+      status: autoplay ? 'playing' : 'paused',
+      source: 'device',
+      utterance: autoplay ? utterance : null,
+      deviceIndex: position.index,
+      deviceElapsed: position.localTime,
+      deviceStartedAt: autoplay ? Date.now() : 0
+    };
+    if (autoplay) {
+      global.speechSynthesis.speak(utterance);
+      startDeviceNarrationTimer();
+    }
     updateNarrationControls();
   }
 
   async function toggleNarration(contentId) {
     if (!contentId) return;
     if (narrationState.contentId === contentId && narrationState.status === 'playing') {
-      if (narrationState.source === 'device') global.speechSynthesis.pause();
-      else narrationAudio.pause();
+      if (narrationState.source === 'device') {
+        freezeDeviceNarrationPosition();
+        narrationLoadToken += 1;
+        global.speechSynthesis.cancel();
+      } else narrationAudio.pause();
       narrationState.status = 'paused';
       updateNarrationControls();
       return;
     }
     if (narrationState.contentId === contentId && narrationState.status === 'paused') {
-      if (narrationState.source === 'device') global.speechSynthesis.resume();
-      else await narrationAudio.play();
-      narrationState.status = 'playing';
-      updateNarrationControls();
+      if (narrationState.source === 'device') {
+        playWithDeviceVoice({ globalTime: narrationTimelineSnapshot().current, autoplay: true });
+      } else {
+        await narrationAudio.play();
+        narrationState.status = 'playing';
+        updateNarrationControls();
+      }
       return;
     }
 
@@ -3694,6 +3838,11 @@
       chunks,
       chunkDurations: chunks.map(estimatedNarrationDuration),
       chunkIndex: 0,
+      deviceSegments: splitNarrationText(text, 320),
+      deviceDurations: splitNarrationText(text, 320).map(estimatedNarrationDuration),
+      deviceIndex: 0,
+      deviceElapsed: 0,
+      deviceStartedAt: 0,
       status: 'loading',
       source: '',
       utterance: null
@@ -3764,7 +3913,16 @@
   }
 
   async function seekNarration(globalTime) {
-    if (narrationState.source !== 'openai' || !narrationState.chunks?.length) return;
+    if (!['openai', 'device'].includes(narrationState.source)) return;
+    if (narrationState.source === 'device') {
+      const shouldPlay = narrationState.status === 'playing';
+      freezeDeviceNarrationPosition();
+      narrationLoadToken += 1;
+      global.speechSynthesis?.cancel?.();
+      playWithDeviceVoice({ globalTime, autoplay: shouldPlay });
+      return;
+    }
+    if (!narrationState.chunks?.length) return;
     const position = narrationPositionAt(globalTime);
     const shouldPlay = narrationState.status === 'playing';
     if (position.index === narrationState.chunkIndex && narrationAudio.readyState >= 1) {
@@ -3787,7 +3945,7 @@
   function repeatNarration() {
     if (!narrationState.text) return;
     if (narrationState.source === 'device') {
-      playWithDeviceVoice();
+      playWithDeviceVoice({ globalTime: 0, autoplay: true });
       return;
     }
     playOpenAiNarrationChunk(0).catch(() => notify('No fue posible repetir la narración.', 'error'));
@@ -3795,9 +3953,16 @@
 
   function setNarrationSpeed(speed) {
     if (![0.75, 1, 1.25].includes(speed)) return;
+    const devicePosition = narrationState.source === 'device' ? narrationTimelineSnapshot().current : 0;
+    const deviceWasPlaying = narrationState.source === 'device' && narrationState.status === 'playing';
     narrationState.speed = speed;
     narrationAudio.playbackRate = speed;
-    if (narrationState.source === 'device' && narrationState.text && ['playing', 'paused'].includes(narrationState.status)) playWithDeviceVoice();
+    if (narrationState.source === 'device' && narrationState.text && ['playing', 'paused'].includes(narrationState.status)) {
+      freezeDeviceNarrationPosition();
+      narrationLoadToken += 1;
+      global.speechSynthesis?.cancel?.();
+      playWithDeviceVoice({ globalTime: devicePosition, autoplay: deviceWasPlaying });
+    }
     updateNarrationControls();
   }
 
@@ -4026,7 +4191,8 @@
       pool,
       Math.min(number(filter.count, 10), pool.length),
       getProgress().questionHistory,
-      randomInt
+      randomInt,
+      activeCourseKey
     );
     rememberSessionQuestions(state.session, filter.mode === 'exam' ? 'practice-quiz' : 'practice-study');
     state.current = 0;

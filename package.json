@@ -1,6 +1,6 @@
 {
   "name": "academiaqa",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,12 +12,13 @@
     "generate:audio-manifest": "node tools/generate-audio-manifest.mjs",
     "translate:syllabus": "node tools/translate-syllabus-content.mjs",
     "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs && node tools/audio-manifest-unit.mjs",
-    "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs",
+    "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs && node tools/question-bank-sources-audit.mjs",
     "test:integration": "node tools/catalog-smoke.mjs",
     "test:seo": "node tools/seo-smoke.mjs",
     "test:pwa": "node tools/pwa-smoke.mjs",
     "test:auth": "node tools/auth-smoke.mjs",
     "test:cloud": "node tools/cloud-account-smoke.mjs",
+    "test:audio": "node tools/audio-fallback-smoke.mjs",
     "test:admin": "node tools/admin-smoke.mjs",
     "test:certificates": "node tools/certificate-smoke.mjs",
     "test:e2e": "node tools/smoke.mjs",

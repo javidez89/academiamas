@@ -1,5 +1,24 @@
 # Changelog
 
+## [v0.16.1] - 2026-08-25
+
+### Fixed
+
+- La barra de narración ya no se congela ni sobrescribe la posición mientras el usuario la arrastra.
+- La voz del dispositivo ofrece avance estimado y permite avanzar o retroceder por segmentos cuando la narración OpenAI no está disponible.
+- El audio de los materiales de estudio ampliados usa los mismos controles de reproducción, velocidad y navegación que capítulos y objetivos.
+
+### Changed
+
+- Cada pregunta queda vinculada obligatoriamente a la clave de su curso y a una referencia documental válida antes de incorporarse al banco.
+- Las prácticas, simulacros y exámenes filtran por el curso activo y diversifican preguntas por LO y referencia documental.
+- La matriz documental incluye todos los juegos de muestra disponibles para CTFL, CT-AI y CT-GenAI, y conserva fuentes separadas para los demás cursos y futuros cursos.
+
+### Validation
+
+- Nueva prueba móvil del fallback de audio con avance, arrastre, salto hacia adelante y retroceso.
+- Nueva auditoría dinámica de fuentes que detecta documentos mal ubicados, referencias cruzadas y mezcla de preguntas entre cursos.
+
 ## [v0.16.0] - 2026-08-24
 
 ### Added

@@ -1,5 +1,5 @@
-export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [] }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates }) => {
+export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], audioFailure = false }) {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedAudioFailure }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -16,6 +16,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       certificates: structuredClone(mockedCertificates || []),
       certificateOrders: structuredClone(mockedCertificateOrders || []),
       adminCertificates: structuredClone(mockedAdminCertificates || []),
+      audioFailure: Boolean(mockedAudioFailure),
       rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
@@ -256,7 +257,11 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
           },
           functions: {
             async invoke(name, options = {}) {
-              if (name === 'course-audio') return { data: silentWavBlob(), error: null };
+              if (name === 'course-audio') {
+                return state.audioFailure
+                  ? { data: null, error: { message: 'Narración de nube no configurada', status: 503 } }
+                  : { data: silentWavBlob(), error: null };
+              }
               if (name === 'validate-certificate') {
                 const code = String(options.body?.certificateCode || '').toUpperCase();
                 const certificate = state.certificates.find((item) => item.certificate_code === code && item.status === 'VALID')
@@ -346,7 +351,8 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedAdminSummary: options.adminSummary || {},
     mockedCertificates: options.certificates || [],
     mockedCertificateOrders: options.certificateOrders || [],
-    mockedAdminCertificates: options.adminCertificates || []
+    mockedAdminCertificates: options.adminCertificates || [],
+    mockedAudioFailure: Boolean(options.audioFailure)
   });
 }
 

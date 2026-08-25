@@ -5,6 +5,7 @@
   2. Renombra este archivo a course-data.js.
   3. Completa el objeto respetando el esquema.
   4. Agrega la ruta en courses/catalog.js.
+  5. Declara el alcance y las referencias del curso en courses/source-documents.js.
 */
 
 AcademyRegistry.register('curso-ejemplo', {

@@ -320,6 +320,7 @@ function scriptTags(version) {
   const suffix = `?v=${encodeURIComponent(version)}`;
   return [
     `/assets/js/core/security.js${suffix}`,
+    `/courses/source-documents.js${suffix}`,
     `/assets/js/core/registry.js${suffix}`,
     `/assets/js/core/storage.js${suffix}`,
     `/assets/js/core/question-selection.js${suffix}`,

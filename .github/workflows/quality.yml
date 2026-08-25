@@ -153,6 +153,11 @@ jobs:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:cloud
 
+      - name: Validar narración local, avance y navegación
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:audio
+
       - name: Validar acceso y métricas administrativas
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/

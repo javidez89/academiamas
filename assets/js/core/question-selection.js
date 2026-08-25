@@ -29,10 +29,17 @@
     return stats;
   }
 
-  function selectLeastSeen(pool, count, history = [], randomInt) {
-    const needed = Math.max(0, Math.min(Math.trunc(Number(count) || 0), pool.length));
+  function questionsForCourse(questions = [], courseKey = '') {
+    const normalizedKey = String(courseKey || '').trim().toLowerCase();
+    if (!normalizedKey) return [...questions];
+    return questions.filter((question) => String(question?.courseKey || '').trim().toLowerCase() === normalizedKey);
+  }
+
+  function selectLeastSeen(pool, count, history = [], randomInt, courseKey = '') {
+    const scopedPool = questionsForCourse(pool, courseKey);
+    const needed = Math.max(0, Math.min(Math.trunc(Number(count) || 0), scopedPool.length));
     const stats = historyStats(history);
-    const remaining = pool.map((question) => {
+    const remaining = scopedPool.map((question) => {
       const usage = stats.get(String(question.id)) || { count: 0, lastSeen: -1 };
       return {
         question,
@@ -43,11 +50,13 @@
     });
     const selected = [];
     const loCounts = new Map();
+    const referenceCounts = new Map();
 
     while (selected.length < needed && remaining.length) {
       remaining.sort((left, right) => (
         left.count - right.count
         || (loCounts.get(String(left.question.lo || '')) || 0) - (loCounts.get(String(right.question.lo || '')) || 0)
+        || (referenceCounts.get(String(left.question.designReferenceId || '')) || 0) - (referenceCounts.get(String(right.question.designReferenceId || '')) || 0)
         || left.lastSeen - right.lastSeen
         || left.tie - right.tie
       ));
@@ -55,12 +64,15 @@
       selected.push(picked.question);
       const lo = String(picked.question.lo || '');
       loCounts.set(lo, (loCounts.get(lo) || 0) + 1);
+      const reference = String(picked.question.designReferenceId || '');
+      referenceCounts.set(reference, (referenceCounts.get(reference) || 0) + 1);
     }
 
     return shuffle(selected, randomInt);
   }
 
-  function buildMatrixSelection(questions, blueprint, history = [], randomInt) {
+  function buildMatrixSelection(questions, blueprint, history = [], randomInt, courseKey = '') {
+    const scopedQuestions = questionsForCourse(questions, courseKey);
     const matrix = blueprint?.matrix || {};
     const selected = [];
     const used = new Set();
@@ -71,7 +83,7 @@
       kLevels.forEach((kLevel) => {
         const needed = Math.max(0, Math.trunc(Number(distribution?.[kLevel]) || 0));
         if (!needed) return;
-        const pool = questions.filter((question) => (
+        const pool = scopedQuestions.filter((question) => (
           String(question.chapter) === String(chapter)
           && question.k === kLevel
           && !used.has(question.id)
@@ -87,7 +99,7 @@
 
     const totalQuestions = Math.max(1, Math.trunc(Number(blueprint?.totalQuestions) || 40));
     if (selected.length < totalQuestions) {
-      const fillPool = questions.filter((question) => !used.has(question.id));
+      const fillPool = scopedQuestions.filter((question) => !used.has(question.id));
       selected.push(...selectLeastSeen(fillPool, totalQuestions - selected.length, history, randomInt));
     }
 
@@ -100,6 +112,7 @@
   global.AcademyQuestionSelection = Object.freeze({
     buildMatrixSelection,
     historyStats,
+    questionsForCourse,
     selectLeastSeen,
     shuffle
   });
