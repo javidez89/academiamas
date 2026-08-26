@@ -1,7 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import { jsonResponse, corsHeaders } from '../_shared/cors.ts';
 import { certificateCourse } from '../_shared/course-catalog.ts';
-import { createCertificatePdf } from '../_shared/certificate-pdf.ts';
+import {
+  createCertificatePdf,
+  preparationCourseName,
+  type CertificateModule
+} from '../_shared/certificate-pdf.ts';
 import {
   buildWompiCheckout,
   fetchWompiTransaction,
@@ -80,7 +84,15 @@ function paymentReference(): string {
 }
 
 function siteOrigin(): string {
-  return String(Deno.env.get('ACADEMIAQA_ORIGIN') || CANONICAL_ORIGIN).replace(/\/$/, '');
+  const configured = String(
+    Deno.env.get('ACADEMIAQA_CERTIFICATE_ORIGIN')
+      || CANONICAL_ORIGIN
+  ).trim();
+  try {
+    return new URL(configured).origin;
+  } catch {
+    throw new Error('Configuración pendiente: ACADEMIAQA_CERTIFICATE_ORIGIN');
+  }
 }
 
 function certificatePriceUsd(): number {
@@ -148,6 +160,24 @@ async function completedEnrollment(admin: ReturnType<typeof projectClients>['adm
     throw Object.assign(new Error('El certificado se habilita al completar el curso y aprobar el examen final.'), { status: 403 });
   }
   return enrollment as CompletedEnrollmentRecord;
+}
+
+async function certificateModules(
+  admin: ReturnType<typeof projectClients>['admin'],
+  courseKey: string
+): Promise<CertificateModule[]> {
+  const { data, error } = await admin.rpc('get_certificate_course_modules', { p_course_key: courseKey });
+  if (error) throw error;
+  const modules = (Array.isArray(data) ? data : [])
+    .map((module) => ({
+      order: Number((module as JsonObject).module_order),
+      title: String((module as JsonObject).title || '').trim()
+    }))
+    .filter((module) => Number.isInteger(module.order) && module.order > 0 && module.title);
+  if (!modules.length) {
+    throw Object.assign(new Error('El contenido académico del curso aún no está configurado.'), { status: 503 });
+  }
+  return modules;
 }
 
 async function checkoutForOrder(order: JsonObject, email: string) {
@@ -326,21 +356,25 @@ async function issueCertificate(request: Request, body: JsonObject) {
   if (existing.error) throw existing.error;
   if (existing.data) return jsonResponse(request, { certificate: publicCertificate(existing.data) });
 
+  const modules = await certificateModules(admin, course.key);
   const code = certificateCode();
   const issuedAt = new Date().toISOString();
   const validationUrl = `${siteOrigin()}/validar-certificado/?codigo=${encodeURIComponent(code)}`;
+  const courseName = preparationCourseName(course.name);
   const pdf = await createCertificatePdf({
     code,
     fullName: identity.fullName,
     documentType: identity.documentType,
     documentNumber: identity.documentNumber,
-    courseName: course.name,
+    courseName,
     estimatedHours: Number(enrollment.estimated_hours),
     startedAt: enrollment.started_at,
     completedAt: enrollment.completed_at,
     issuedAt,
     validationUrl,
-    logoUrl: `${siteOrigin()}/assets/img/academiaqa-logo.png`
+    logoUrl: String(Deno.env.get('ACADEMIAQA_LOGO_URL') || `${siteOrigin()}/assets/img/academiaqa-logo.png`),
+    signatureUrl: String(Deno.env.get('ACADEMIAQA_SIGNATURE_URL') || '').trim() || undefined,
+    modules
   });
   const pdfPath = `${currentUser.id}/${code}.pdf`;
   const upload = await admin.storage.from(CERTIFICATE_BUCKET).upload(pdfPath, pdf, {
@@ -357,7 +391,7 @@ async function issueCertificate(request: Request, body: JsonObject) {
     full_name: identity.fullName,
     document_type: identity.documentType,
     document_last4: identity.documentLast4,
-    course_name: course.name,
+    course_name: courseName,
     estimated_hours: Number(enrollment.estimated_hours),
     started_at: enrollment.started_at,
     completed_at: enrollment.completed_at,
@@ -377,7 +411,7 @@ async function issueCertificate(request: Request, body: JsonObject) {
   }).eq('id', order.id);
   if (consumed.error) throw consumed.error;
 
-  const filename = `Certificado-AcademiaQA-${course.key}-${code}.pdf`;
+  const filename = `Constancia-AcademiaQA-${course.key}-${code}.pdf`;
   const signed = await admin.storage.from(CERTIFICATE_BUCKET).createSignedUrl(pdfPath, 900, { download: filename });
   if (signed.error) throw signed.error;
   return jsonResponse(request, {
@@ -399,7 +433,7 @@ async function certificateDownload(request: Request, body: JsonObject) {
     const adminAccess = await user.rpc('is_platform_admin');
     if (adminAccess.error || adminAccess.data !== true) throw Object.assign(new Error('No tienes permiso para descargar este certificado.'), { status: 403 });
   }
-  const filename = `Certificado-AcademiaQA-${certificate.course_key}-${code}.pdf`;
+  const filename = `Constancia-AcademiaQA-${certificate.course_key}-${code}.pdf`;
   const signed = await admin.storage.from(CERTIFICATE_BUCKET).createSignedUrl(certificate.pdf_path, 900, { download: filename });
   if (signed.error) throw signed.error;
   return jsonResponse(request, { downloadUrl: signed.data.signedUrl });

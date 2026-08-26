@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.18.0] - 2026-08-25
+
+### Changed
+- El documento emitido se denomina "Constancia de participación y aprobación" y antepone "Curso de Preparación para" al nombre del programa.
+- El anverso incorpora modalidad, firma del instructor, URL pública normalizada, QR y el deslinde legal de educación informal.
+- El archivo descargable adopta la nomenclatura `Constancia-AcademiaQA`.
+
+### Added
+- Segunda página automática con el contenido académico del curso consultado desde una tabla privada de Supabase.
+- Soporte seguro para configurar el dominio, logo y firma digitalizada mediante variables de entorno de la función.
+- Prueba reproducible que genera y valida una constancia PDF de dos páginas con el logo oficial.
+
+### Security
+- El temario de constancias no es accesible para `anon` ni `authenticated`; solo la función con `service_role` puede consultarlo.
+
 ## [v0.17.3] - 2026-08-25
 
 ### Changed

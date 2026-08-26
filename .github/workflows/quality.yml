@@ -68,6 +68,9 @@ jobs:
           supabase/functions/wompi-events/index.ts
           supabase/functions/course-audio/index.ts
 
+      - name: Validar constancia PDF y anexo académico
+        run: npm run test:certificate-pdf
+
       - name: Probar persistencia y estadísticas
         run: npm run test:unit
 
