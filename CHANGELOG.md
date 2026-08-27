@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.19.0] - 2026-08-25
+
+### Added
+- Recorrido unificado en el inicio con selección del curso, capítulos en texto o audio, práctica, simulacro, examen final y constancia opcional.
+- Recursos WebP responsive derivados de las referencias visuales del simulador, precio y constancia anonimizada.
+- Prueba de regresión para orden del contenido, privacidad, entrada de curso limpia y adaptación móvil/escritorio.
+
+### Changed
+- El recorrido completo aparece debajo del bloque de cursos disponibles y reemplaza la sección separada "Ruta simple para avanzar".
+- Las entradas públicas de los cursos conservan únicamente el resumen académico y el acceso, sin bloques promocionales adicionales.
+
 ## [v0.18.0] - 2026-08-25
 
 ### Changed

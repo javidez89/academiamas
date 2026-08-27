@@ -1,6 +1,6 @@
 {
   "name": "academiaqa",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -21,6 +21,7 @@
     "test:audio": "node tools/audio-fallback-smoke.mjs",
     "test:admin": "node tools/admin-smoke.mjs",
     "test:certificates": "node tools/certificate-smoke.mjs",
+    "test:home-advantages": "node tools/home-advantages-smoke.mjs",
     "test:certificate-pdf": "deno run --frozen --node-modules-dir=auto --allow-read --allow-write tools/certificate-pdf-preview.ts",
     "test:e2e": "node tools/smoke.mjs",
     "test:visual": "node tools/chapter-visual-smoke.mjs"

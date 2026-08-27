@@ -2163,6 +2163,89 @@
     </section>`;
   }
 
+  function renderHomeCourseAdvantages() {
+    return `<section class="homeCourseAdvantages" id="como-estudiar" aria-labelledby="homeCourseAdvantagesTitle">
+      <div class="homeCourseAdvantagesHead">
+        <div>
+          <span class="sectionKicker">Una ruta completa</span>
+          <h2 id="homeCourseAdvantagesTitle">Una ruta completa para avanzar</h2>
+          <p>Elige tu curso, lee o escucha cada capítulo, practica por objetivo y presenta el examen final. Cuando apruebes, podrás emitir opcionalmente una constancia digital verificable.</p>
+        </div>
+        <div class="homeCourseAdvantagesAction">
+          <span><b>Capítulos</b> Texto y audio</span>
+          <span><b>Meta del curso</b> Examen final</span>
+          <a class="btn" href="${h(publicPath('courses'))}" data-view="courses">Explorar cursos</a>
+        </div>
+      </div>
+
+      <div class="studyPathGrid" aria-label="Pasos de la ruta de aprendizaje">
+        <article><strong>1</strong><h3>Elige una ruta</h3><p>Explora el área profesional y selecciona el curso que necesitas.</p></article>
+        <article><strong>2</strong><h3>Lee o escucha los capítulos</h3><p>Repasa el syllabus, los objetivos LO y el material ampliado en texto o audio.</p></article>
+        <article><strong>3</strong><h3>Practica por foco</h3><p>Filtra las preguntas por capítulo, nivel K u objetivo de aprendizaje.</p></article>
+        <article><strong>4</strong><h3>Simula, aprueba y valida</h3><p>Refuerza con simulacros y presenta el examen final. Al aprobar, podrás emitir tu constancia.</p></article>
+      </div>
+
+      <div class="homeCourseAdvantagesGrid">
+        <article class="homeAdvantageCard">
+          <div class="homeAdvantageVisual homeReferenceMedia homeReferenceSimulator">
+            <picture>
+              <source media="(max-width:640px)" srcset="/assets/img/home/advantages/simulator-640.webp">
+              <img src="/assets/img/home/advantages/simulator-1136.webp" srcset="/assets/img/home/advantages/simulator-640.webp 640w, /assets/img/home/advantages/simulator-1136.webp 1136w" sizes="(max-width:980px) 100vw, 34vw" width="1136" height="622" loading="lazy" decoding="async" alt="Interfaz real del simulador AcademiaQA con temporizador, pregunta y opciones de respuesta">
+            </picture>
+            <span class="homeReferenceBadge">Retroalimentación inmediata</span>
+          </div>
+          <div class="homeAdvantageCopy">
+            <span class="homeAdvantageIndex" aria-hidden="true">01</span>
+            <div>
+              <h3>Practica con intención</h3>
+              <p>Responde preguntas alineadas a cada curso y comprende el porqué de cada resultado.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="homeAdvantageCard">
+          <a class="homeAdvantageVisual homeReferenceMedia homeReferencePricing" href="${h(publicPath('courses'))}" data-view="courses" aria-label="Explorar cursos gratuitos de AcademiaQA">
+            <picture>
+              <source media="(max-width:640px)" srcset="/assets/img/home/advantages/pricing-320.webp">
+              <img src="/assets/img/home/advantages/pricing-494.webp" srcset="/assets/img/home/advantages/pricing-320.webp 320w, /assets/img/home/advantages/pricing-494.webp 494w" sizes="(max-width:980px) 70vw, 22vw" width="494" height="544" loading="lazy" decoding="async" alt="Tarjeta de emisión opcional de constancia digital por 25 dólares">
+            </picture>
+            <span class="homePricingSummary" aria-hidden="true">
+              <b>Curso</b><strong>Gratis</strong>
+              <b>Constancia</b><strong>Opcional</strong>
+              <small>Ver cursos</small>
+            </span>
+          </a>
+          <div class="homeAdvantageCopy">
+            <span class="homeAdvantageIndex" aria-hidden="true">02</span>
+            <div>
+              <h3>Estudia sin costo</h3>
+              <p>La matrícula y el contenido son gratuitos. Solo pagas si decides emitir la constancia después de aprobar.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="homeAdvantageCard">
+          <a class="homeAdvantageVisual homeReferenceMedia homeReferenceCertificate" href="${h(publicPath('verifyCertificate'))}" data-view="verifyCertificate" aria-label="Ir a la validación pública de constancias">
+            <picture>
+              <source media="(max-width:640px)" srcset="/assets/img/home/advantages/certificate-640.webp">
+              <img src="/assets/img/home/advantages/certificate-1200.webp" srcset="/assets/img/home/advantages/certificate-640.webp 640w, /assets/img/home/advantages/certificate-1200.webp 1200w" sizes="(max-width:980px) 100vw, 34vw" width="1200" height="854" loading="lazy" decoding="async" alt="Constancia de participación y aprobación de muestra, anonimizada y con validación QR">
+            </picture>
+            <span class="homeReferenceHint">Validar constancia</span>
+          </a>
+          <div class="homeAdvantageCopy">
+            <span class="homeAdvantageIndex" aria-hidden="true">03</span>
+            <div>
+              <h3>Comparte un logro verificable</h3>
+              <p>Después de aprobar, puedes emitir por USD 25 una constancia con código único y validación pública.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <p class="homeCourseAdvantagesLegal">La constancia acredita participación y aprobación en AcademiaQA; no reemplaza una certificación oficial de ISTQB ni de otra entidad certificadora.</p>
+    </section>`;
+  }
+
   function startHomeSlider() {
     const slides = latestCourseEntries(3);
     clearHomeSlider();
@@ -2548,20 +2631,6 @@
           ${renderCoffeeButton()}
           <a class="btn secondary" href="${h(publicPath('routes'))}" data-view="routes" data-view-anchor="ruta-aprendizaje">Ruta de aprendizaje</a>
         </div>
-      </div>
-    </section>`;
-  }
-
-  function renderStudyPathSection() {
-    return `<section class="homeSection studyStepsSection" id="como-estudiar" aria-labelledby="studyTitle">
-      <div class="sectionIntro">
-        <h2 id="studyTitle">Ruta simple para avanzar</h2>
-      </div>
-      <div class="studyPathGrid">
-        <article><strong>1</strong><h3>Elige una ruta</h3><p>Explora el área profesional y selecciona el curso que necesitas.</p></article>
-        <article><strong>2</strong><h3>Lee por capítulos</h3><p>Repasa teoría, objetivos LO y puntos clave antes de practicar.</p></article>
-        <article><strong>3</strong><h3>Practica por foco</h3><p>Filtra por capítulo, nivel K u objetivo de aprendizaje.</p></article>
-        <article><strong>4</strong><h3>Simula y refuerza</h3><p>Usa el simulacro aleatorio y revisa tus estadísticas.</p></article>
       </div>
     </section>`;
   }
@@ -3353,7 +3422,7 @@
 
       ${renderHomeAvailableCoursesSection()}
 
-      ${renderStudyPathSection()}
+      ${renderHomeCourseAdvantages()}
 
       ${renderDonationSpotlight()}
 

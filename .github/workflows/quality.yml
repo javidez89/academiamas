@@ -171,6 +171,11 @@ jobs:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:certificates
 
+      - name: Validar ventajas de los cursos en el inicio
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:home-advantages
+
       - name: Validar flujo funcional crítico
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
