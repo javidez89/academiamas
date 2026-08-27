@@ -7,7 +7,11 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
     const progressByCourse = new Map();
     const state = {
       session: activeSession,
-      enrollments: structuredClone(mockedEnrollments || []),
+      enrollments: structuredClone(mockedEnrollments || []).map((item) => ({
+        verified_study_seconds: 0,
+        study_verification_started_at: new Date().toISOString(),
+        ...item
+      })),
       progressByCourse,
       finalExamAttempts: [],
       admin: Boolean(mockedAdmin),
@@ -19,6 +23,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       audioFailure: Boolean(mockedAudioFailure),
       publicActivitySummary: structuredClone(mockedPublicActivitySummary || {}),
       learningActivity: null,
+      learningActivityHistory: [],
       learningActivityCalls: [],
       rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
@@ -63,6 +68,8 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
           last_activity_at: now,
           estimated_hours: Number(estimatedHours) || 1,
           study_seconds: 0,
+          verified_study_seconds: 0,
+          study_verification_started_at: now,
           simulator_attempts: 0,
           practice_answers: 0,
           best_simulator_score: 0,
@@ -185,14 +192,21 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               if (!user || !item || item.status === 'cancelled') {
                 return { data: null, error: { code: '42501', message: 'Active enrollment required' } };
               }
+              if (state.learningActivity && !state.learningActivity.ended_at) {
+                state.learningActivity.ended_at = new Date().toISOString();
+              }
               state.learningActivity = {
                 session_id: `00000000-0000-4000-8000-${String(state.rpcCounts[name]).padStart(12, '0')}`,
                 course_key: args.p_course_key,
                 activity_type: args.p_activity_type,
+                chapter_id: args.p_chapter_id ?? null,
                 started_at: new Date().toISOString(),
                 last_seen_at: new Date().toISOString(),
-                ended_at: null
+                ended_at: null,
+                duration_seconds: 0,
+                heartbeat_count: 0
               };
+              state.learningActivityHistory.push(state.learningActivity);
               state.learningActivityCalls.push({ name, args: structuredClone(args), sessionId: state.learningActivity.session_id });
               return { data: structuredClone(state.learningActivity), error: null };
             }
@@ -200,7 +214,13 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               const touched = Boolean(state.learningActivity
                 && state.learningActivity.session_id === args.p_session_id
                 && !state.learningActivity.ended_at);
-              if (touched) state.learningActivity.last_seen_at = new Date().toISOString();
+              if (touched) {
+                state.learningActivity.last_seen_at = new Date().toISOString();
+                state.learningActivity.duration_seconds += 30;
+                state.learningActivity.heartbeat_count += 1;
+                const item = enrollment(state.learningActivity.course_key);
+                if (item) item.verified_study_seconds = Math.max(0, item.verified_study_seconds || 0) + 30;
+              }
               state.learningActivityCalls.push({ name, args: structuredClone(args), touched });
               return { data: touched, error: null };
             }
@@ -211,6 +231,29 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               if (ended) state.learningActivity.ended_at = new Date().toISOString();
               state.learningActivityCalls.push({ name, args: structuredClone(args), ended });
               return { data: ended, error: null };
+            }
+            if (name === 'get_verified_study_time') {
+              const item = enrollment(args.p_course_key);
+              if (!item) return { data: null, error: { code: '42501', message: 'Enrollment required' } };
+              const sessions = state.learningActivityHistory.filter((activity) => activity.course_key === args.p_course_key);
+              const chapters = {};
+              const activities = {};
+              sessions.forEach((activity) => {
+                const duration = Math.max(0, Number(activity.duration_seconds) || 0);
+                activities[activity.activity_type] = (activities[activity.activity_type] || 0) + duration;
+                if (activity.chapter_id) chapters[activity.chapter_id] = (chapters[activity.chapter_id] || 0) + duration;
+              });
+              return {
+                data: {
+                  course_key: args.p_course_key,
+                  verified_study_seconds: item.verified_study_seconds || 0,
+                  session_count: sessions.length,
+                  verification_started_at: item.study_verification_started_at,
+                  chapters,
+                  activities
+                },
+                error: null
+              };
             }
             if (name === 'is_platform_admin') {
               return { data: state.admin, error: null };
@@ -263,7 +306,6 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               const item = enrollment(args.p_course_key);
               if (item) {
                 item.practice_answers = Math.max(0, args.p_practice_answers || 0);
-                item.study_seconds = Math.max(item.study_seconds || 0, args.p_study_seconds || 0);
               }
               return { data: item ? [structuredClone(item)] : [], error: null };
             }

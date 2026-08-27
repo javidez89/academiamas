@@ -26,10 +26,19 @@
 
   function normalizeLearningActivityType(value) {
     const type = String(value || '').trim().toLowerCase();
-    if (!['practice', 'simulator', 'final_exam'].includes(type)) {
+    if (!['reading', 'practice', 'simulator', 'final_exam'].includes(type)) {
       throw new Error('Tipo de actividad académica no válido.');
     }
     return type;
+  }
+
+  function normalizeChapterId(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const chapterId = Math.trunc(Number(value));
+    if (!Number.isInteger(chapterId) || chapterId < 1 || chapterId > 999) {
+      throw new Error('Capítulo no válido.');
+    }
+    return chapterId;
   }
 
   function unwrap(data) {
@@ -112,7 +121,7 @@
     const { client } = requireUser();
     const { data, error } = await client
       .from('course_enrollments')
-      .select('course_key,status,started_at,cancelled_at,last_activity_at,estimated_hours,study_seconds,simulator_attempts,practice_answers,best_simulator_score,final_exam_attempts,best_final_exam_score,final_exam_passed,final_exam_passed_at,completed_at,created_at,updated_at')
+      .select('course_key,status,started_at,cancelled_at,last_activity_at,estimated_hours,study_seconds,verified_study_seconds,study_verification_started_at,simulator_attempts,practice_answers,best_simulator_score,final_exam_attempts,best_final_exam_score,final_exam_passed,final_exam_passed_at,completed_at,created_at,updated_at')
       .order('started_at', { ascending: false });
     if (error) throw error;
     return Array.isArray(data) ? data : [];
@@ -259,7 +268,7 @@
     const activity = await client.rpc('sync_course_activity', {
       p_course_key: key,
       p_practice_answers: answeredCount(progress),
-      p_study_seconds: Math.max(0, Math.trunc(Number(progress.studySeconds) || 0))
+      p_study_seconds: 0
     });
     if (activity.error) throw activity.error;
     return progress;
@@ -336,11 +345,13 @@
     return unwrap(data);
   }
 
-  async function beginLearningActivity(courseKey, activityType) {
+  async function beginLearningActivity(courseKey, activityType, context = {}) {
     const { client } = requireUser();
+    const chapterId = normalizeChapterId(context.chapterId);
     const { data, error } = await client.rpc('begin_learning_activity', {
       p_course_key: normalizeCourseKey(courseKey),
-      p_activity_type: normalizeLearningActivityType(activityType)
+      p_activity_type: normalizeLearningActivityType(activityType),
+      p_chapter_id: chapterId
     });
     if (error) throw error;
     const value = unwrap(data);
@@ -349,8 +360,20 @@
       sessionId: String(value.session_id),
       courseKey: String(value.course_key || courseKey),
       activityType: String(value.activity_type || activityType),
-      startedAt: String(value.started_at || '')
+      chapterId: normalizeChapterId(value.chapter_id),
+      startedAt: String(value.started_at || ''),
+      durationSeconds: Math.max(0, Math.trunc(Number(value.duration_seconds) || 0))
     };
+  }
+
+  async function getVerifiedStudyTime(courseKey) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('get_verified_study_time', {
+      p_course_key: normalizeCourseKey(courseKey)
+    });
+    if (error) throw error;
+    const value = unwrap(data);
+    return value && typeof value === 'object' ? value : null;
   }
 
   async function touchLearningActivity(sessionId) {
@@ -444,6 +467,7 @@
     beginLearningActivity,
     touchLearningActivity,
     endLearningActivity,
+    getVerifiedStudyTime,
     getPublicLearningActivity,
     isAdmin,
     getAdminDashboardSummary,

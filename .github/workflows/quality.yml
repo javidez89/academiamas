@@ -58,6 +58,9 @@ jobs:
       - name: Validar línea base de migraciones
         run: npm run test:migration-baseline
 
+      - name: Validar sesiones y tiempo de estudio verificables
+        run: npm run test:verified-time
+
       - name: Configurar Deno
         uses: denoland/setup-deno@v2
         with:

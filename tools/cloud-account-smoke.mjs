@@ -54,7 +54,12 @@ try {
   }));
   assert.equal(await page.evaluate(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.study_seconds
-  )), 3_900, 'El tiempo de estudio debe sincronizarse en la matrícula.');
+  )), 0, 'El tiempo enviado por el navegador no debe modificar el contador oficial de la matrícula.');
+  assert.equal(await page.evaluate(() => (
+    window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.verified_study_seconds
+  )), 0, 'El tiempo verificado solo debe crecer mediante latidos autenticados.');
+  assert.equal(await page.evaluate(() => window.__supabaseMock.calls.sync_course_activity?.p_study_seconds), 0,
+    'La capa cloud no debe reenviar el tiempo calculado por el navegador como una métrica confiable.');
   assert.equal(await page.evaluate(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.practice_answers
   )), 1, 'Los reintentos del mismo LO no deben inflar el total de preguntas únicas respondidas.');
@@ -70,6 +75,9 @@ try {
     window.AcademyCloud.touchLearningActivity(sessionId)
   ), simulatorActivity.session_id), true, 'El latido autenticado debe mantener activa la sesión académica.');
   assert.equal(await page.evaluate(() => window.__supabaseMock.rpcCounts.touch_learning_activity), 1, 'El latido debe ejecutarse mediante la RPC protegida.');
+  assert.equal(await page.evaluate(() => (
+    window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.verified_study_seconds
+  )), 30, 'El servidor debe sumar tiempo verificado al procesar un latido válido.');
   await page.getByRole('button', { name: 'Finalizar', exact: true }).click();
   await page.waitForFunction((sessionId) => (
     window.__supabaseMock?.learningActivity?.session_id === sessionId
@@ -98,6 +106,17 @@ try {
   assert.match(courseMasteryText, /Todos los cap[ií]tulos \d+%.*examen final \d+%/i, 'El dominio real debe desglosar capitulos y examen final.');
   await page.locator('.chapterCard').first().click();
   await page.locator('#chapterDetail').getByRole('heading', { name: /Cap[ií]tulo 1 · Fundamentos de la Prueba/i }).waitFor();
+  await page.waitForFunction(() => (
+    window.__supabaseMock?.learningActivity?.activity_type === 'reading'
+      && window.__supabaseMock.learningActivity.chapter_id === 1
+  ));
+  const readingActivity = await page.evaluate(() => structuredClone(window.__supabaseMock.learningActivity));
+  assert.equal(readingActivity.chapter_id, 1, 'La sesión de lectura debe conservar el capítulo estudiado.');
+  await page.evaluate((sessionId) => window.AcademyCloud.touchLearningActivity(sessionId), readingActivity.session_id);
+  const verifiedStudy = await page.evaluate(() => window.AcademyCloud.getVerifiedStudyTime('ctfl'));
+  assert.ok(Number(verifiedStudy.verified_study_seconds) >= 30, 'El resumen debe devolver tiempo verificado por servidor.');
+  assert.ok(Number(verifiedStudy.chapters?.['1']) >= 30, 'El resumen debe atribuir el tiempo al capítulo real.');
+  assert.ok(Number(verifiedStudy.activities?.reading) >= 30, 'El resumen debe separar el tiempo de lectura.');
   await page.getByRole('button', { name: /Escuchar el cap[ií]tulo 1/i }).waitFor();
   assert.equal(await page.getByRole('button', { name: /Repetir narraci[oó]n/i }).first().isDisabled(), true, 'Repetir debe iniciar deshabilitado hasta preparar una narración.');
   const narrationSeek = page.locator('[data-narration-controls="chapter-1"] [data-narration-seek="chapter-1"]');

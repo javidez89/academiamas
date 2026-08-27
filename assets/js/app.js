@@ -1400,7 +1400,8 @@
 
   async function touchVerifiedLearningActivity() {
     const current = learningActivitySession;
-    if (!current?.sessionId || document.visibilityState !== 'visible' || !state.session.length) return false;
+    if (!current?.sessionId || document.visibilityState !== 'visible') return false;
+    if (Date.now() - lastUserActivityAt > 120_000) return false;
     try {
       const touched = await Cloud.touchLearningActivity(current.sessionId);
       if (!touched && learningActivitySession?.sessionId === current.sessionId) {
@@ -1413,17 +1414,33 @@
     }
   }
 
-  function startVerifiedLearningActivity(activityType) {
-    if (!Auth?.isAuthenticated?.() || !activeCourseKey || !state.session.length) return;
+  function startVerifiedLearningActivity(activityType, context = {}) {
+    const chapterId = Number.isInteger(Number(context.chapterId)) && Number(context.chapterId) > 0
+      ? Number(context.chapterId)
+      : null;
+    const hasQuestionSession = state.session.length > 0;
+    const isReading = activityType === 'reading';
+    const isRelevant = () => isReading
+      ? state.view === 'study' && state.studyChapter === chapterId
+      : state.session.length > 0;
+    if (!Auth?.isAuthenticated?.() || !activeCourseKey || (!isReading && !hasQuestionSession)) return;
+    if (
+      learningActivitySession?.courseKey === activeCourseKey
+      && learningActivitySession.activityType === activityType
+      && learningActivitySession.chapterId === chapterId
+    ) {
+      touchVerifiedLearningActivity();
+      return;
+    }
     const generation = ++learningActivityGeneration;
     clearLearningActivityHeartbeat();
     const previous = learningActivitySession;
     learningActivitySession = null;
     if (previous?.sessionId) Promise.resolve(Cloud.endLearningActivity(previous.sessionId)).catch(() => {});
 
-    Promise.resolve(Cloud.beginLearningActivity(activeCourseKey, activityType))
+    Promise.resolve(Cloud.beginLearningActivity(activeCourseKey, activityType, { chapterId }))
       .then((session) => {
-        if (generation !== learningActivityGeneration || !state.session.length) {
+        if (generation !== learningActivityGeneration || !isRelevant()) {
           return Promise.resolve(Cloud.endLearningActivity(session.sessionId)).catch(() => false);
         }
         learningActivitySession = session;
@@ -4348,6 +4365,7 @@
       </div>
     </div>`;
     updateReadingScaleControls();
+    startVerifiedLearningActivity('reading', { chapterId: Number(id) });
     if (options.scroll !== false) host.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -4466,7 +4484,9 @@
     document.querySelectorAll('.navbtn[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === 'practice'));
     dom.app.innerHTML = renderPractice();
     renderSession();
-    startVerifiedLearningActivity('practice');
+    startVerifiedLearningActivity('practice', {
+      chapterId: filter.chapter === 'all' ? null : Number(filter.chapter)
+    });
   }
 
   function renderSession() {
