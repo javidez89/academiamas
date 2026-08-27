@@ -238,6 +238,8 @@
   let learningActivitySession = null;
   let learningActivityHeartbeatTimer = null;
   let learningActivityGeneration = 0;
+  let verifiedAssessmentStartPromise = null;
+  let verifiedAssessmentAnswerChain = Promise.resolve();
   let studyTimer = null;
   let lastStudyTickAt = Date.now();
   let lastUserActivityAt = Date.now();
@@ -1368,13 +1370,14 @@
     }, 0);
   }
 
-  function clearRuntimeTimers() {
+  function clearRuntimeTimers({ endLearningActivity = true } = {}) {
     clearHomeSlider();
     if (state.timer) global.clearInterval(state.timer);
     if (state.pendingAdvance) global.clearTimeout(state.pendingAdvance);
     state.timer = null;
     state.pendingAdvance = null;
-    endVerifiedLearningActivity();
+    if (endLearningActivity) endVerifiedLearningActivity();
+    else clearLearningActivityHeartbeat();
     setExamFocus(false);
     stopNarration();
   }
@@ -1423,14 +1426,14 @@
     const isRelevant = () => isReading
       ? state.view === 'study' && state.studyChapter === chapterId
       : state.session.length > 0;
-    if (!Auth?.isAuthenticated?.() || !activeCourseKey || (!isReading && !hasQuestionSession)) return;
+    if (!Auth?.isAuthenticated?.() || !activeCourseKey || (!isReading && !hasQuestionSession)) return Promise.resolve(null);
     if (
       learningActivitySession?.courseKey === activeCourseKey
       && learningActivitySession.activityType === activityType
       && learningActivitySession.chapterId === chapterId
     ) {
       touchVerifiedLearningActivity();
-      return;
+      return Promise.resolve(learningActivitySession);
     }
     const generation = ++learningActivityGeneration;
     clearLearningActivityHeartbeat();
@@ -1438,7 +1441,7 @@
     learningActivitySession = null;
     if (previous?.sessionId) Promise.resolve(Cloud.endLearningActivity(previous.sessionId)).catch(() => {});
 
-    Promise.resolve(Cloud.beginLearningActivity(activeCourseKey, activityType, { chapterId }))
+    return Promise.resolve(Cloud.beginLearningActivity(activeCourseKey, activityType, { chapterId }))
       .then((session) => {
         if (generation !== learningActivityGeneration || !isRelevant()) {
           return Promise.resolve(Cloud.endLearningActivity(session.sessionId)).catch(() => false);
@@ -1448,14 +1451,59 @@
           touchVerifiedLearningActivity();
         }, LEARNING_ACTIVITY_HEARTBEAT_MS);
         if (state.view === 'home') refreshCommunityActivity({ silent: true });
-        return true;
+        return session;
       })
-      .catch(() => {
+      .catch((error) => {
         if (generation === learningActivityGeneration) {
           learningActivitySession = null;
           clearLearningActivityHeartbeat();
         }
+        console.error(error);
+        return null;
       });
+  }
+
+  function startVerifiedAssessment(activityType, context = {}) {
+    verifiedAssessmentAnswerChain = Promise.resolve();
+    verifiedAssessmentStartPromise = startVerifiedLearningActivity(activityType, context)
+      .then((activity) => {
+        if (!activity?.sessionId || !state.session.length) return null;
+        return Cloud.startVerifiedAssessment(
+          activity.sessionId,
+          state.session.map((question) => question.id)
+        );
+      })
+      .catch((error) => {
+        console.error(error);
+        notify('La evaluación continuará localmente, pero no podrá acreditarse hasta recuperar la conexión segura.', 'warning', 8_000);
+        return null;
+      });
+    return verifiedAssessmentStartPromise;
+  }
+
+  function queueVerifiedAnswer(question, selectedIndices) {
+    if (!Auth?.isAuthenticated?.() || !verifiedAssessmentStartPromise || !question?.id || !selectedIndices?.length) {
+      return Promise.resolve(null);
+    }
+    verifiedAssessmentAnswerChain = verifiedAssessmentAnswerChain
+      .catch(() => null)
+      .then(() => verifiedAssessmentStartPromise)
+      .then((attempt) => attempt
+        ? Cloud.submitVerifiedAnswer(attempt.attemptId, question.id, selectedIndices)
+        : null);
+    return verifiedAssessmentAnswerChain;
+  }
+
+  function completeCurrentVerifiedAssessment() {
+    if (!Auth?.isAuthenticated?.() || !verifiedAssessmentStartPromise) return Promise.resolve(null);
+    for (const question of state.session) {
+      const answer = state.answers[question.id] || [];
+      if (answer.length) queueVerifiedAnswer(question, answer);
+    }
+    return verifiedAssessmentAnswerChain
+      .catch(() => null)
+      .then(() => verifiedAssessmentStartPromise)
+      .then((attempt) => attempt ? Cloud.completeVerifiedAssessment(attempt.attemptId) : null);
   }
 
   function noteUserActivity() {
@@ -1683,11 +1731,6 @@
     if (result.ok && activeCourseKey && Auth?.isAuthenticated?.()) {
       const normalized = Storage.normalizeProgress(progress);
       learningSnapshot.progressByCourse.set(activeCourseKey, normalized);
-      const enrollment = learningSnapshot.enrollments.find((item) => item.course_key === activeCourseKey);
-      if (enrollment) {
-        enrollment.study_seconds = Math.max(number(enrollment.study_seconds), number(normalized.studySeconds));
-        enrollment.practice_answers = Object.keys(normalized.questionResults || {}).length;
-      }
       Cloud.queueProgressSync(activeCourseKey, progress);
     }
   }
@@ -4484,7 +4527,7 @@
     document.querySelectorAll('.navbtn[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === 'practice'));
     dom.app.innerHTML = renderPractice();
     renderSession();
-    startVerifiedLearningActivity('practice', {
+    startVerifiedAssessment('practice', {
       chapterId: filter.chapter === 'all' ? null : Number(filter.chapter)
     });
   }
@@ -4580,6 +4623,7 @@
       const feedback = $('feedback');
       feedback.innerHTML = `<div class="${isCorrect ? 'okbox' : 'badbox'}"><b>${isCorrect ? 'Correcto' : 'Incorrecto'}</b><br>${h(question.explanation)}</div>`;
       recordAnswer(question, isCorrect);
+      queueVerifiedAnswer(question, answer).catch((error) => console.error(error));
       state.pendingAdvance = global.setTimeout(() => advanceOrFinish(), isCorrect ? 900 : 1_800);
       return;
     }
@@ -4612,7 +4656,8 @@
   function finishSession() {
     if (!state.session.length) return;
     const durationSeconds = Math.max(0, Math.floor((Date.now() - number(state.startTime, Date.now())) / 1_000));
-    clearRuntimeTimers();
+    const verifiedCompletion = completeCurrentVerifiedAssessment();
+    clearRuntimeTimers({ endLearningActivity: false });
 
     let correct = 0;
     let earned = 0;
@@ -4647,35 +4692,28 @@
     });
     progress.attempts = progress.attempts.slice(-30);
     saveProgress(progress);
-    const completedSimulator = state.mode === 'exam'
-      && completedFullExam;
-    if (completedSimulator && Auth?.isAuthenticated?.()) {
-      Promise.resolve(Cloud.flushProgress(activeCourseKey))
-        .then(() => Cloud.recordSimulatorCompletion(activeCourseKey, scorePct))
-        .then((enrollment) => updateEnrollmentSnapshot(enrollment))
+    if (Auth?.isAuthenticated?.()) {
+      Promise.all([Cloud.flushProgress(activeCourseKey), verifiedCompletion])
+        .then(([, result]) => {
+          if (!result) {
+            notify('El resultado quedó guardado en este dispositivo, pero aún no está acreditado en la nube.', 'warning', 8_000);
+            return;
+          }
+          updateEnrollmentSnapshot(result.enrollment);
+          const differsFromLocal = number(result.correct_answers) !== correct
+            || number(result.earned_points) !== earned
+            || number(result.total_points) !== totalPoints;
+          if (differsFromLocal) {
+            notify('El servidor corrigió el resultado usando el banco oficial del curso.', 'warning', 8_000);
+          }
+        })
         .catch((error) => {
           console.error(error);
-          notify('El resultado se guardó localmente, pero la métrica del simulacro no llegó a la nube.', 'warning');
-        });
-    }
-
-    const completedFinalExam = state.mode === 'final-exam' && completedFullExam;
-    if (completedFinalExam && Auth?.isAuthenticated?.()) {
-      Promise.resolve(Cloud.flushProgress(activeCourseKey))
-        .then(() => Cloud.recordFinalExamCompletion(activeCourseKey, {
-          score: scorePct,
-          earnedPoints: earned,
-          totalPoints,
-          passingPoints: passingScore,
-          correctAnswers: correct,
-          totalQuestions: state.session.length,
-          durationSeconds
-        }))
-        .then((enrollment) => updateEnrollmentSnapshot(enrollment))
-        .catch((error) => {
-          console.error(error);
-          notify('El resultado se guardó localmente, pero el examen final no llegó a la nube.', 'warning');
-        });
+          notify('El resultado quedó guardado en este dispositivo, pero aún no está acreditado en la nube.', 'warning', 8_000);
+        })
+        .finally(() => endVerifiedLearningActivity());
+    } else {
+      endVerifiedLearningActivity();
     }
 
     const resultLabel = completedFullExam
@@ -4781,7 +4819,7 @@
     dom.app.innerHTML = renderExam();
     global.scrollTo({ top: 0, behavior: 'smooth' });
     renderSession();
-    startVerifiedLearningActivity('simulator');
+    startVerifiedAssessment('simulator');
     startCountdown(number(course.blueprint.minutes) * 60);
   }
 
@@ -4810,7 +4848,7 @@
     dom.app.innerHTML = renderFinalExam();
     global.scrollTo({ top: 0, behavior: 'smooth' });
     renderSession();
-    startVerifiedLearningActivity('final_exam');
+    startVerifiedAssessment('final_exam');
     startCountdown(number(course.blueprint.minutes) * 60);
   }
 

@@ -103,10 +103,6 @@
     });
   }
 
-  function answeredCount(progress) {
-    return Object.keys(progress?.questionResults || {}).length;
-  }
-
   async function getProfile() {
     const { client } = requireUser();
     const { data, error } = await client
@@ -267,7 +263,7 @@
 
     const activity = await client.rpc('sync_course_activity', {
       p_course_key: key,
-      p_practice_answers: answeredCount(progress),
+      p_practice_answers: 0,
       p_study_seconds: 0
     });
     if (activity.error) throw activity.error;
@@ -318,31 +314,54 @@
     return syncProgress(key, pending.progress);
   }
 
-  async function recordSimulatorCompletion(courseKey, score) {
+  async function startVerifiedAssessment(activitySessionId, questionIds) {
     const { client } = requireUser();
-    const { data, error } = await client.rpc('record_simulator_completion', {
-      p_course_key: normalizeCourseKey(courseKey),
-      p_score: Math.max(0, Math.min(100, Number(score) || 0))
+    const ids = [...new Set((Array.isArray(questionIds) ? questionIds : [])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean))];
+    if (!ids.length || ids.length > 200) throw new Error('La evaluación no contiene un conjunto de preguntas válido.');
+    const { data, error } = await client.rpc('start_verified_assessment', {
+      p_activity_session_id: String(activitySessionId || '').trim(),
+      p_question_ids: ids
+    });
+    if (error) throw error;
+    const value = unwrap(data);
+    if (!value?.attempt_id) throw new Error('No fue posible registrar el intento verificable.');
+    return {
+      attemptId: String(value.attempt_id),
+      courseKey: String(value.course_key || ''),
+      activityType: String(value.activity_type || ''),
+      questionCount: Math.max(0, Math.trunc(Number(value.question_count) || 0)),
+      status: String(value.status || ''),
+      deadlineAt: String(value.deadline_at || '')
+    };
+  }
+
+  async function submitVerifiedAnswer(attemptId, questionId, selectedIndices) {
+    const { client } = requireUser();
+    const indices = [...new Set((Array.isArray(selectedIndices) ? selectedIndices : [])
+      .map((value) => Math.trunc(Number(value)))
+      .filter((value) => Number.isInteger(value) && value >= 0 && value <= 3))]
+      .sort((left, right) => left - right);
+    if (!indices.length) throw new Error('Selecciona al menos una respuesta.');
+    const { data, error } = await client.rpc('submit_verified_answer', {
+      p_attempt_id: String(attemptId || '').trim(),
+      p_question_id: String(questionId || '').trim(),
+      p_selected_indices: indices
     });
     if (error) throw error;
     return unwrap(data);
   }
 
-  async function recordFinalExamCompletion(courseKey, result) {
+  async function completeVerifiedAssessment(attemptId) {
     const { client } = requireUser();
-    const input = result && typeof result === 'object' ? result : {};
-    const { data, error } = await client.rpc('record_final_exam_completion', {
-      p_course_key: normalizeCourseKey(courseKey),
-      p_score: Math.max(0, Math.min(100, Number(input.score) || 0)),
-      p_earned_points: Math.max(0, Number(input.earnedPoints) || 0),
-      p_total_points: Math.max(0, Number(input.totalPoints) || 0),
-      p_passing_points: Math.max(0, Number(input.passingPoints) || 0),
-      p_correct_answers: Math.max(0, Math.trunc(Number(input.correctAnswers) || 0)),
-      p_total_questions: Math.max(0, Math.trunc(Number(input.totalQuestions) || 0)),
-      p_duration_seconds: Math.max(0, Math.trunc(Number(input.durationSeconds) || 0))
+    const { data, error } = await client.rpc('complete_verified_assessment', {
+      p_attempt_id: String(attemptId || '').trim()
     });
     if (error) throw error;
-    return unwrap(data);
+    const value = unwrap(data);
+    if (!value?.attempt_id) throw new Error('No fue posible cerrar el intento verificable.');
+    return value;
   }
 
   async function beginLearningActivity(courseKey, activityType, context = {}) {
@@ -462,8 +481,9 @@
     getCourseAudio,
     queueProgressSync,
     flushProgress,
-    recordSimulatorCompletion,
-    recordFinalExamCompletion,
+    startVerifiedAssessment,
+    submitVerifiedAnswer,
+    completeVerifiedAssessment,
     beginLearningActivity,
     touchLearningActivity,
     endLearningActivity,

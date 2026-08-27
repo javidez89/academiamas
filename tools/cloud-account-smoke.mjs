@@ -62,12 +62,37 @@ try {
     'La capa cloud no debe reenviar el tiempo calculado por el navegador como una métrica confiable.');
   assert.equal(await page.evaluate(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.practice_answers
-  )), 1, 'Los reintentos del mismo LO no deben inflar el total de preguntas únicas respondidas.');
+  )), 0, 'El JSON local no debe modificar la cobertura oficial de práctica.');
+
+  const verifiedPractice = await page.evaluate(async () => {
+    const activity = await window.AcademyCloud.beginLearningActivity('ctfl', 'practice', { chapterId: 1 });
+    const question = window.AcademyRegistry.get('ctfl').questions.find((item) => Number(item.chapter) === 1);
+    const foreignQuestion = window.AcademyRegistry.get('ctfl').questions.find((item) => Number(item.chapter) !== 1);
+    const attempt = await window.AcademyCloud.startVerifiedAssessment(activity.sessionId, [question.id]);
+    await window.AcademyCloud.submitVerifiedAnswer(attempt.attemptId, question.id, question.correct);
+    await window.AcademyCloud.submitVerifiedAnswer(attempt.attemptId, question.id, [((question.correct[0] || 0) + 1) % 4]);
+    let foreignRejected = false;
+    try {
+      await window.AcademyCloud.submitVerifiedAnswer(attempt.attemptId, foreignQuestion.id, foreignQuestion.correct);
+    } catch {
+      foreignRejected = true;
+    }
+    const result = await window.AcademyCloud.completeVerifiedAssessment(attempt.attemptId);
+    return { result, foreignRejected };
+  });
+  assert.equal(verifiedPractice.foreignRejected, true, 'El servidor debe rechazar preguntas ajenas al intento.');
+  assert.equal(verifiedPractice.result.answered_count, 1, 'Un reintento de la misma pregunta cuenta una sola vez.');
+  assert.equal(await page.evaluate(() => (
+    window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.practice_answers
+  )), 1, 'La cobertura oficial debe crecer solo por preguntas verificadas y únicas.');
 
   await page.locator('[data-view="exam"]').first().click();
   await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).click();
   await page.locator('.questionBox').waitFor();
-  await page.waitForFunction(() => window.__supabaseMock?.learningActivity?.activity_type === 'simulator');
+  await page.waitForFunction(() => (
+    window.__supabaseMock?.learningActivity?.activity_type === 'simulator'
+      && window.__supabaseMock?.verifiedAssessment?.activity_type === 'simulator'
+  ));
   const simulatorActivity = await page.evaluate(() => structuredClone(window.__supabaseMock.learningActivity));
   assert.equal(simulatorActivity.course_key, 'ctfl', 'La presencia del simulacro debe quedar asociada al curso real.');
   assert.match(simulatorActivity.session_id, /^[0-9a-f-]{36}$/i, 'La presencia debe usar un identificador de sesión verificable.');
@@ -86,6 +111,8 @@ try {
   await page.waitForFunction(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.simulator_attempts === 1
   ));
+  assert.equal(await page.evaluate(() => window.__supabaseMock.rpcCounts.record_simulator_completion || 0), 0,
+    'La interfaz no debe invocar la RPC heredada que aceptaba puntajes del cliente.');
 
   const lockedFinalExam = page.locator('[data-view="finalExam"]').first();
   assert.equal(await lockedFinalExam.isDisabled(), true, 'El examen final debe permanecer bloqueado antes del 95%.');
@@ -182,16 +209,24 @@ try {
   await page.waitForFunction(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.final_exam_attempts === 1
   ));
+  assert.equal(await page.evaluate(() => window.__supabaseMock.rpcCounts.record_final_exam_completion || 0), 0,
+    'La interfaz no debe invocar la RPC heredada que aceptaba el resultado final del cliente.');
 
-  await page.evaluate(() => window.AcademyCloud.recordFinalExamCompletion('ctfl', {
-    score: 100,
-    earnedPoints: 40,
-    totalPoints: 40,
-    passingPoints: 26,
-    correctAnswers: 40,
-    totalQuestions: 40,
-    durationSeconds: 1_800
-  }));
+  const verifiedPassingExam = await page.evaluate(async () => {
+    const course = window.AcademyRegistry.get('ctfl');
+    const sourceAttempt = [...window.__supabaseMock.verifiedAssessmentHistory]
+      .reverse()
+      .find((attempt) => attempt.activity_type === 'final_exam');
+    const activity = await window.AcademyCloud.beginLearningActivity('ctfl', 'final_exam');
+    const attempt = await window.AcademyCloud.startVerifiedAssessment(activity.sessionId, sourceAttempt.question_ids);
+    for (const questionId of sourceAttempt.question_ids) {
+      const question = course.questions.find((item) => item.id === questionId);
+      await window.AcademyCloud.submitVerifiedAnswer(attempt.attemptId, questionId, question.correct);
+    }
+    return window.AcademyCloud.completeVerifiedAssessment(attempt.attemptId);
+  });
+  assert.equal(verifiedPassingExam.passed, true, 'El examen debe aprobarse únicamente con respuestas canónicas verificadas.');
+  assert.equal(verifiedPassingExam.score, 100, 'El puntaje oficial debe calcularse en el backend simulado.');
 
   await page.locator('#app').getByRole('link', { name: 'Ver mi cuenta' }).click();
   await page.getByRole('heading', { name: /Mis cursos/i }).waitFor();

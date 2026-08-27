@@ -25,6 +25,9 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       learningActivity: null,
       learningActivityHistory: [],
       learningActivityCalls: [],
+      verifiedAssessment: null,
+      verifiedAssessmentHistory: [],
+      verifiedAssessmentCalls: [],
       rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
@@ -88,6 +91,24 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
         item.estimated_hours = Number(estimatedHours) || item.estimated_hours;
       }
       return item;
+    }
+
+    function courseQuestion(courseKey, questionId) {
+      const loadedCourse = window.AcademyRegistry?.get?.(courseKey);
+      return loadedCourse?.questions?.find((question) => question.id === questionId) || null;
+    }
+
+    function normalizedIndices(values) {
+      return [...new Set((Array.isArray(values) ? values : [])
+        .map((value) => Math.trunc(Number(value)))
+        .filter((value) => Number.isInteger(value) && value >= 0 && value <= 3))]
+        .sort((left, right) => left - right);
+    }
+
+    function equalIndices(left, right) {
+      const a = normalizedIndices(left);
+      const b = normalizedIndices(right);
+      return a.length === b.length && a.every((value, index) => value === b[index]);
     }
 
     function queryFor(table, columns) {
@@ -304,34 +325,145 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             }
             if (name === 'sync_course_activity') {
               const item = enrollment(args.p_course_key);
-              if (item) {
-                item.practice_answers = Math.max(0, args.p_practice_answers || 0);
-              }
               return { data: item ? [structuredClone(item)] : [], error: null };
             }
-            if (name === 'record_simulator_completion') {
-              const item = enrollment(args.p_course_key);
-              if (item) {
+            if (name === 'start_verified_assessment') {
+              const activity = state.learningActivityHistory.find((entry) => (
+                entry.session_id === args.p_activity_session_id && !entry.ended_at
+              ));
+              const questionIds = [...new Set((args.p_question_ids || []).map((value) => String(value || '').trim()).filter(Boolean))];
+              const item = activity ? enrollment(activity.course_key) : null;
+              const questions = activity
+                ? questionIds.map((questionId) => courseQuestion(activity.course_key, questionId))
+                : [];
+              if (!user || !activity || !item || !questionIds.length || questions.some((question) => !question)) {
+                return { data: null, error: { code: '42501', message: 'Active assessment session required' } };
+              }
+              if (activity.chapter_id && questions.some((question) => Number(question.chapter) !== Number(activity.chapter_id))) {
+                return { data: null, error: { code: '22023', message: 'Question outside selected chapter' } };
+              }
+              const loadedCourse = window.AcademyRegistry.get(activity.course_key);
+              if (activity.activity_type !== 'practice' && questionIds.length !== Number(loadedCourse.blueprint.totalQuestions)) {
+                return { data: null, error: { code: '22023', message: 'Assessment does not match blueprint' } };
+              }
+              const attempt = {
+                id: crypto.randomUUID(),
+                activity_session_id: activity.session_id,
+                course_key: activity.course_key,
+                activity_type: activity.activity_type,
+                question_ids: questionIds,
+                answers: {},
+                status: 'active',
+                started_at: new Date().toISOString(),
+                completed_at: null,
+                result: null
+              };
+              state.verifiedAssessment = attempt;
+              state.verifiedAssessmentHistory.push(attempt);
+              state.verifiedAssessmentCalls.push({ name, args: structuredClone(args), attemptId: attempt.id });
+              return {
+                data: {
+                  attempt_id: attempt.id,
+                  course_key: attempt.course_key,
+                  activity_type: attempt.activity_type,
+                  question_count: attempt.question_ids.length,
+                  status: attempt.status,
+                  deadline_at: null
+                },
+                error: null
+              };
+            }
+            if (name === 'submit_verified_answer') {
+              const attempt = state.verifiedAssessmentHistory.find((entry) => entry.id === args.p_attempt_id);
+              const question = attempt ? courseQuestion(attempt.course_key, args.p_question_id) : null;
+              const selected = normalizedIndices(args.p_selected_indices);
+              if (!attempt || attempt.status !== 'active' || !question || !attempt.question_ids.includes(question.id) || !selected.length) {
+                return { data: null, error: { code: '22023', message: 'Question does not belong to this attempt' } };
+              }
+              const correct = equalIndices(selected, question.correct);
+              attempt.answers[question.id] = selected;
+              if (attempt.activity_type === 'practice') {
+                const uniqueAnswers = new Set();
+                state.verifiedAssessmentHistory
+                  .filter((entry) => entry.course_key === attempt.course_key && entry.activity_type === 'practice')
+                  .forEach((entry) => Object.keys(entry.answers).forEach((questionId) => uniqueAnswers.add(questionId)));
+                const item = enrollment(attempt.course_key);
+                if (item) item.practice_answers = uniqueAnswers.size;
+              }
+              state.verifiedAssessmentCalls.push({ name, args: structuredClone(args), correct });
+              return {
+                data: {
+                  accepted: true,
+                  question_id: question.id,
+                  correct: attempt.activity_type === 'practice' ? correct : null
+                },
+                error: null
+              };
+            }
+            if (name === 'complete_verified_assessment') {
+              const attempt = state.verifiedAssessmentHistory.find((entry) => entry.id === args.p_attempt_id);
+              if (!attempt) return { data: null, error: { code: '42501', message: 'Assessment attempt not found' } };
+              if (attempt.result) return { data: structuredClone(attempt.result), error: null };
+              const loadedCourse = window.AcademyRegistry.get(attempt.course_key);
+              const questions = attempt.question_ids.map((questionId) => courseQuestion(attempt.course_key, questionId));
+              const answered = questions.filter((question) => attempt.answers[question.id]?.length);
+              const correctQuestions = answered.filter((question) => equalIndices(attempt.answers[question.id], question.correct));
+              const totalPoints = questions.reduce((sum, question) => sum + Number(question.points || 1), 0);
+              const earnedPoints = correctQuestions.reduce((sum, question) => sum + Number(question.points || 1), 0);
+              const passingPoints = attempt.activity_type === 'practice' ? 0 : Number(loadedCourse.blueprint.passingScore || 0);
+              const score = totalPoints > 0 ? Math.round((earnedPoints * 10_000) / totalPoints) / 100 : 0;
+              const passed = attempt.activity_type === 'practice' ? null : earnedPoints >= passingPoints;
+              const activity = state.learningActivityHistory.find((entry) => entry.session_id === attempt.activity_session_id);
+              if (activity && !activity.ended_at) activity.ended_at = new Date().toISOString();
+              const item = enrollment(attempt.course_key);
+              if (item && attempt.activity_type === 'simulator') {
                 item.simulator_attempts += 1;
-                item.best_simulator_score = Math.max(item.best_simulator_score || 0, args.p_score || 0);
+                item.best_simulator_score = Math.max(item.best_simulator_score || 0, score);
               }
-              return { data: item ? [structuredClone(item)] : [], error: null };
-            }
-            if (name === 'record_final_exam_completion') {
-              const item = enrollment(args.p_course_key);
-              if (item) {
-                const passed = Number(args.p_earned_points) >= Number(args.p_passing_points);
+              if (item && attempt.activity_type === 'final_exam') {
                 item.final_exam_attempts += 1;
-                item.best_final_exam_score = Math.max(item.best_final_exam_score || 0, args.p_score || 0);
+                item.best_final_exam_score = Math.max(item.best_final_exam_score || 0, score);
                 item.final_exam_passed = item.final_exam_passed || passed;
                 if (passed) {
                   item.status = 'completed';
                   item.final_exam_passed_at ||= new Date().toISOString();
                   item.completed_at ||= new Date().toISOString();
                 }
-                state.finalExamAttempts.push({ ...structuredClone(args), passed });
+                state.finalExamAttempts.push({
+                  course_key: attempt.course_key,
+                  score,
+                  earned_points: earnedPoints,
+                  total_points: totalPoints,
+                  correct_answers: correctQuestions.length,
+                  total_questions: questions.length,
+                  passed,
+                  verified: true,
+                  assessment_attempt_id: attempt.id
+                });
               }
-              return { data: item ? [structuredClone(item)] : [], error: null };
+              attempt.status = 'completed';
+              attempt.completed_at = new Date().toISOString();
+              attempt.result = {
+                attempt_id: attempt.id,
+                activity_type: attempt.activity_type,
+                answered_count: answered.length,
+                correct_answers: correctQuestions.length,
+                earned_points: earnedPoints,
+                total_points: totalPoints,
+                passing_points: passingPoints,
+                score,
+                passed,
+                duration_seconds: Number(activity?.duration_seconds || 0),
+                enrollment: item ? structuredClone(item) : null
+              };
+              state.verifiedAssessmentCalls.push({ name, args: structuredClone(args), result: structuredClone(attempt.result) });
+              return { data: structuredClone(attempt.result), error: null };
+            }
+            if (name === 'record_simulator_completion') {
+              return { data: null, error: { code: '42501', message: 'Legacy assessment RPC disabled' } };
+            }
+            if (name === 'record_final_exam_completion') {
+              return { data: null, error: { code: '42501', message: 'Legacy assessment RPC disabled' } };
             }
             return { data: [], error: null };
           },

@@ -61,6 +61,9 @@ jobs:
       - name: Validar sesiones y tiempo de estudio verificables
         run: npm run test:verified-time
 
+      - name: Validar respuestas y resultados verificables
+        run: npm run test:verified-assessment
+
       - name: Configurar Deno
         uses: denoland/setup-deno@v2
         with:
