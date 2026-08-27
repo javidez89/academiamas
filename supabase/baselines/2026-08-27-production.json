@@ -1,0 +1,65 @@
+{
+  "capturedAt": "2026-08-27T17:29:17.887281Z",
+  "project": {
+    "ref": "sysdlcsdvvbaybhqfivj",
+    "region": "sa-east-1",
+    "status": "ACTIVE_HEALTHY",
+    "postgresVersion": "17.6.1.155"
+  },
+  "git": {
+    "productionMainSha": "e8838cb6eb51f5a7d094449f259b54d3779525a4",
+    "startingBranchSha": "177b97b32929aab996cbce9cb83c4915e3c008e4",
+    "verifiedFrontendBaselineSha": "f3fe549e03d22c010cd5e4c04de660566c4f182e"
+  },
+  "database": {
+    "schemaFingerprintMd5": "82d9a6cb3217778b301281bb5e06a7bd",
+    "migrationCount": 21,
+    "lastMigration": "20260826013814",
+    "counts": {
+      "registeredUsers": 111,
+      "profiles": 111,
+      "enrollments": 131,
+      "progressRows": 126,
+      "learningActivitySessions": 17,
+      "certificateOrders": 12,
+      "certificates": 4,
+      "audioObjects": 0
+    },
+    "certificateOrderStatuses": {
+      "APPROVED": 5,
+      "ERROR": 5,
+      "EXPIRED": 1,
+      "PENDING": 1
+    }
+  },
+  "migrations": [
+    { "version": "20260809022950", "name": "create_profiles_for_google_auth", "normalizedMd5": "3df205114275f10412fb11c6ad649426" },
+    { "version": "20260809022959", "name": "secure_profile_trigger_function", "normalizedMd5": "57f372d78704fc990b7482cc0c08f9d6" },
+    { "version": "20260811155953", "name": "course_enrollment_cloud", "normalizedMd5": "7edfc776753be4598876857898db5589" },
+    { "version": "20260811160115", "name": "harden_course_enrollment_functions", "normalizedMd5": "2c72b13587036d400dbc3578c0246516" },
+    { "version": "20260811164202", "name": "learning_time_final_exam", "normalizedMd5": "b352de851579e5118f7563271a74c46a" },
+    { "version": "20260811193712", "name": "delete_cancelled_course", "normalizedMd5": "c6dc2236e228eecfc81ef1547c8959bd" },
+    { "version": "20260812025743", "name": "admin_user_dashboard", "normalizedMd5": "e32c88b0835f7f00c75fcb96440a1c36" },
+    { "version": "20260812025834", "name": "admin_created_by_index", "normalizedMd5": "013012dd291516b3fd53988b2611bc5d" },
+    { "version": "20260817013427", "name": "admin_presence_dashboard", "normalizedMd5": "f502dcad4b4eddeaab1aa9f917db0a50" },
+    { "version": "20260817172859", "name": "certificates_payments", "normalizedMd5": "7d80b2371e18a4fac07ffa577bfd4095" },
+    { "version": "20260817173324", "name": "fix_certificate_validation_rpc", "normalizedMd5": "e5dd6680564a5cf3e3b89c41f4a8a7e1" },
+    { "version": "20260817174704", "name": "harden_public_certificate_validation", "normalizedMd5": "637a690048bab492d3d9477d49c20809" },
+    { "version": "20260825043738", "name": "accurate_practice_progress_and_audio_cache", "normalizedMd5": "d54e456524407f0af84ac725d3a16f4c" },
+    { "version": "20260825131702", "name": "public_learning_activity_summary", "normalizedMd5": "c82aaabdec00897f83fc06e3b896cd8b" },
+    { "version": "20260825131853", "name": "fix_public_learning_activity_permissions", "normalizedMd5": "b3d286e1ac3ffa4de1b853890d8efdac" },
+    { "version": "20260825134936", "name": "verified_learning_activity", "normalizedMd5": "4bd292d7ae493f2a802ccea074159084" },
+    { "version": "20260825135102", "name": "harden_learning_activity_rls", "normalizedMd5": "1fed22649fb921ad96c272b89757aaba" },
+    { "version": "20260825150238", "name": "connected_and_learning_activity_summary", "normalizedMd5": "0a05675264a78761c70091d17458da60" },
+    { "version": "20260825150701", "name": "harden_public_activity_summary_wrapper", "normalizedMd5": "b87928754140ef7025438a9f3b3e9e7b" },
+    { "version": "20260825150818", "name": "restore_public_activity_summary_access", "normalizedMd5": "30d39150edea391ea9a727f176cecea1" },
+    { "version": "20260826013814", "name": "certificate_course_modules", "normalizedMd5": "31ea8b00e2228cb8573e386ae0764464" }
+  ],
+  "edgeFunctions": [
+    { "name": "certificate-service", "version": 8, "verifyJwt": true, "sha256": "dacb7b25d663abc7525d640149f09e0b0f91d14d6d17bc68942b0c90a5fd57c3" },
+    { "name": "wompi-events", "version": 3, "verifyJwt": false, "sha256": "cbb596213aca9c02a0812e233ad29eb2b5153ae42b3e8b8707e2721aac658ade" },
+    { "name": "validate-certificate", "version": 3, "verifyJwt": false, "sha256": "9f6a1013dc303be885e45c20955a1301420774e46822feb5be8cec6c3ed5a69b" },
+    { "name": "wompi-test-return", "version": 1, "verifyJwt": false, "sha256": "58d8822f9dbd0a3c27acb84ee568db3768d3d85d05a98bd3f1b3779870d51180" },
+    { "name": "course-audio", "version": 1, "verifyJwt": true, "sha256": "2dfb0eecc85d2de056818caab946dc184a56d50067a62ad7b212d0c197f838a6" }
+  ]
+}

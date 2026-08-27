@@ -55,6 +55,9 @@ jobs:
       - name: Validar sintaxis y versión
         run: npm run check
 
+      - name: Validar línea base de migraciones
+        run: npm run test:migration-baseline
+
       - name: Configurar Deno
         uses: denoland/setup-deno@v2
         with:
