@@ -226,7 +226,9 @@
     progressByCourse: new Map(),
     coursesByKey: new Map(),
     verifiedByCourse: new Map(),
-    verifiedSummary: {}
+    verifiedSummary: {},
+    legacyByCourse: new Map(),
+    legacyTransition: {}
   };
   let communityActivity = {
     registeredStudents: 0,
@@ -505,7 +507,7 @@
     if (!authenticated) {
       persistStudyTime();
       stopStudyTimer();
-      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map(), verifiedByCourse: new Map(), verifiedSummary: {} };
+      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map(), verifiedByCourse: new Map(), verifiedSummary: {}, legacyByCourse: new Map(), legacyTransition: {} };
       if (course && !PUBLIC_VIEWS.has(state.view)) {
         const requestedView = state.view;
         showCourseAuthGate(activeCourseKey, { view: requestedView, updateHash: false });
@@ -1729,7 +1731,7 @@
         : 'Presentar examen final';
       setTextIfChanged(item.querySelector('small'), finalExamDetails?.finalExamPassed
         ? 'aprobado'
-        : locked ? `${finalExamDetails?.progressPercent || 0}% / ${FINAL_EXAM_UNLOCK_PROGRESS}%` : 'habilitado');
+        : locked ? `${verifiedProgressPercent(finalExamDetails)}% / ${FINAL_EXAM_UNLOCK_PROGRESS}% verificable` : 'habilitado');
     });
   }
 
@@ -1751,8 +1753,9 @@
     if (!value?.course_key) return;
     const index = learningSnapshot.enrollments.findIndex((item) => item.course_key === value.course_key);
     const verified = learningSnapshot.verifiedByCourse.get(value.course_key) || {};
-    if (index >= 0) learningSnapshot.enrollments[index] = { ...learningSnapshot.enrollments[index], ...value, ...verified };
-    else learningSnapshot.enrollments.push(value);
+    const legacyProgress = learningSnapshot.legacyByCourse.get(value.course_key) || null;
+    if (index >= 0) learningSnapshot.enrollments[index] = { ...learningSnapshot.enrollments[index], ...value, ...verified, legacy_progress: legacyProgress };
+    else learningSnapshot.enrollments.push({ ...value, legacy_progress: legacyProgress });
   }
 
   function updateLearningSnapshot(key, courseData, progress, enrollment = null) {
@@ -1765,7 +1768,7 @@
 
   async function refreshLearningSnapshot({ includeProfile = false } = {}) {
     if (!Auth?.isAuthenticated?.()) {
-      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map(), verifiedByCourse: new Map(), verifiedSummary: {} };
+      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map(), verifiedByCourse: new Map(), verifiedSummary: {}, legacyByCourse: new Map(), legacyTransition: {} };
       return learningSnapshot;
     }
 
@@ -1793,7 +1796,12 @@
     const verifiedDashboard = await Cloud.getVerifiedLearningDashboard();
     const verifiedCourses = verifiedDashboard.verified ? verifiedDashboard.courses : [];
     const verifiedByCourse = new Map(verifiedCourses.map((item) => [item.course_key, item]));
-    const enrollments = enrollmentRows.map((item) => ({ ...item, ...(verifiedByCourse.get(item.course_key) || {}) }));
+    const legacyByCourse = new Map(verifiedDashboard.legacyProgress.map((item) => [item.course_key, item]));
+    const enrollments = enrollmentRows.map((item) => ({
+      ...item,
+      ...(verifiedByCourse.get(item.course_key) || {}),
+      legacy_progress: legacyByCourse.get(item.course_key) || null
+    }));
 
     learningSnapshot = {
       profile: profile || null,
@@ -1801,7 +1809,9 @@
       progressByCourse,
       coursesByKey,
       verifiedByCourse,
-      verifiedSummary: verifiedDashboard.summary || {}
+      verifiedSummary: verifiedDashboard.summary || {},
+      legacyByCourse,
+      legacyTransition: verifiedDashboard.legacyTransition || {}
     };
     return learningSnapshot;
   }
@@ -1811,11 +1821,15 @@
     const dashboard = await Cloud.getVerifiedLearningDashboard();
     if (!dashboard.verified) throw new Error('El resumen de aprendizaje no está verificado.');
     const verifiedByCourse = new Map(dashboard.courses.map((item) => [item.course_key, item]));
+    const legacyByCourse = new Map(dashboard.legacyProgress.map((item) => [item.course_key, item]));
     learningSnapshot.verifiedByCourse = verifiedByCourse;
     learningSnapshot.verifiedSummary = dashboard.summary || {};
+    learningSnapshot.legacyByCourse = legacyByCourse;
+    learningSnapshot.legacyTransition = dashboard.legacyTransition || {};
     learningSnapshot.enrollments = learningSnapshot.enrollments.map((item) => ({
       ...item,
-      ...(verifiedByCourse.get(item.course_key) || {})
+      ...(verifiedByCourse.get(item.course_key) || {}),
+      legacy_progress: legacyByCourse.get(item.course_key) || null
     }));
     return dashboard;
   }
@@ -2093,54 +2107,9 @@
     };
   }
 
-  function courseProgressDetailsFrom(key, item, progressValue, enrollmentValue = null) {
+  function legacyCourseProgressDetailsFrom(key, item, progressValue, enrollmentValue = null) {
     const progress = Storage.normalizeProgress(progressValue || {});
     const attempts = progress.attempts || [];
-    const official = enrollmentValue?.verified === true
-      ? enrollmentValue
-      : learningSnapshot.verifiedByCourse.get(key);
-    if (official?.verified === true) {
-      const chapters = (Array.isArray(official.chapters) ? official.chapters : []).map((chapter) => ({
-        chapterId: number(chapter.chapter_id),
-        title: chapter.title || `Capítulo ${number(chapter.chapter_id)}`,
-        objectiveCount: number(chapter.objective_count),
-        questionCount: number(chapter.question_count),
-        uniqueAnswered: number(chapter.unique_answered),
-        uniqueCorrect: number(chapter.unique_correct),
-        touched: number(chapter.touched_objectives),
-        practiceCoverage: number(chapter.practice_coverage),
-        accuracy: pct(number(chapter.unique_correct), number(chapter.unique_answered)),
-        domain: number(chapter.domain),
-        objectiveProgress: pct(number(chapter.touched_objectives), number(chapter.objective_count)),
-        readingProgress: number(chapter.reading_progress),
-        coverage: number(chapter.coverage),
-        studySeconds: number(chapter.study_seconds),
-        studyMinutes: number(chapter.study_minutes),
-        suggestedMinutes: number(chapter.suggested_minutes),
-        visitedAt: chapter.visited_at || '',
-        lastStudiedAt: chapter.last_studied_at || ''
-      }));
-      return {
-        attempts,
-        best: number(official.best_simulator_score),
-        last: attempts.at(-1) || null,
-        answered: number(official.practice_answers),
-        marked: Array.isArray(progress.marked) ? progress.marked.length : 0,
-        started: number(official.study_seconds) > 0 || number(official.practice_answers) > 0 || number(official.simulator_attempts) > 0 || number(official.final_exam_attempts) > 0,
-        chapters,
-        chapterAverage: number(official.chapter_average),
-        chapterDomainAverage: number(official.chapter_domain_average),
-        finalExamScore: number(official.best_final_exam_score),
-        masteryPercent: number(official.mastery_percent),
-        progressPercent: number(official.progress_percent),
-        studySeconds: number(official.study_seconds),
-        enrollment: official,
-        finalExamPassed: official.final_exam_passed === true,
-        finalExamEligible: official.final_exam_eligible === true,
-        isEnrolled: official.status !== 'cancelled',
-        verified: true
-      };
-    }
     const simulatorAttempts = attempts.filter((attempt) => attempt.mode === 'exam');
     const best = simulatorAttempts.length ? Math.max(...simulatorAttempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
     const marked = Array.isArray(progress.marked) ? progress.marked.length : 0;
@@ -2186,8 +2155,99 @@
       enrollment,
       finalExamPassed,
       finalExamEligible,
-      isEnrolled: Boolean(enrollment && enrollment.status !== 'cancelled')
+      isEnrolled: Boolean(enrollment && enrollment.status !== 'cancelled'),
+      verified: false
     };
+  }
+
+  function courseProgressDetailsFrom(key, item, progressValue, enrollmentValue = null) {
+    const official = enrollmentValue?.verified === true
+      ? enrollmentValue
+      : learningSnapshot.verifiedByCourse.get(key);
+    if (official?.verified !== true) {
+      return legacyCourseProgressDetailsFrom(key, item, progressValue, enrollmentValue);
+    }
+
+    const progress = Storage.normalizeProgress(progressValue || {});
+    const attempts = progress.attempts || [];
+    const officialChapters = (Array.isArray(official.chapters) ? official.chapters : []).map((chapter) => ({
+      chapterId: number(chapter.chapter_id),
+      title: chapter.title || `Capítulo ${number(chapter.chapter_id)}`,
+      objectiveCount: number(chapter.objective_count),
+      questionCount: number(chapter.question_count),
+      uniqueAnswered: number(chapter.unique_answered),
+      uniqueCorrect: number(chapter.unique_correct),
+      touched: number(chapter.touched_objectives),
+      practiceCoverage: number(chapter.practice_coverage),
+      accuracy: pct(number(chapter.unique_correct), number(chapter.unique_answered)),
+      domain: number(chapter.domain),
+      objectiveProgress: pct(number(chapter.touched_objectives), number(chapter.objective_count)),
+      readingProgress: number(chapter.reading_progress),
+      coverage: number(chapter.coverage),
+      studySeconds: number(chapter.study_seconds),
+      studyMinutes: number(chapter.study_minutes),
+      suggestedMinutes: number(chapter.suggested_minutes),
+      visitedAt: chapter.visited_at || '',
+      lastStudiedAt: chapter.last_studied_at || '',
+      verifiedCoverage: number(chapter.coverage),
+      verifiedDomain: number(chapter.domain)
+    }));
+    const legacyRecord = enrollmentValue?.legacy_progress || learningSnapshot.legacyByCourse.get(key) || null;
+    const legacyDetails = legacyRecord?.progress
+      ? legacyCourseProgressDetailsFrom(key, item, legacyRecord.progress, legacyRecord.enrollment || null)
+      : null;
+    const verifiedProgressPercent = number(official.progress_percent);
+    const historicalProgressPercent = number(legacyDetails?.progressPercent);
+    const hasUnverifiedHistory = historicalProgressPercent > 10 && historicalProgressPercent > verifiedProgressPercent;
+    const historicalChapterById = new Map((legacyDetails?.chapters || []).map((chapter) => [number(chapter.chapterId), chapter]));
+    const chapters = officialChapters.map((chapter) => {
+      const historical = hasUnverifiedHistory ? historicalChapterById.get(chapter.chapterId) : null;
+      if (!historical || number(historical.coverage) <= chapter.coverage) return chapter;
+      return {
+        ...chapter,
+        coverage: number(historical.coverage),
+        domain: Math.max(chapter.domain, number(historical.domain)),
+        readingProgress: Math.max(chapter.readingProgress, number(historical.readingProgress)),
+        practiceCoverage: Math.max(chapter.practiceCoverage, number(historical.practiceCoverage)),
+        studyMinutes: Math.max(chapter.studyMinutes, number(historical.studyMinutes)),
+        historicalCoverage: number(historical.coverage),
+        historicalDomain: number(historical.domain),
+        historicalStudySeconds: number(historical.studySeconds),
+        hasUnverifiedHistory: true
+      };
+    });
+
+    return {
+      attempts,
+      best: number(official.best_simulator_score),
+      last: attempts.at(-1) || null,
+      answered: number(official.practice_answers),
+      marked: Array.isArray(progress.marked) ? progress.marked.length : 0,
+      started: number(official.study_seconds) > 0 || number(official.practice_answers) > 0 || number(official.simulator_attempts) > 0 || number(official.final_exam_attempts) > 0 || hasUnverifiedHistory,
+      chapters,
+      chapterAverage: hasUnverifiedHistory ? Math.max(number(official.chapter_average), number(legacyDetails?.chapterAverage)) : number(official.chapter_average),
+      chapterDomainAverage: number(official.chapter_domain_average),
+      finalExamScore: number(official.best_final_exam_score),
+      masteryPercent: number(official.mastery_percent),
+      progressPercent: hasUnverifiedHistory ? historicalProgressPercent : verifiedProgressPercent,
+      verifiedProgressPercent,
+      historicalProgressPercent: hasUnverifiedHistory ? historicalProgressPercent : 0,
+      studySeconds: number(official.study_seconds),
+      historicalStudySeconds: hasUnverifiedHistory ? number(legacyDetails?.studySeconds) : 0,
+      enrollment: official,
+      finalExamPassed: official.final_exam_passed === true,
+      finalExamEligible: official.final_exam_eligible === true,
+      isEnrolled: official.status !== 'cancelled',
+      verified: true,
+      hasUnverifiedHistory,
+      progressLabel: hasUnverifiedHistory ? 'Histórico no verificado' : 'Avance verificado'
+    };
+  }
+
+  function verifiedProgressPercent(details) {
+    return details?.verified === true
+      ? number(details.verifiedProgressPercent, details.progressPercent)
+      : number(details?.progressPercent);
   }
 
   function courseProgressDetails(key, item) {
@@ -2331,62 +2391,26 @@
         <article><strong>4</strong><h3>Simula, aprueba y valida</h3><p>Refuerza con simulacros y presenta el examen final. Al aprobar, podrás emitir tu constancia.</p></article>
       </div>
 
-      <div class="homeCourseAdvantagesGrid">
-        <article class="homeAdvantageCard">
-          <div class="homeAdvantageVisual homeReferenceMedia homeReferenceSimulator">
-            <picture>
-              <source media="(max-width:640px)" srcset="/assets/img/home/advantages/simulator-640.webp">
-              <img src="/assets/img/home/advantages/simulator-1136.webp" srcset="/assets/img/home/advantages/simulator-640.webp 640w, /assets/img/home/advantages/simulator-1136.webp 1136w" sizes="(max-width:980px) 100vw, 34vw" width="1136" height="622" loading="lazy" decoding="async" alt="Interfaz real del simulador QAvance con temporizador, pregunta y opciones de respuesta">
-            </picture>
-            <span class="homeReferenceBadge">Retroalimentación inmediata</span>
-          </div>
-          <div class="homeAdvantageCopy">
-            <span class="homeAdvantageIndex" aria-hidden="true">01</span>
-            <div>
-              <h3>Practica con intención</h3>
-              <p>Responde preguntas alineadas a cada curso y comprende el porqué de cada resultado.</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="homeAdvantageCard">
-          <a class="homeAdvantageVisual homeReferenceMedia homeReferencePricing" href="${h(publicPath('courses'))}" data-view="courses" aria-label="Explorar cursos gratuitos de QAvance">
-            <picture>
-              <source media="(max-width:640px)" srcset="/assets/img/home/advantages/pricing-320.webp">
-              <img src="/assets/img/home/advantages/pricing-494.webp" srcset="/assets/img/home/advantages/pricing-320.webp 320w, /assets/img/home/advantages/pricing-494.webp 494w" sizes="(max-width:980px) 70vw, 22vw" width="494" height="544" loading="lazy" decoding="async" alt="Tarjeta de emisión opcional de constancia digital por 25 dólares">
-            </picture>
-            <span class="homePricingSummary" aria-hidden="true">
-              <b>Curso</b><strong>Gratis</strong>
-              <b>Constancia</b><strong>Opcional</strong>
-              <small>Ver cursos</small>
-            </span>
-          </a>
-          <div class="homeAdvantageCopy">
-            <span class="homeAdvantageIndex" aria-hidden="true">02</span>
-            <div>
-              <h3>Estudia sin costo</h3>
-              <p>La matrícula y el contenido son gratuitos. Solo pagas si decides emitir la constancia después de aprobar.</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="homeAdvantageCard">
-          <a class="homeAdvantageVisual homeReferenceMedia homeReferenceCertificate" href="${h(publicPath('verifyCertificate'))}" data-view="verifyCertificate" aria-label="Ir a la validación pública de constancias">
+      <article class="homeAchievementFeature">
+        <a class="homeAchievementVisual homeReferenceMedia homeReferenceCertificate" href="${h(publicPath('verifyCertificate'))}" data-view="verifyCertificate" aria-label="Ir a la validación pública de constancias">
             <picture>
               <source media="(max-width:640px)" srcset="/assets/img/home/advantages/certificate-640.webp">
-              <img src="/assets/img/home/advantages/certificate-1200.webp" srcset="/assets/img/home/advantages/certificate-640.webp 640w, /assets/img/home/advantages/certificate-1200.webp 1200w" sizes="(max-width:980px) 100vw, 34vw" width="1200" height="854" loading="lazy" decoding="async" alt="Constancia de participación y aprobación de muestra, anonimizada y con validación QR">
+              <img src="/assets/img/home/advantages/certificate-1200.webp" srcset="/assets/img/home/advantages/certificate-640.webp 640w, /assets/img/home/advantages/certificate-1200.webp 1200w" sizes="(max-width:760px) 100vw, 48vw" width="1200" height="854" loading="lazy" decoding="async" alt="Constancia de participación y aprobación de muestra, anonimizada y con validación QR">
             </picture>
             <span class="homeReferenceHint">Validar constancia</span>
-          </a>
-          <div class="homeAdvantageCopy">
-            <span class="homeAdvantageIndex" aria-hidden="true">03</span>
-            <div>
-              <h3>Comparte un logro verificable</h3>
-              <p>Después de aprobar, puedes emitir por USD 25 una constancia con código único y validación pública.</p>
-            </div>
-          </div>
-        </article>
-      </div>
+        </a>
+        <div class="homeAchievementCopy">
+          <span class="sectionKicker">Después de aprobar</span>
+          <h3>Comparte tu logro</h3>
+          <p>Al aprobar el examen final podrás emitir una constancia digital con código QR y validación pública.</p>
+          <ul class="homeAchievementList">
+            <li>Descárgala en formato PDF.</li>
+            <li>Compártela directamente en LinkedIn.</li>
+            <li>Envía su enlace público para verificarla.</li>
+          </ul>
+          <a class="btn secondary" href="${h(publicPath('verifyCertificate'))}" data-view="verifyCertificate">Validar una constancia</a>
+        </div>
+      </article>
 
       <p class="homeCourseAdvantagesLegal">La constancia acredita participación y aprobación en QAvance; no reemplaza una certificación oficial de ISTQB ni de otra entidad certificadora.</p>
     </section>`;
@@ -3072,6 +3096,7 @@
       const localProgressRemoved = Storage.removeProgress(storageKey);
       learningSnapshot.progressByCourse.delete(courseKey);
       learningSnapshot.coursesByKey.delete(courseKey);
+      learningSnapshot.legacyByCourse.delete(courseKey);
       learningSnapshot.enrollments = learningSnapshot.enrollments.filter((item) => item.course_key !== courseKey);
       state.enrollments = state.enrollments.filter((item) => item.course_key !== courseKey);
       if (Storage.getActiveCourse() === courseKey) Storage.setActiveCourse('');
@@ -3110,7 +3135,15 @@
       .filter((item) => item.status !== 'cancelled')
       .reduce((sum, item) => sum + number(item.estimated_hours), 0);
     const studySecondsTotal = number(learningSnapshot.verifiedSummary.study_seconds);
-    const overallProgress = number(learningSnapshot.verifiedSummary.progress_percent);
+    const enrolledProgressDetails = enrolled.map((item) => {
+      const entry = catalogEntry(item.course_key) || {};
+      const courseData = learningSnapshot.coursesByKey.get(item.course_key) || Registry.get(item.course_key);
+      return courseProgressDetails(item.course_key, courseData || catalogCourseSummary(entry));
+    });
+    const overallProgress = enrolledProgressDetails.length
+      ? Math.round(enrolledProgressDetails.reduce((sum, details) => sum + number(details.progressPercent), 0) / enrolledProgressDetails.length)
+      : 0;
+    const hasHistoricalProgress = enrolledProgressDetails.some((details) => details.hasUnverifiedHistory);
 
     const enrollmentCards = enrollments.map((item) => {
       const entry = catalogEntry(item.course_key) || {};
@@ -3128,7 +3161,7 @@
       ));
       const chapterRows = details.chapters.map((chapter) => `<li>
         <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${chapter.uniqueAnswered}/${chapter.questionCount} preguntas únicas · ${chapter.practiceCoverage}% cubierto</span></div>
-        <div><strong>Avance ${chapter.coverage}%</strong><span>Dominio del capítulo ${chapter.domain}% · ${chapter.studyMinutes}/${chapter.suggestedMinutes} min</span></div>
+        <div><strong>${chapter.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'} ${chapter.coverage}%</strong><span>Dominio verificado ${chapter.verifiedDomain ?? chapter.domain}% · ${chapter.studyMinutes}/${chapter.suggestedMinutes} min</span>${chapter.hasUnverifiedHistory ? `<small class="historicalProgressNote">Histórico no verificado · avance oficial ${chapter.verifiedCoverage}%</small>` : ''}</div>
         <div class="accountChapterProgressBars">
           <div><span>Avance</span><div class="progressbar" aria-label="Avance del capítulo ${number(chapter.chapterId)}: ${chapter.coverage}%"><div style="width:${chapter.coverage}%"></div></div></div>
           <div><span>Dominio del capítulo</span><div class="progressbar masteryProgress" aria-label="Dominio del capítulo ${number(chapter.chapterId)}: ${chapter.domain}%"><div style="width:${chapter.domain}%"></div></div></div>
@@ -3138,11 +3171,13 @@
         <div class="accountCourseHead">
           <div>
             <span class="accountStatus ${h(item.status)}">${item.status === 'active' ? 'Activo' : item.status === 'cancelled' ? 'Cancelado' : 'Completado'}</span>
+            ${details.hasUnverifiedHistory ? '<span class="accountStatus historical">Histórico no verificado</span>' : ''}
             <h3>${h(meta.name || item.course_key)}</h3>
           </div>
           <div class="accountCourseScores">
-            <strong>Avance ${details.progressPercent}%</strong>
-            <span>Dominio real ${details.masteryPercent}%</span>
+            <strong>${details.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'} ${details.progressPercent}%</strong>
+            <span>Dominio verificado ${details.masteryPercent}%</span>
+            ${details.hasUnverifiedHistory ? `<small>Avance oficial ${details.verifiedProgressPercent}% · no habilita examen ni constancia</small>` : ''}
             <small>Capítulos ${details.chapterDomainAverage}% · examen final ${details.finalExamScore}%</small>
           </div>
         </div>
@@ -3150,7 +3185,8 @@
         <dl class="accountCourseMetrics">
           <div><dt>Fecha de inicio</dt><dd>${h(formatDate(item.started_at))}</dd></div>
           <div><dt>Última actividad</dt><dd>${h(formatDate(item.last_activity_at))}</dd></div>
-          <div><dt>Tiempo estudiado</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
+          <div><dt>Tiempo verificado</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
+          ${details.hasUnverifiedHistory ? `<div><dt>Tiempo histórico</dt><dd>${h(formatStudyDuration(details.historicalStudySeconds))}</dd></div>` : ''}
           <div><dt>Duración estimada</dt><dd>${number(item.estimated_hours)} h</dd></div>
           <div><dt>Simulacros</dt><dd>${number(item.simulator_attempts)}</dd></div>
           <div><dt>Mejor simulacro</dt><dd>${number(item.best_simulator_score)}%</dd></div>
@@ -3160,7 +3196,7 @@
         </dl>
         <div class="${isCompleted ? 'okbox' : 'note'} accountFinalStatus"><b>Examen final:</b> ${isCompleted
           ? `Aprobado · ${number(item.best_final_exam_score)}% · curso al 100%`
-          : details.finalExamEligible ? 'Habilitado · ya alcanzaste el 95%' : `Bloqueado hasta el 95% · avance actual ${details.progressPercent}%`}</div>
+          : details.finalExamEligible ? 'Habilitado · ya alcanzaste el 95% verificable' : `Bloqueado hasta el 95% verificable · avance oficial ${verifiedProgressPercent(details)}%${details.hasUnverifiedHistory ? ` · histórico conservado ${details.progressPercent}%` : ''}`}</div>
         <details class="accountChapterDetails">
           <summary>Avance por capítulo</summary>
           ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Aún no hay capítulos con actividad registrada.</p>'}
@@ -3198,8 +3234,8 @@
         <p>${h(profile.email || user?.email || '')}</p>
         <div class="grid3 accountTotals">
           <div class="metric"><span>Cursos inscritos</span><strong>${active}</strong></div>
-          <div class="metric"><span>Progreso general</span><strong>${overallProgress}%</strong></div>
-          <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(studySecondsTotal))}</strong></div>
+          <div class="metric"><span>Progreso general${hasHistoricalProgress ? ' · histórico' : ''}</span><strong>${overallProgress}%</strong></div>
+          <div class="metric"><span>Tiempo verificado</span><strong>${h(formatStudyDuration(studySecondsTotal))}</strong></div>
           <div class="metric"><span>Horas estimadas</span><strong>${hoursTotal}</strong></div>
           <div class="metric"><span>Simulacros realizados</span><strong>${simulatorTotal}</strong></div>
           <div class="metric"><span>Exámenes finales</span><strong>${finalExamTotal}</strong></div>
@@ -3275,13 +3311,16 @@
     return `<div class="adminEnrollmentRow">
       <div class="adminEnrollmentTitle">
         <span class="accountStatus ${h(item.status)}">${statusLabel}</span>
+        ${details.hasUnverifiedHistory ? '<span class="accountStatus historical">Histórico no verificado</span>' : ''}
         <b>${h(entry.meta?.name || item.course_key)}</b>
         <small>Inicio ${h(formatDate(item.started_at))} · última actividad ${h(formatDate(item.last_activity_at))}</small>
       </div>
       <dl class="adminEnrollmentMetrics">
-        <div><dt>Avance</dt><dd>${details.progressPercent}%</dd></div>
-        <div><dt>Dominio real</dt><dd>${details.masteryPercent}%</dd></div>
-        <div><dt>Tiempo</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
+        <div><dt>${details.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'}</dt><dd>${details.progressPercent}%</dd></div>
+        <div><dt>Avance oficial</dt><dd>${verifiedProgressPercent(details)}%</dd></div>
+        <div><dt>Dominio verificado</dt><dd>${details.masteryPercent}%</dd></div>
+        <div><dt>Tiempo verificado</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
+        ${details.hasUnverifiedHistory ? `<div><dt>Tiempo histórico</dt><dd>${h(formatStudyDuration(details.historicalStudySeconds))}</dd></div>` : ''}
         <div><dt>Simulacros</dt><dd>${number(item.simulator_attempts)}</dd></div>
         <div><dt>Mejor simulacro</dt><dd>${number(item.best_simulator_score)}%</dd></div>
         <div><dt>Examen final</dt><dd>${number(item.final_exam_attempts)} · ${number(item.best_final_exam_score)}%</dd></div>
@@ -3314,7 +3353,13 @@
 
   function adminUserSnapshot(user) {
     const enrollments = Array.isArray(user.enrollments) ? user.enrollments : [];
-    const learningEnrollments = enrollments.filter((item) => item.status !== 'cancelled');
+    const legacyByCourse = new Map((Array.isArray(user.legacy_progress) ? user.legacy_progress : [])
+      .map((item) => [item.course_key, item]));
+    const enrollmentsWithHistory = enrollments.map((item) => ({
+      ...item,
+      legacy_progress: legacyByCourse.get(item.course_key) || null
+    }));
+    const learningEnrollments = enrollmentsWithHistory.filter((item) => item.status !== 'cancelled');
     const details = learningEnrollments.map((item) => {
       const entry = catalogEntry(item.course_key) || {};
       const courseData = state.adminCoursesByKey.get(item.course_key)
@@ -3330,12 +3375,13 @@
       ? Math.round(details.reduce((sum, item) => sum + number(item.masteryPercent), 0) / details.length)
       : 0;
     return {
-      enrollments,
+      enrollments: enrollmentsWithHistory,
       learningEnrollments,
       online: adminIsOnline(user.last_seen_at),
       lastSeenAt,
       progressPercent,
       masteryPercent,
+      hasUnverifiedHistory: details.some((item) => item.hasUnverifiedHistory),
       studySeconds: details.reduce((sum, item) => sum + number(item.studySeconds), 0),
       activeCourses: learningEnrollments.filter((item) => item.status === 'active').length,
       completedCourses: learningEnrollments.filter((item) => item.status === 'completed').length
@@ -3397,7 +3443,7 @@
             <span class="adminPresence ${snapshot.online ? 'online' : 'offline'}"><i aria-hidden="true"></i>${snapshot.online ? 'En línea' : 'Desconectado'}</span>
           </div>
           <div class="adminManagerCell" data-label="Cursos"><strong>${snapshot.learningEnrollments.length}</strong><small>${snapshot.activeCourses} activos · ${snapshot.completedCourses} completados</small></div>
-          <div class="adminManagerCell adminProgressCell" data-label="Avance real"><strong>${snapshot.progressPercent}%</strong><small>Dominio ${snapshot.masteryPercent}%</small><span class="adminMiniProgress"><i style="width:${snapshot.progressPercent}%"></i></span></div>
+          <div class="adminManagerCell adminProgressCell" data-label="Avance"><strong>${snapshot.progressPercent}%</strong><small>${snapshot.hasUnverifiedHistory ? 'Incluye histórico no verificado' : `Dominio verificado ${snapshot.masteryPercent}%`}</small><span class="adminMiniProgress"><i style="width:${snapshot.progressPercent}%"></i></span></div>
           <div class="adminManagerCell" data-label="Tiempo"><strong>${h(formatStudyDuration(snapshot.studySeconds))}</strong><small>estudio acumulado</small></div>
           <div class="adminManagerCell" data-label="Última actividad"><strong>${h(formatAdminActivity(snapshot.lastSeenAt))}</strong><small>${h(formatDate(snapshot.lastSeenAt))}</small></div>
         </div>
@@ -3596,7 +3642,7 @@
     const details = courseProgressDetails(activeCourseKey, course);
     const finalExamAction = details.finalExamEligible
       ? `<a class="courseAction courseFinalExamAction" href="${h(coursePath(activeCourseKey, 'finalExam'))}" role="button" tabindex="0" data-view="finalExam"><b>🎓 Examen final</b><span class="small">${details.finalExamPassed ? 'Curso aprobado' : 'Habilitado al 95%'}</span></a>`
-      : `<button class="courseAction courseFinalExamAction locked" type="button" disabled aria-disabled="true"><b>🎓 Examen final</b><span class="small">Se habilita al 95% · actual ${details.progressPercent}%</span></button>`;
+      : `<button class="courseAction courseFinalExamAction locked" type="button" disabled aria-disabled="true"><b>🎓 Examen final</b><span class="small">Se habilita al 95% verificable · actual ${verifiedProgressPercent(details)}%</span></button>`;
     return `<div class="courseHero">
       <span class="pill">${h(course.meta?.code || activeCourseKey.toUpperCase())}</span>
       <h2>${h(courseLabel())}</h2>
@@ -3725,6 +3771,9 @@
   }
 
   function chapterProgressDetails(chapterId) {
+    const courseDetails = courseProgressDetails(activeCourseKey, course);
+    const authoritativeChapter = courseDetails.chapters.find((chapter) => number(chapter.chapterId) === number(chapterId));
+    if (authoritativeChapter) return authoritativeChapter;
     const questionCount = questions.filter((question) => Number(question.chapter) === Number(chapterId)).length;
     return {
       questionCount,
@@ -3743,8 +3792,8 @@
         <h3>Capítulo ${number(chapter.id)} · ${h(chapter.title)}</h3>
         <p class="small">Tiempo sugerido: ${number(chapter.minutes)} min · LO: ${objectiveCount} · Preguntas: ${questionCount} · Págs. syllabus: ${h(chapter.completeSyllabusPages || 'N/D')}</p>
         <div class="chapterProgressCompare">
-          <div><span>Avance</span><strong>${chapterProgress.coverage}%</strong><small>${chapterProgress.touched}/${chapterProgress.objectiveCount} LO recorridos</small></div>
-          <div><span>Dominio del capítulo</span><strong>${chapterProgress.domain}%</strong><small>${chapterProgress.uniqueCorrect}/${chapterProgress.questionCount} dominadas · ${chapterProgress.uniqueAnswered} únicas respondidas</small></div>
+          <div><span>${chapterProgress.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'}</span><strong>${chapterProgress.coverage}%</strong><small>${chapterProgress.hasUnverifiedHistory ? `Oficial ${chapterProgress.verifiedCoverage}% · ` : ''}${chapterProgress.touched}/${chapterProgress.objectiveCount} LO recorridos</small></div>
+          <div><span>Dominio verificado</span><strong>${chapterProgress.verifiedDomain ?? chapterProgress.domain}%</strong><small>${chapterProgress.uniqueCorrect}/${chapterProgress.questionCount} dominadas · ${chapterProgress.uniqueAnswered} únicas respondidas</small></div>
           <div><span>Tiempo</span><strong>${chapterProgress.studyMinutes}/${chapterProgress.suggestedMinutes} min</strong><small>estudiados / sugeridos</small></div>
         </div>
         <div class="chapterProgressBars">
@@ -3765,8 +3814,8 @@
       : `<div class="chapterCard finalExamMilestone locked" aria-disabled="true">
           <span class="sectionKicker">Paso final</span>
           <h3>Examen final del curso</h3>
-          <p>Se habilita cuando alcances el ${FINAL_EXAM_UNLOCK_PROGRESS}% de avance. Tu progreso actual es ${courseDetails.progressPercent}%.</p>
-          <div class="progressbar" aria-label="Progreso para habilitar el examen final"><div style="width:${courseDetails.progressPercent}%"></div></div>
+          <p>Se habilita cuando alcances el ${FINAL_EXAM_UNLOCK_PROGRESS}% de avance verificable. Tu progreso oficial actual es ${verifiedProgressPercent(courseDetails)}%${courseDetails.hasUnverifiedHistory ? ` y conservas ${courseDetails.progressPercent}% como histórico no verificado` : ''}.</p>
+          <div class="progressbar" aria-label="Progreso verificable para habilitar el examen final"><div style="width:${verifiedProgressPercent(courseDetails)}%"></div></div>
           <span class="finalExamMilestoneAction">Bloqueado hasta ${FINAL_EXAM_UNLOCK_PROGRESS}%</span>
         </div>`;
 
@@ -4858,8 +4907,8 @@
     if (!details.finalExamEligible) {
       return `<div class="card finalExamIntro finalExamLocked"><span class="sectionKicker">Examen final bloqueado</span>
         <h2>Completa primero el ${FINAL_EXAM_UNLOCK_PROGRESS}% del curso</h2>
-        <p>Tu avance actual es ${details.progressPercent}%. Estudia todos los capítulos, cumple el tiempo sugerido y practica sus objetivos de aprendizaje para habilitar el examen final.</p>
-        <div class="progressbar accountCourseProgress" aria-label="Progreso para habilitar el examen final"><div style="width:${details.progressPercent}%"></div></div>
+        <p>Tu avance verificable actual es ${verifiedProgressPercent(details)}%${details.hasUnverifiedHistory ? ` y tu histórico no verificado se conserva en ${details.progressPercent}%` : ''}. Estudia todos los capítulos, cumple el tiempo sugerido y practica sus objetivos de aprendizaje para habilitar el examen final.</p>
+        <div class="progressbar accountCourseProgress" aria-label="Progreso verificable para habilitar el examen final"><div style="width:${verifiedProgressPercent(details)}%"></div></div>
         <div class="note"><b>Requisito:</b> alcanza el ${FINAL_EXAM_UNLOCK_PROGRESS}% de avance antes de presentar el examen final.</div>
         <div class="btnrow"><a class="btn" href="${h(coursePath(activeCourseKey, 'study'))}" data-view="study">Continuar capítulos</a><a class="btn secondary" href="${h(coursePath(activeCourseKey, 'practice'))}" data-view="practice">Practicar objetivos LO</a></div>
       </div>`;
@@ -4905,7 +4954,7 @@
   function startFinalExam() {
     const details = courseProgressDetails(activeCourseKey, course);
     if (!details.finalExamEligible) {
-      notify(`El examen final se habilita cuando alcances el ${FINAL_EXAM_UNLOCK_PROGRESS}% del curso. Tu avance actual es ${details.progressPercent}%.`, 'warning', 8_000);
+      notify(`El examen final se habilita cuando alcances el ${FINAL_EXAM_UNLOCK_PROGRESS}% verificable del curso. Tu avance oficial actual es ${verifiedProgressPercent(details)}%.`, 'warning', 8_000);
       render();
       return;
     }

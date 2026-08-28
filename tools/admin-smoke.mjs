@@ -62,7 +62,7 @@ try {
   await adminPage.getByText('En línea', { exact: true }).waitFor();
   await adminPage.getByText('Ver cursos y avance por capítulo', { exact: true }).click();
   await adminPage.getByText(/Certified Tester Foundation Level 4\.0/).waitFor();
-  assert.match(await adminPage.locator('.adminEnrollmentRow').innerText(), /Avance\s+40%/i,
+  assert.match(await adminPage.locator('.adminEnrollmentRow').innerText(), /Avance verificado\s+40%/i,
     'Administración debe mostrar el agregado oficial e ignorar el JSON de progreso manipulable.');
   assert.equal(await adminPage.locator('[data-auth-admin-link]').evaluate((element) => element.hidden), false, 'El enlace administrativo debe habilitarse solo al administrador.');
   assert.ok(await adminPage.evaluate(() => window.__supabaseMock.rpcCounts.is_platform_admin) <= 2, 'La autorización administrativa no debe entrar en un ciclo de consultas.');

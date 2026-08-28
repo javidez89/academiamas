@@ -42,12 +42,16 @@ assert.match(cloud, /getVerifiedLearningDashboard[\s\S]*rpc\('get_verified_learn
 assert.match(cloud, /p_practice_answers:\s*0[\s\S]*p_study_seconds:\s*0/i,
   'La sincronización compatible no debe reenviar métricas académicas calculadas por el navegador.');
 
-const officialBranch = app.match(/if \(official\?\.verified === true\) \{[\s\S]*?\n    \}/)?.[0] || '';
+const officialBranch = app.match(/function courseProgressDetailsFrom\([\s\S]*?\n  \}\n\n  function verifiedProgressPercent/)?.[0] || '';
 assert.ok(officialBranch, 'La interfaz debe tener una rama explícita para datos oficiales.');
-assert.match(officialBranch, /progressPercent:\s*number\(official\.progress_percent\)/i,
-  'La interfaz debe mostrar el progreso oficial.');
+assert.match(officialBranch, /verifiedProgressPercent\s*=\s*number\(official\.progress_percent\)/i,
+  'La interfaz debe conservar el progreso oficial por separado.');
 assert.match(officialBranch, /finalExamPassed:\s*official\.final_exam_passed === true/i,
   'La aprobación del examen debe proceder del servidor.');
+assert.match(officialBranch, /historicalProgressPercent > 10[\s\S]*progressPercent:\s*hasUnverifiedHistory \? historicalProgressPercent : verifiedProgressPercent/i,
+  'El historial mayor al 10% debe conservarse sin reemplazar la métrica oficial.');
+assert.match(officialBranch, /finalExamEligible:\s*official\.final_exam_eligible === true/i,
+  'El historial no debe habilitar el examen final.');
 assert.match(app, /learningSnapshot\.verifiedByCourse\.get\(key\) \|\| enrollmentForCourse\(key\)/i,
   'Las vistas de curso deben preferir el agregado oficial sobre la compatibilidad local.');
 

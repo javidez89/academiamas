@@ -1,5 +1,5 @@
 export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses }) => {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -29,6 +29,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       verifiedAssessmentHistory: [],
       verifiedAssessmentCalls: [],
       verifiedCourseOverrides: new Map((mockedVerifiedCourses || []).map((item) => [item.course_key, structuredClone(item)])),
+      legacyProgress: structuredClone(mockedLegacyProgress || []),
       rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
@@ -216,6 +217,12 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
         verified: true,
         generated_at: new Date().toISOString(),
         courses,
+        legacy_progress: structuredClone(state.legacyProgress),
+        legacy_transition: {
+          label: 'Histórico no verificado',
+          display_threshold_percent: 10,
+          affects_official_progress: false
+        },
         summary: {
           enrolled_courses: active.length,
           completed_courses: active.filter((course) => course.final_exam_passed).length,
@@ -700,7 +707,8 @@ export async function useMockedSupabase(page, session, enrollments = [], options
       active_students: 3,
       measured_at: '2026-08-25T13:00:00.000Z'
     },
-    mockedVerifiedCourses: options.verifiedCourses || []
+    mockedVerifiedCourses: options.verifiedCourses || [],
+    mockedLegacyProgress: options.legacyProgress || []
   });
 }
 

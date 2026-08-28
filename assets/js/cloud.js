@@ -404,7 +404,11 @@
       verified: value.verified === true,
       generatedAt: String(value.generated_at || ''),
       courses: Array.isArray(value.courses) ? value.courses : [],
-      summary: value.summary && typeof value.summary === 'object' ? value.summary : {}
+      summary: value.summary && typeof value.summary === 'object' ? value.summary : {},
+      legacyProgress: Array.isArray(value.legacy_progress) ? value.legacy_progress : [],
+      legacyTransition: value.legacy_transition && typeof value.legacy_transition === 'object'
+        ? value.legacy_transition
+        : {}
     };
   }
 

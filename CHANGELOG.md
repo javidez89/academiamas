@@ -6,12 +6,15 @@
 - Agregado académico oficial por usuario y curso, calculado desde sesiones, preguntas únicas y evaluaciones verificadas en Supabase.
 - Requisitos privados generados desde los 8 cursos y sus 58 capítulos.
 - Pruebas de regresión que impiden desbloquear exámenes o constancias mediante datos locales manipulados.
+- Transición inmutable que conserva avances anteriores superiores al 10% como "Histórico no verificado", sin convertirlos en progreso oficial.
 - Nueva identidad visual QAvance con logo, imagen social, favicon e iconos PWA optimizados.
 
 ### Changed
 - Mi cuenta, Administración y Constancias consumen la misma fuente oficial de progreso y tiempo.
+- Mi cuenta y Administración separan visualmente el avance histórico del avance verificable que habilita examen final y constancia.
 - La plataforma adopta la marca QAvance en interfaz, SEO, PWA, contenido, documentación y PDFs.
 - El dominio canónico continúa siendo `academiaqaoficial.com` para conservar indexación, OAuth y enlaces públicos.
+- El inicio elimina las tarjetas promocionales redundantes y concentra la emisión opcional en un bloque QAvance anonimizado para descargar, compartir y validar la constancia.
 
 ### Security
 - El 100% y la constancia requieren un examen final verificado y aprobado por el servidor.

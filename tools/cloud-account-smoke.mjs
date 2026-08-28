@@ -119,7 +119,7 @@ try {
   await completeCourseStudy(page, 'ctfl');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => (
-    document.querySelector('.navbtn[data-view="finalExam"] small')?.textContent.trim() === '0% / 95%'
+    document.querySelector('.navbtn[data-view="finalExam"] small')?.textContent.trim() === '0% / 95% verificable'
   ));
   assert.equal(await page.locator('[data-view="finalExam"]').first().isDisabled(), true,
     'Manipular el avance local no debe habilitar el examen final.');
@@ -130,8 +130,8 @@ try {
   await page.locator('[data-view="study"]').first().click();
   await page.getByRole('heading', { name: /Estudiar syllabus por cap/i }).waitFor();
   const firstChapterCardText = await page.locator('.chapterCard').first().innerText();
-  assert.match(firstChapterCardText, /Avance\s+100%/i, 'El temario debe mostrar el avance real del capitulo.');
-  assert.match(firstChapterCardText, /Dominio del cap[ií]tulo\s+\d+%/i, 'El temario debe mostrar el dominio propio del capitulo.');
+  assert.match(firstChapterCardText, /Avance verificado\s+100%/i, 'El temario debe mostrar el avance verificable del capitulo.');
+  assert.match(firstChapterCardText, /Dominio verificado\s+\d+%/i, 'El temario debe mostrar el dominio verificable del capitulo.');
   assert.match(firstChapterCardText, /\d+\/\d+ (?:correctas|dominadas)/i, 'El dominio del capitulo debe mostrar su evidencia de respuestas únicas.');
   assert.match(firstChapterCardText, /\d+\/\d+ min/i, 'El temario debe comparar minutos estudiados y sugeridos.');
   const courseMasteryText = await page.locator('.studyMasterySummary').innerText();
@@ -238,17 +238,17 @@ try {
   await page.getByRole('heading', { name: /Mis cursos/i }).waitFor();
   await page.getByText('ISTQB® Certified Tester Foundation Level 4.0 (CTFL)').waitFor();
   const courseCard = page.locator('.accountCourseCard').filter({ hasText: 'ISTQB® Certified Tester Foundation Level 4.0 (CTFL)' });
-  const studyTime = courseCard.locator('.accountCourseMetrics > div').filter({ hasText: 'Tiempo estudiado' }).locator('dd');
+  const studyTime = courseCard.locator('.accountCourseMetrics > div').filter({ hasText: 'Tiempo verificado' }).locator('dd');
   await studyTime.waitFor();
   assert.match((await studyTime.textContent()) || '', /^\d+ h(?: \d+ min)?$/, 'Mi cuenta debe mostrar horas reales de estudio del curso.');
   await page.getByText('Avance por capítulo', { exact: true }).click();
   await page.getByText(/C1 · Fundamentos de la Prueba/i).waitFor();
   const firstAccountChapterText = await courseCard.locator('.accountChapterDetails li').first().innerText();
-  assert.match(firstAccountChapterText, /Avance\s+100%/i, 'Mi cuenta debe mostrar el avance del capitulo.');
-  assert.match(firstAccountChapterText, /Dominio del cap[ií]tulo\s+\d+%/i, 'Mi cuenta debe mostrar el dominio propio del capitulo.');
+  assert.match(firstAccountChapterText, /Avance verificado\s+100%/i, 'Mi cuenta debe mostrar el avance verificable del capitulo.');
+  assert.match(firstAccountChapterText, /Dominio verificado\s+\d+%/i, 'Mi cuenta debe mostrar el dominio verificable del capitulo.');
   assert.match(firstAccountChapterText, /\d+\/\d+ min/i, 'Mi cuenta debe mostrar el tiempo del capitulo en minutos.');
   const accountCourseText = await courseCard.innerText();
-  assert.match(accountCourseText, /Dominio real \d+%/i, 'Mi cuenta debe mostrar el dominio real del curso completo.');
+  assert.match(accountCourseText, /Dominio verificado \d+%/i, 'Mi cuenta debe mostrar el dominio verificable del curso completo.');
   assert.match(accountCourseText, /Cap[ií]tulos \d+%.*examen final \d+%/i, 'Mi cuenta debe desglosar el dominio del curso y del examen final.');
   await page.getByText(/Aprobado · 100%/i).waitFor();
   await page.getByText('Completado', { exact: true }).waitFor();
