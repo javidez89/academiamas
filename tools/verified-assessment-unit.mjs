@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const migrationUrl = new URL('../supabase/migrations/20260827180255_verified_assessment_events.sql', import.meta.url);
-const registryUrl = new URL('../supabase/migrations/20260827180258_assessment_registry_v1.sql', import.meta.url);
+const migrationUrl = new URL('../supabase/migrations/20260828190009_verified_assessment_events.sql', import.meta.url);
+const registryUrl = new URL('../supabase/migrations/20260828190028_assessment_registry_v1.sql', import.meta.url);
 const appUrl = new URL('../assets/js/app.js', import.meta.url);
 const cloudUrl = new URL('../assets/js/cloud.js', import.meta.url);
 const [sql, registrySql, app, cloud] = await Promise.all([

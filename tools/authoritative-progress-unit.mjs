@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const migrationUrl = new URL('../supabase/migrations/20260827225551_authoritative_learning_aggregates.sql', import.meta.url);
+const migrationUrl = new URL('../supabase/migrations/20260828190048_authoritative_learning_aggregates.sql', import.meta.url);
 const appUrl = new URL('../assets/js/app.js', import.meta.url);
 const cloudUrl = new URL('../assets/js/cloud.js', import.meta.url);
 const certificateUrl = new URL('../supabase/functions/certificate-service/index.ts', import.meta.url);

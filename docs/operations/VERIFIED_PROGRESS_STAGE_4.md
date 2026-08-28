@@ -29,7 +29,7 @@ Mi cuenta, Administración y Constancias deben mostrar la misma información aca
 
 ## Despliegue
 
-1. Aplicar `20260827225551_authoritative_learning_aggregates.sql` en Supabase.
+1. Aplicar `20260828190048_authoritative_learning_aggregates.sql` en Supabase.
 2. Desplegar `certificate-service` actualizado.
 3. Publicar frontend y páginas SEO generadas de v0.20.0.
 4. Ejecutar smoke de cuenta, administración, evaluación, certificado y rutas públicas contra producción.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const migrationUrl = new URL('../supabase/migrations/20260827174137_verified_study_sessions_v2.sql', import.meta.url);
+const migrationUrl = new URL('../supabase/migrations/20260828185945_verified_study_sessions_v2.sql', import.meta.url);
 const sql = await readFile(migrationUrl, 'utf8');
 
 assert.match(sql, /add column verified_study_seconds bigint not null default 0/i,
