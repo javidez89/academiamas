@@ -131,7 +131,7 @@ as $$
       activity.chapter_id,
       coalesce(sum(activity.duration_seconds), 0)::bigint as study_seconds,
       min(activity.started_at) as visited_at,
-      max(activity.last_heartbeat_at) as last_studied_at
+      max(activity.last_seen_at) as last_studied_at
     from private.learning_activity_sessions as activity
     where activity.user_id = p_user_id
       and activity.activity_type = 'reading'
@@ -144,7 +144,7 @@ as $$
       coalesce(sum(activity.duration_seconds), 0)::bigint as study_seconds,
       count(*)::integer as session_count,
       min(activity.started_at) as verification_started_at,
-      max(activity.last_heartbeat_at) as last_activity_at
+      max(activity.last_seen_at) as last_activity_at
     from private.learning_activity_sessions as activity
     where activity.user_id = p_user_id
     group by activity.course_key
