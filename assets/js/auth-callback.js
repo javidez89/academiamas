@@ -47,7 +47,7 @@
     const { error } = await client.auth.exchangeCodeForSession(code);
     if (error) throw error;
 
-    setStatus('Acceso confirmado. Regresando a AcademiaQA...');
+    setStatus('Acceso confirmado. Regresando a QAvance...');
     global.history.replaceState({}, '', '/auth/callback/');
     global.location.replace(returnDestination());
   } catch (error) {

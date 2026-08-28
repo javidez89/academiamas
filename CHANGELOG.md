@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.20.0] - 2026-08-27
+
+### Added
+- Agregado académico oficial por usuario y curso, calculado desde sesiones, preguntas únicas y evaluaciones verificadas en Supabase.
+- Requisitos privados generados desde los 8 cursos y sus 58 capítulos.
+- Pruebas de regresión que impiden desbloquear exámenes o constancias mediante datos locales manipulados.
+- Nueva identidad visual QAvance con logo, imagen social, favicon e iconos PWA optimizados.
+
+### Changed
+- Mi cuenta, Administración y Constancias consumen la misma fuente oficial de progreso y tiempo.
+- La plataforma adopta la marca QAvance en interfaz, SEO, PWA, contenido, documentación y PDFs.
+- El dominio canónico continúa siendo `academiaqaoficial.com` para conservar indexación, OAuth y enlaces públicos.
+
+### Security
+- El 100% y la constancia requieren un examen final verificado y aprobado por el servidor.
+- `localStorage` queda limitado a caché y preferencias; no concede progreso, elegibilidad ni aprobación oficial.
+
 ## [v0.19.0] - 2026-08-25
 
 ### Added
@@ -16,7 +33,7 @@
 ### Changed
 - El documento emitido se denomina "Constancia de participación y aprobación" y antepone "Curso de Preparación para" al nombre del programa.
 - El anverso incorpora modalidad, firma del instructor, URL pública normalizada, QR y el deslinde legal de educación informal.
-- El archivo descargable adopta la nomenclatura `Constancia-AcademiaQA`.
+- El archivo descargable adopta la nomenclatura `Constancia-QAvance`.
 
 ### Added
 - Segunda página automática con el contenido académico del curso consultado desde una tabla privada de Supabase.
@@ -162,7 +179,7 @@
 ### Added
 
 - Panel privado de administración para consultar usuarios registrados, matrículas, fechas, tiempo de estudio, simulacros, exámenes finales y avance por capítulo.
-- Rol administrativo protegido en Supabase para la cuenta propietaria de AcademiaQA.
+- Rol administrativo protegido en Supabase para la cuenta propietaria de QAvance.
 - Búsqueda administrativa por nombre o correo y prueba de regresión para acceso autorizado, bloqueo de cuentas normales y vista móvil.
 
 ### Security
@@ -180,7 +197,7 @@
 
 - Eliminación permanente de cursos cancelados desde `Mi cuenta`, incluyendo matrícula, progreso, tiempo e intentos.
 
-- InstalaciÃ³n de AcademiaQA como PWA desde Android, Windows, macOS y Linux en navegadores compatibles.
+- InstalaciÃ³n de QAvance como PWA desde Android, Windows, macOS y Linux en navegadores compatibles.
 - Manifiesto web con identidad estable, accesos directos e iconos `any` y `maskable`.
 - Service worker limitado a recursos estÃ¡ticos del mismo origen y pantalla de contingencia sin conexiÃ³n.
 - AcciÃ³n accesible `Instalar app`, visible solo cuando el navegador ofrece la instalaciÃ³n.
@@ -271,7 +288,7 @@
 ### Changed
 
 - Cliente de Supabase fijado en la versión `2.112.3` y servido desde los recursos del sitio.
-- Política CSP ampliada únicamente para permitir comunicación con el proyecto AcademiaQA de Supabase.
+- Política CSP ampliada únicamente para permitir comunicación con el proyecto QAvance de Supabase.
 
 ### Validation
 
@@ -412,7 +429,7 @@
 
 ### Added
 
-- Home pública de AcademiaQA organizada por rutas de aprendizaje.
+- Home pública de QAvance organizada por rutas de aprendizaje.
 - Filtros de catálogo por área: Testing e ISTQB, IA y automatización, Scrum y agilidad, Gestión de proyectos.
 - Metadatos de catálogo para clasificar CTFL 4.0 y CT-AI 2.0 como cursos gratis.
 - Botón **Invítame un café** conectado al checkout oficial de Wompi.

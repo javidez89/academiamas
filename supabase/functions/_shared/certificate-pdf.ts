@@ -12,7 +12,7 @@ const INSTRUCTOR_NAME = 'Javier Chilatra';
 const INSTRUCTOR_ROLE = 'Instructor';
 const MODALITY = 'Modalidad: Virtual (E-Learning) / Autoestudio';
 
-export const CERTIFICATE_LEGAL_NOTICE = 'Constancia emitida por AcademiaQA con el objetivo de actualizar y profundizar conocimientos. No equivale a una credencial oficial de ISTQB, ni de otra entidad certificadora. Formación impartida en la modalidad de Educación Informal con base en el Decreto 1075 de 2015 de la República de Colombia.';
+export const CERTIFICATE_LEGAL_NOTICE = 'Constancia emitida por QAvance con el objetivo de actualizar y profundizar conocimientos. No equivale a una credencial oficial de ISTQB, ni de otra entidad certificadora. Formación impartida en la modalidad de Educación Informal con base en el Decreto 1075 de 2015 de la República de Colombia.';
 
 export type CertificateModule = {
   order: number;
@@ -172,7 +172,7 @@ async function drawBrand(document: PDFDocument, page: PDFPage, logoUrl: string, 
   } catch {
     // The text fallback keeps the document usable if the remote asset is unavailable.
   }
-  centered(page, 'AcademiaQA', 530, 27, bold, NAVY);
+  centered(page, 'QAvance', 530, 27, bold, NAVY);
 }
 
 async function drawSignature(document: PDFDocument, page: PDFPage, signatureUrl: string | undefined, regular: PDFFont, bold: PDFFont) {
@@ -224,9 +224,9 @@ export async function createCertificatePdf(input: CertificatePdfInput): Promise<
   const document = await PDFDocument.create();
   const courseName = preparationCourseName(input.courseName);
   document.setTitle(`Constancia ${input.code}`);
-  document.setAuthor('AcademiaQA');
+  document.setAuthor('QAvance');
   document.setSubject(`Constancia de participación y aprobación de ${courseName}`);
-  document.setKeywords(['AcademiaQA', 'constancia de participación y aprobación', courseName]);
+  document.setKeywords(['QAvance', 'constancia de participación y aprobación', courseName]);
   document.setCreationDate(new Date(input.issuedAt));
 
   const regular = await document.embedFont(StandardFonts.Helvetica);
@@ -236,7 +236,7 @@ export async function createCertificatePdf(input: CertificatePdfInput): Promise<
   await drawBrand(document, page, input.logoUrl, bold);
 
   centered(page, 'CONSTANCIA DE PARTICIPACIÓN Y APROBACIÓN', 458, 25, bold, NAVY, 770, 18);
-  centered(page, 'AcademiaQA hace constar que', 421, 14, regular, TEXT);
+  centered(page, 'QAvance hace constar que', 421, 14, regular, TEXT);
   centered(page, input.fullName.toUpperCase(), 379, 24, bold, NAVY, 700, 16);
   centered(page, `Identificación ${input.documentType}: ${input.documentNumber}`, 350, 12.5, regular, MUTED);
   centered(page, 'participó y aprobó satisfactoriamente el programa:', 317, 13.5, regular, TEXT);

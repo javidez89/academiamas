@@ -395,6 +395,19 @@
     return value && typeof value === 'object' ? value : null;
   }
 
+  async function getVerifiedLearningDashboard() {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('get_verified_learning_dashboard');
+    if (error) throw error;
+    const value = data && typeof data === 'object' ? data : {};
+    return {
+      verified: value.verified === true,
+      generatedAt: String(value.generated_at || ''),
+      courses: Array.isArray(value.courses) ? value.courses : [],
+      summary: value.summary && typeof value.summary === 'object' ? value.summary : {}
+    };
+  }
+
   async function touchLearningActivity(sessionId) {
     const { client } = requireUser();
     const { data, error } = await client.rpc('touch_learning_activity', {
@@ -488,6 +501,7 @@
     touchLearningActivity,
     endLearningActivity,
     getVerifiedStudyTime,
+    getVerifiedLearningDashboard,
     getPublicLearningActivity,
     isAdmin,
     getAdminDashboardSummary,

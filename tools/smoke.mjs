@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { MOCK_SESSION, useMockedSupabase } from './helpers/mock-supabase.mjs';
-import { completeCourseStudy } from './helpers/learning-progress.mjs';
+import { completeCourseStudy, seedVerifiedCourseStudy } from './helpers/learning-progress.mjs';
 
 const baseUrl = process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/';
 const version = process.env.ACADEMIAQA_VERSION || '2026-08-25-community-metrics-only';
@@ -65,6 +65,9 @@ try {
   assert.equal(await page.getByRole('button', { name: /Iniciar examen final/i }).count(), 0, 'El examen final no debe iniciar antes del 95%.');
   await completeCourseStudy(page, 'ctfl');
   await page.reload({ waitUntil: 'domcontentloaded' });
+  assert.equal(await page.getByRole('button', { name: /Iniciar examen final/i }).count(), 0,
+    'El avance local manipulado no debe desbloquear el examen final.');
+  await seedVerifiedCourseStudy(page, 'ctfl');
   await page.getByRole('button', { name: /Iniciar examen final/i }).click();
   await page.locator('.questionBox').waitFor();
   const finalExamOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

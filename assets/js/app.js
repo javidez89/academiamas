@@ -137,7 +137,7 @@
     avif: 'assets/img/home/new-course-640.avif 640w, assets/img/home/new-course-1200.avif 1200w',
     width: 1200,
     height: 907,
-    alt: 'Nuevo curso de capacitación profesional avanzada en AcademiaQA'
+    alt: 'Nuevo curso de capacitación profesional avanzada en QAvance'
   });
   const PUBLIC_VIEWS = new Set(['home', 'courses', 'routes', 'contact', 'legal', 'verifyCertificate', 'account', 'admin']);
   const PUBLIC_VIEW_PATHS = Object.freeze({
@@ -224,7 +224,9 @@
     profile: null,
     enrollments: [],
     progressByCourse: new Map(),
-    coursesByKey: new Map()
+    coursesByKey: new Map(),
+    verifiedByCourse: new Map(),
+    verifiedSummary: {}
   };
   let communityActivity = {
     registeredStudents: 0,
@@ -481,7 +483,7 @@
 
     dom.resetProgress.addEventListener('click', async () => {
       if (!course) return;
-      if (!global.confirm('¿Borrar estadísticas, intentos y preguntas marcadas para repaso?')) return;
+      if (!global.confirm('¿Limpiar la caché local, los intentos de práctica y las preguntas marcadas en este dispositivo? El avance verificado de tu cuenta no se borrará.')) return;
       const ok = Storage.removeProgress(progressStorageKey);
       if (ok && Auth?.isAuthenticated?.()) {
         try {
@@ -493,7 +495,7 @@
           return;
         }
       }
-      notify(ok ? 'El avance del curso fue eliminado en este dispositivo y en la nube.' : 'No fue posible borrar el avance.', ok ? 'success' : 'error');
+      notify(ok ? 'Los datos locales se limpiaron. El avance verificado de tu cuenta se conserva.' : 'No fue posible limpiar los datos locales.', ok ? 'success' : 'error');
       render();
     });
   }
@@ -503,7 +505,7 @@
     if (!authenticated) {
       persistStudyTime();
       stopStudyTimer();
-      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map() };
+      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map(), verifiedByCourse: new Map(), verifiedSummary: {} };
       if (course && !PUBLIC_VIEWS.has(state.view)) {
         const requestedView = state.view;
         showCourseAuthGate(activeCourseKey, { view: requestedView, updateHash: false });
@@ -536,6 +538,7 @@
       try {
         await refreshLearningSnapshot();
         if (PUBLIC_VIEWS.has(state.view)) render();
+        else syncNavigationState();
       } catch (error) {
         console.error('No fue posible actualizar el resumen de aprendizaje.', error);
       }
@@ -997,11 +1000,11 @@
     if (!dom.certificateModalBody || !state.certificateModal) return;
     const model = state.certificateModal;
     const entry = catalogEntry(model.courseKey) || {};
-    const courseName = model.courseName || entry.meta?.name || model.courseKey || 'Curso AcademiaQA';
+    const courseName = model.courseName || entry.meta?.name || model.courseKey || 'Curso QAvance';
 
     if (model.phase === 'loading') {
       dom.certificateModalBody.innerHTML = `<div class="certificateModalLoading" role="status">
-        <span class="sectionKicker">Certificados AcademiaQA</span>
+        <span class="sectionKicker">Certificados QAvance</span>
         <h2 id="certificateModalTitle">Preparando tu solicitud...</h2>
         <p>Validamos la finalización del curso y consultamos el valor seguro en Wompi.</p>
       </div>`;
@@ -1010,7 +1013,7 @@
 
     if (model.phase === 'error') {
       dom.certificateModalBody.innerHTML = `<div class="certificateModalCopy">
-        <span class="sectionKicker">Certificados AcademiaQA</span>
+        <span class="sectionKicker">Certificados QAvance</span>
         <h2 id="certificateModalTitle">No fue posible continuar</h2>
         <div class="badbox">${h(model.message || 'Intenta nuevamente más tarde.')}</div>
         <div class="btnrow">${model.transactionId ? `<button class="btn" type="button" data-action="retry-certificate-payment" data-transaction="${h(model.transactionId)}">Reintentar confirmación</button>` : ''}<button class="btn secondary" type="button" data-action="close-certificate-modal">Cerrar</button></div>
@@ -1029,7 +1032,7 @@
           <li>URL pública de validación para compartir.</li>
           <li>Acceso permanente desde Mi cuenta mientras el certificado esté vigente.</li>
         </ul>
-        <div class="note"><b>Importante:</b> es un certificado de finalización emitido por AcademiaQA. No equivale a una certificación oficial de ISTQB, CertiProf ni de otra entidad certificadora.</div>
+        <div class="note"><b>Importante:</b> es un certificado de finalización emitido por QAvance. No equivale a una certificación oficial de ISTQB, CertiProf ni de otra entidad certificadora.</div>
         <div class="btnrow"><button class="btn good" type="button" data-action="continue-certificate-wompi">Pagar de forma segura con Wompi</button><button class="btn secondary" type="button" data-action="close-certificate-modal">Ahora no</button></div>
       </div>`;
       return;
@@ -1394,7 +1397,15 @@
     learningActivitySession = null;
     if (!current?.sessionId) return Promise.resolve(false);
     return Promise.resolve(Cloud.endLearningActivity(current.sessionId))
-      .then((ended) => {
+      .then(async (ended) => {
+        if (ended && Auth?.isAuthenticated?.()) {
+          try {
+            await refreshVerifiedLearningDashboard();
+            syncNavigationState();
+          } catch (error) {
+            console.error('No fue posible refrescar el avance verificado.', error);
+          }
+        }
         if (state.view === 'home') refreshCommunityActivity({ silent: true });
         return ended;
       })
@@ -1632,6 +1643,7 @@
       if (!localSave.ok) throw new Error('No fue posible preparar el progreso local.');
       await Cloud.syncProgress(normalizedKey, mergedProgress);
       updateLearningSnapshot(normalizedKey, loadedCourse, mergedProgress, enrollment);
+      await refreshVerifiedLearningDashboard();
     } catch (error) {
       console.error(error);
       showCourseAuthGate(normalizedKey, options, 'No fue posible conectar la matrícula y el progreso con la nube. Intenta nuevamente.');
@@ -1738,7 +1750,8 @@
   function updateEnrollmentSnapshot(value) {
     if (!value?.course_key) return;
     const index = learningSnapshot.enrollments.findIndex((item) => item.course_key === value.course_key);
-    if (index >= 0) learningSnapshot.enrollments[index] = { ...learningSnapshot.enrollments[index], ...value };
+    const verified = learningSnapshot.verifiedByCourse.get(value.course_key) || {};
+    if (index >= 0) learningSnapshot.enrollments[index] = { ...learningSnapshot.enrollments[index], ...value, ...verified };
     else learningSnapshot.enrollments.push(value);
   }
 
@@ -1752,15 +1765,18 @@
 
   async function refreshLearningSnapshot({ includeProfile = false } = {}) {
     if (!Auth?.isAuthenticated?.()) {
-      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map() };
+      learningSnapshot = { profile: null, enrollments: [], progressByCourse: new Map(), coursesByKey: new Map(), verifiedByCourse: new Map(), verifiedSummary: {} };
       return learningSnapshot;
     }
 
     const profileRequest = includeProfile ? Cloud.getProfile() : Promise.resolve(learningSnapshot.profile);
-    const [profile, enrollments] = await Promise.all([profileRequest, Cloud.listEnrollments()]);
+    const [profile, enrollmentRows] = await Promise.all([
+      profileRequest,
+      Cloud.listEnrollments()
+    ]);
     const progressByCourse = new Map();
     const coursesByKey = new Map();
-    await Promise.all(enrollments.map(async (enrollment) => {
+    await Promise.all(enrollmentRows.map(async (enrollment) => {
       const key = enrollment.course_key;
       if (!catalogEntry(key)?.src) return;
       const [loadedCourse, progress] = await Promise.all([
@@ -1774,14 +1790,34 @@
       Storage.saveProgress(storageKey, merged);
       progressByCourse.set(key, merged);
     }));
+    const verifiedDashboard = await Cloud.getVerifiedLearningDashboard();
+    const verifiedCourses = verifiedDashboard.verified ? verifiedDashboard.courses : [];
+    const verifiedByCourse = new Map(verifiedCourses.map((item) => [item.course_key, item]));
+    const enrollments = enrollmentRows.map((item) => ({ ...item, ...(verifiedByCourse.get(item.course_key) || {}) }));
 
     learningSnapshot = {
       profile: profile || null,
       enrollments,
       progressByCourse,
-      coursesByKey
+      coursesByKey,
+      verifiedByCourse,
+      verifiedSummary: verifiedDashboard.summary || {}
     };
     return learningSnapshot;
+  }
+
+  async function refreshVerifiedLearningDashboard() {
+    if (!Auth?.isAuthenticated?.()) return null;
+    const dashboard = await Cloud.getVerifiedLearningDashboard();
+    if (!dashboard.verified) throw new Error('El resumen de aprendizaje no está verificado.');
+    const verifiedByCourse = new Map(dashboard.courses.map((item) => [item.course_key, item]));
+    learningSnapshot.verifiedByCourse = verifiedByCourse;
+    learningSnapshot.verifiedSummary = dashboard.summary || {};
+    learningSnapshot.enrollments = learningSnapshot.enrollments.map((item) => ({
+      ...item,
+      ...(verifiedByCourse.get(item.course_key) || {})
+    }));
+    return dashboard;
   }
 
   function compactText(value, max = 155) {
@@ -1798,14 +1834,14 @@
 
   function currentSeoMetadata() {
     const publicMetadata = {
-      home: ['Cursos QA gratis y simulacros ISTQB | AcademiaQA', Config.description],
-      courses: ['Cursos gratis de QA, Testing, IA y Scrum | AcademiaQA', 'Explora cursos gratis de QA, testing, IA, Scrum, gestión de proyectos y ciberseguridad con syllabus, práctica y simulacros.'],
-      routes: ['Rutas para aprender QA, Testing, IA y Scrum | AcademiaQA', 'Elige una ruta gratuita en QA, testing, IA, Scrum, gestión de proyectos o ciberseguridad y avanza hasta el simulacro.'],
-      contact: ['Contáctanos | AcademiaQA', 'Contacta a AcademiaQA para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.'],
-      legal: ['Información legal y privacidad | AcademiaQA', 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.'],
-      verifyCertificate: ['Validar certificado AcademiaQA | Consulta pública', 'Consulta un certificado de finalización de AcademiaQA mediante su código único y verifica su estado, curso y fecha de emisión.'],
-      account: ['Mi cuenta | AcademiaQA', 'Consulta tus matrículas, avance y actividad de aprendizaje en AcademiaQA.'],
-      admin: ['Administración | AcademiaQA', 'Panel privado de usuarios y aprendizaje de AcademiaQA.']
+      home: ['Cursos QA gratis y simulacros ISTQB | QAvance', Config.description],
+      courses: ['Cursos gratis de QA, Testing, IA y Scrum | QAvance', 'Explora cursos gratis de QA, testing, IA, Scrum, gestión de proyectos y ciberseguridad con syllabus, práctica y simulacros.'],
+      routes: ['Rutas para aprender QA, Testing, IA y Scrum | QAvance', 'Elige una ruta gratuita en QA, testing, IA, Scrum, gestión de proyectos o ciberseguridad y avanza hasta el simulacro.'],
+      contact: ['Contáctanos | QAvance', 'Contacta a QAvance para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.'],
+      legal: ['Información legal y privacidad | QAvance', 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de QAvance.'],
+      verifyCertificate: ['Validar certificado QAvance | Consulta pública', 'Consulta un certificado de finalización de QAvance mediante su código único y verifica su estado, curso y fecha de emisión.'],
+      account: ['Mi cuenta | QAvance', 'Consulta tus matrículas, avance y actividad de aprendizaje en QAvance.'],
+      admin: ['Administración | QAvance', 'Panel privado de usuarios y aprendizaje de QAvance.']
     };
     if (PUBLIC_VIEWS.has(state.view)) {
       const [title, description] = publicMetadata[state.view] || publicMetadata.home;
@@ -1816,8 +1852,8 @@
     if (state.view === 'exam') {
       const blueprint = course?.blueprint || {};
       return {
-        title: `Simulacro ${catalogEntry(activeCourseKey).family === 'ISTQB' ? 'ISTQB ' : ''}${label} gratis | AcademiaQA`,
-        description: compactText(`Practica con el simulacro de ${label}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}. Acceso gratis en AcademiaQA.`),
+        title: `Simulacro ${catalogEntry(activeCourseKey).family === 'ISTQB' ? 'ISTQB ' : ''}${label} gratis | QAvance`,
+        description: compactText(`Practica con el simulacro de ${label}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}. Acceso gratis en QAvance.`),
         path: coursePath(activeCourseKey, 'exam')
       };
     }
@@ -1825,7 +1861,7 @@
     if (state.view === 'finalExam') {
       const blueprint = course?.blueprint || {};
       return {
-        title: `Examen final ${label} | AcademiaQA`,
+        title: `Examen final ${label} | QAvance`,
         description: compactText(`Examen final interno de ${label}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}.`),
         path: coursePath(activeCourseKey, 'finalExam')
       };
@@ -1834,18 +1870,18 @@
     if (state.view === 'study' && state.studyChapter) {
       const chapter = course?.chapters?.find((item) => Number(item.id) === Number(state.studyChapter));
       if (chapter) {
-        const detailedTitle = `C${chapter.id}: ${chapter.title} | ${label} - AcademiaQA`;
+        const detailedTitle = `C${chapter.id}: ${chapter.title} | ${label} - QAvance`;
         return {
-          title: detailedTitle.length <= 65 ? detailedTitle : `Capítulo ${chapter.id} ${label} | AcademiaQA`,
-          description: compactText(`Capítulo ${chapter.id} de ${label}: ${chapter.summary} Estudia objetivos LO, términos y ejemplos en AcademiaQA.`),
+          title: detailedTitle.length <= 65 ? detailedTitle : `Capítulo ${chapter.id} ${label} | QAvance`,
+          description: compactText(`Capítulo ${chapter.id} de ${label}: ${chapter.summary} Estudia objetivos LO, términos y ejemplos en QAvance.`),
           path: chapterPath(activeCourseKey, chapter.id)
         };
       }
     }
 
     return {
-      title: `Curso ${catalogEntry(activeCourseKey).family === 'ISTQB' ? 'ISTQB ' : ''}${label} gratis y simulador | AcademiaQA`,
-      description: compactText(course?.meta?.subtitle || `Estudia ${label} gratis con syllabus, práctica y simulacro en AcademiaQA.`),
+      title: `Curso ${catalogEntry(activeCourseKey).family === 'ISTQB' ? 'ISTQB ' : ''}${label} gratis y simulador | QAvance`,
+      description: compactText(course?.meta?.subtitle || `Estudia ${label} gratis con syllabus, práctica y simulacro en QAvance.`),
       path: coursePath(activeCourseKey)
     };
   }
@@ -1889,8 +1925,8 @@
       courses: 'Explora todos los cursos disponibles y entra a la ruta que quieres estudiar.',
       routes: 'Rutas sugeridas para avanzar por testing, IA, Scrum, gestión y ciberseguridad.',
       contact: 'Cuéntanos una idea, problema, error académico o propuesta de colaboración.',
-      legal: 'Política de privacidad, términos y condiciones de uso de AcademiaQA.',
-      verifyCertificate: 'Consulta el código único de un certificado de finalización emitido por AcademiaQA.',
+      legal: 'Política de privacidad, términos y condiciones de uso de QAvance.',
+      verifyCertificate: 'Consulta el código único de un certificado de finalización emitido por QAvance.',
       account: 'Tu información, matrículas y actividad de aprendizaje guardadas en la nube.',
       admin: 'Consulta protegida de usuarios, matrículas, progreso y actividad académica.',
       authGate: 'Inicia sesión con Google para inscribirte y guardar tu progreso.'
@@ -1914,7 +1950,7 @@
     const isHomeView = state.view === 'home';
     dom.footerText.classList.toggle('homeFooter', isHomeView);
     setTextIfChanged(dom.footerText, isPublicView
-      ? (isHomeView ? `AcademiaQA · v${APP_VERSION}` : '')
+      ? (isHomeView ? `QAvance · v${APP_VERSION}` : '')
       : `Hecho para estudio personal · ${courseLabel()} · progreso independiente por certificación.`);
     dom.footerText.hidden = isPublicView && !isHomeView;
 
@@ -2060,6 +2096,51 @@
   function courseProgressDetailsFrom(key, item, progressValue, enrollmentValue = null) {
     const progress = Storage.normalizeProgress(progressValue || {});
     const attempts = progress.attempts || [];
+    const official = enrollmentValue?.verified === true
+      ? enrollmentValue
+      : learningSnapshot.verifiedByCourse.get(key);
+    if (official?.verified === true) {
+      const chapters = (Array.isArray(official.chapters) ? official.chapters : []).map((chapter) => ({
+        chapterId: number(chapter.chapter_id),
+        title: chapter.title || `Capítulo ${number(chapter.chapter_id)}`,
+        objectiveCount: number(chapter.objective_count),
+        questionCount: number(chapter.question_count),
+        uniqueAnswered: number(chapter.unique_answered),
+        uniqueCorrect: number(chapter.unique_correct),
+        touched: number(chapter.touched_objectives),
+        practiceCoverage: number(chapter.practice_coverage),
+        accuracy: pct(number(chapter.unique_correct), number(chapter.unique_answered)),
+        domain: number(chapter.domain),
+        objectiveProgress: pct(number(chapter.touched_objectives), number(chapter.objective_count)),
+        readingProgress: number(chapter.reading_progress),
+        coverage: number(chapter.coverage),
+        studySeconds: number(chapter.study_seconds),
+        studyMinutes: number(chapter.study_minutes),
+        suggestedMinutes: number(chapter.suggested_minutes),
+        visitedAt: chapter.visited_at || '',
+        lastStudiedAt: chapter.last_studied_at || ''
+      }));
+      return {
+        attempts,
+        best: number(official.best_simulator_score),
+        last: attempts.at(-1) || null,
+        answered: number(official.practice_answers),
+        marked: Array.isArray(progress.marked) ? progress.marked.length : 0,
+        started: number(official.study_seconds) > 0 || number(official.practice_answers) > 0 || number(official.simulator_attempts) > 0 || number(official.final_exam_attempts) > 0,
+        chapters,
+        chapterAverage: number(official.chapter_average),
+        chapterDomainAverage: number(official.chapter_domain_average),
+        finalExamScore: number(official.best_final_exam_score),
+        masteryPercent: number(official.mastery_percent),
+        progressPercent: number(official.progress_percent),
+        studySeconds: number(official.study_seconds),
+        enrollment: official,
+        finalExamPassed: official.final_exam_passed === true,
+        finalExamEligible: official.final_exam_eligible === true,
+        isEnrolled: official.status !== 'cancelled',
+        verified: true
+      };
+    }
     const simulatorAttempts = attempts.filter((attempt) => attempt.mode === 'exam');
     const best = simulatorAttempts.length ? Math.max(...simulatorAttempts.map((attempt) => number(attempt.scorePct, 0))) : 0;
     const marked = Array.isArray(progress.marked) ? progress.marked.length : 0;
@@ -2110,7 +2191,12 @@
   }
 
   function courseProgressDetails(key, item) {
-    return courseProgressDetailsFrom(key, item, progressForCourse(key, item), enrollmentForCourse(key));
+    return courseProgressDetailsFrom(
+      key,
+      item,
+      progressForCourse(key, item),
+      learningSnapshot.verifiedByCourse.get(key) || enrollmentForCourse(key)
+    );
   }
 
   function courseRouteKey(key) {
@@ -2182,7 +2268,7 @@
         return communityActivity;
       })
       .catch((error) => {
-        console.warn('No fue posible actualizar la actividad pública de AcademiaQA.', error);
+        console.warn('No fue posible actualizar la actividad pública de QAvance.', error);
         communityActivity = { ...communityActivity, loading: false, error: true };
         if (state.view === 'home') render();
         return communityActivity;
@@ -2205,7 +2291,7 @@
       : communityActivity.onlineStudents.toLocaleString('es-CO');
     return `<section class="communityActivity" aria-labelledby="communityActivityTitle" aria-live="polite">
       <div class="communityActivityCopy">
-        <span class="sectionKicker">Comunidad AcademiaQA</span>
+        <span class="sectionKicker">Comunidad QAvance</span>
         <h2 id="communityActivityTitle">Aprendemos en comunidad.</h2>
       </div>
       <div class="communityMetric">
@@ -2250,7 +2336,7 @@
           <div class="homeAdvantageVisual homeReferenceMedia homeReferenceSimulator">
             <picture>
               <source media="(max-width:640px)" srcset="/assets/img/home/advantages/simulator-640.webp">
-              <img src="/assets/img/home/advantages/simulator-1136.webp" srcset="/assets/img/home/advantages/simulator-640.webp 640w, /assets/img/home/advantages/simulator-1136.webp 1136w" sizes="(max-width:980px) 100vw, 34vw" width="1136" height="622" loading="lazy" decoding="async" alt="Interfaz real del simulador AcademiaQA con temporizador, pregunta y opciones de respuesta">
+              <img src="/assets/img/home/advantages/simulator-1136.webp" srcset="/assets/img/home/advantages/simulator-640.webp 640w, /assets/img/home/advantages/simulator-1136.webp 1136w" sizes="(max-width:980px) 100vw, 34vw" width="1136" height="622" loading="lazy" decoding="async" alt="Interfaz real del simulador QAvance con temporizador, pregunta y opciones de respuesta">
             </picture>
             <span class="homeReferenceBadge">Retroalimentación inmediata</span>
           </div>
@@ -2264,7 +2350,7 @@
         </article>
 
         <article class="homeAdvantageCard">
-          <a class="homeAdvantageVisual homeReferenceMedia homeReferencePricing" href="${h(publicPath('courses'))}" data-view="courses" aria-label="Explorar cursos gratuitos de AcademiaQA">
+          <a class="homeAdvantageVisual homeReferenceMedia homeReferencePricing" href="${h(publicPath('courses'))}" data-view="courses" aria-label="Explorar cursos gratuitos de QAvance">
             <picture>
               <source media="(max-width:640px)" srcset="/assets/img/home/advantages/pricing-320.webp">
               <img src="/assets/img/home/advantages/pricing-494.webp" srcset="/assets/img/home/advantages/pricing-320.webp 320w, /assets/img/home/advantages/pricing-494.webp 494w" sizes="(max-width:980px) 70vw, 22vw" width="494" height="544" loading="lazy" decoding="async" alt="Tarjeta de emisión opcional de constancia digital por 25 dólares">
@@ -2302,7 +2388,7 @@
         </article>
       </div>
 
-      <p class="homeCourseAdvantagesLegal">La constancia acredita participación y aprobación en AcademiaQA; no reemplaza una certificación oficial de ISTQB ni de otra entidad certificadora.</p>
+      <p class="homeCourseAdvantagesLegal">La constancia acredita participación y aprobación en QAvance; no reemplaza una certificación oficial de ISTQB ni de otra entidad certificadora.</p>
     </section>`;
   }
 
@@ -2370,7 +2456,7 @@
     if (!Auth?.isAuthenticated?.()) {
       return `<aside class="heroProgressPanel" aria-label="Acceso al progreso">
         <span>Tu progreso general</span>
-        <div class="heroProgressTop"><strong>AcademiaQA</strong></div>
+        <div class="heroProgressTop"><strong>QAvance</strong></div>
         <p>Inicia sesión para guardar tus cursos, tiempo de estudio y resultados en la nube.</p>
         <button class="btn heroResume" type="button" data-action="sign-in-google">Iniciar sesión</button>
       </aside>`;
@@ -2396,7 +2482,7 @@
 
     return `<aside class="heroProgressPanel" aria-label="Resumen de progreso">
       <span>Tu progreso general</span>
-      <div class="heroProgressTop"><strong>AcademiaQA</strong><b>${pctValue}%</b></div>
+      <div class="heroProgressTop"><strong>QAvance</strong><b>${pctValue}%</b></div>
       <div class="progressbar heroProgressBar" aria-hidden="true"><div style="width:${pctValue}%"></div></div>
       <div class="heroProgressStats" aria-label="Detalle de progreso general">
         <span>${number(summary.totalCourses)} cursos inscritos</span>
@@ -2600,7 +2686,7 @@
       <div class="freeCertCopy">
         <span class="freeCertKicker">CertiProf Open</span>
         <h2 id="freeCertTitle">Cursos gratis con examen gratuito</h2>
-        <p>Estas tres rutas quedan destacadas como preparacion gratuita en AcademiaQA, con acceso directo al examen abierto de CertiProf. La disponibilidad y emision del certificado se confirman en CertiProf.</p>
+        <p>Estas tres rutas quedan destacadas como preparacion gratuita en QAvance, con acceso directo al examen abierto de CertiProf. La disponibilidad y emision del certificado se confirman en CertiProf.</p>
       </div>
       <div class="freeCertCards">${renderFreeCertCards()}</div>
     </section>`;
@@ -2681,11 +2767,11 @@
   function renderDonationSpotlight() {
     return `<section class="donationSpotlight" aria-labelledby="donationTitle">
       <div class="donationImagePanel">
-        ${renderResponsiveImage(DEFAULT_ROUTE_TILE_IMAGE, 'Comunidad QA aprendiendo y apoyando el proyecto AcademiaQA', '(max-width: 900px) 100vw, 680px')}
+        ${renderResponsiveImage(DEFAULT_ROUTE_TILE_IMAGE, 'Comunidad QA aprendiendo y apoyando el proyecto QAvance', '(max-width: 900px) 100vw, 680px')}
       </div>
       <div class="donationCopy">
         <span class="sectionKicker">Apoya el proyecto</span>
-        <h2 id="donationTitle">Ayuda a mantener AcademiaQA gratis.</h2>
+        <h2 id="donationTitle">Ayuda a mantener QAvance gratis.</h2>
         <p>Cada aporte impulsa nuevos cursos, simulacros, mejoras móviles y material abierto para la comunidad QA.</p>
         <div class="donationActions">
           ${renderCoffeeButton()}
@@ -2699,7 +2785,7 @@
     return `<div class="publicHome publicPage">
       <section class="homeSection" id="cursos-disponibles" aria-labelledby="coursesTitle">
         <div class="sectionIntro">
-          <span class="sectionKicker">AcademiaQA</span>
+          <span class="sectionKicker">QAvance</span>
           <h1 id="coursesTitle">Cursos disponibles</h1>
           <p>CTFL 4.0, CT-AI 2.0, CT-GenAI, Scrum Master, Product Owner, Project Management Essentials, Scrum Fundamentals y Cybersecurity Awareness continúan habilitados sin costo para estudiar, practicar y simular.</p>
         </div>
@@ -2713,7 +2799,7 @@
     return `<div class="publicHome publicPage routePage" id="ruta-aprendizaje">
       <section class="homeSection" aria-labelledby="routesTitle">
         <div class="sectionIntro">
-          <span class="sectionKicker">AcademiaQA</span>
+          <span class="sectionKicker">QAvance</span>
           <h1 id="routesTitle">Ruta de aprendizaje</h1>
           <p>Estas secuencias son recomendaciones flexibles para avanzar por áreas. Cada ruta puede crecer con nuevos cursos gratuitos o Premium sin afectar tu progreso actual.</p>
         </div>
@@ -2750,7 +2836,7 @@
 
             <label for="contactCourse">Curso relacionado</label>
             <select id="contactCourse">
-              <option>General AcademiaQA</option>
+              <option>General QAvance</option>
               ${courseOptions}
             </select>
 
@@ -2781,7 +2867,7 @@
   function authUserName() {
     const user = Auth?.getUser?.();
     const metadata = user?.user_metadata || {};
-    return String(metadata.full_name || metadata.name || user?.email?.split('@')[0] || 'Usuario de AcademiaQA');
+    return String(metadata.full_name || metadata.name || user?.email?.split('@')[0] || 'Usuario de QAvance');
   }
 
   function renderCourseAuthGate() {
@@ -2796,8 +2882,8 @@
       <section class="courseAuthGate" aria-labelledby="courseAuthTitle">
         <div class="courseAuthSummary">
           <span class="sectionKicker">${h(meta.code || activeCourseKey.toUpperCase())}</span>
-          <h2 id="courseAuthTitle">${h(meta.name || 'Curso AcademiaQA')}</h2>
-          <p>${h(meta.subtitle || 'Ruta de aprendizaje disponible en AcademiaQA.')}</p>
+          <h2 id="courseAuthTitle">${h(meta.name || 'Curso QAvance')}</h2>
+          <p>${h(meta.subtitle || 'Ruta de aprendizaje disponible en QAvance.')}</p>
           <div class="certBadgeLine">
             <span>${number(counts.chapters)} capítulos</span>
             <span>${number(counts.objectives)} objetivos</span>
@@ -2818,7 +2904,7 @@
               : '<button class="btn" type="button" data-action="sign-in-google">Iniciar sesión</button>'}
             <a class="btn secondary" href="${h(publicPath('courses'))}" data-view="courses">Volver a cursos</a>
           </div>
-          <small>AcademiaQA no recibe ni almacena tu contraseña de Google.</small>
+          <small>QAvance no recibe ni almacena tu contraseña de Google.</small>
         </div>
       </section>
     </div>`;
@@ -2864,7 +2950,7 @@
         : result?.valid
           ? `<article class="certificateValidationResult valid" aria-labelledby="certificateResultTitle">
               <div class="certificateValidationMark" aria-hidden="true">✓</div>
-              <div><span class="sectionKicker">Certificado válido</span><h2 id="certificateResultTitle">${h(result.course_name)}</h2><p>Este certificado de finalización coincide con el registro de AcademiaQA.</p></div>
+              <div><span class="sectionKicker">Certificado válido</span><h2 id="certificateResultTitle">${h(result.course_name)}</h2><p>Este certificado de finalización coincide con el registro de QAvance.</p></div>
               <dl class="certificateValidationDetails">
                 <div><dt>Estudiante</dt><dd>${h(result.full_name)}</dd></div>
                 <div><dt>Identificación</dt><dd>${h(result.document)}</dd></div>
@@ -2882,7 +2968,7 @@
     return `<div class="publicHome publicPage certificateValidationPage" id="validar-certificado">
       <section class="certificateValidationHero" aria-labelledby="certificateValidationTitle">
         <span class="sectionKicker">Validación pública</span>
-        <h1 id="certificateValidationTitle">Valida un certificado AcademiaQA</h1>
+        <h1 id="certificateValidationTitle">Valida un certificado QAvance</h1>
         <p>Consulta el código único impreso en el PDF o abre la URL incluida en su código QR.</p>
         <form class="certificateValidationForm" data-certificate-validation-form>
           <label for="certificateCodeInput">Código del certificado</label>
@@ -2890,7 +2976,7 @@
         </form>
       </section>
       ${statusPanel}
-      <div class="note certificateValidationDisclaimer"><b>Alcance:</b> AcademiaQA valida la finalización de sus cursos internos. Este registro no reemplaza ni representa una certificación oficial de ISTQB, CertiProf u otra entidad certificadora.</div>
+      <div class="note certificateValidationDisclaimer"><b>Alcance:</b> QAvance valida la finalización de sus cursos internos. Este registro no reemplaza ni representa una certificación oficial de ISTQB, CertiProf u otra entidad certificadora.</div>
     </div>`;
   }
 
@@ -3018,21 +3104,13 @@
     const certificateOrders = Array.isArray(state.certificateOrders) ? state.certificateOrders : [];
     const enrolled = enrollments.filter((item) => item.status !== 'cancelled');
     const active = enrolled.length;
-    const simulatorTotal = enrollments.reduce((sum, item) => sum + number(item.simulator_attempts), 0);
-    const finalExamTotal = enrollments.reduce((sum, item) => sum + number(item.final_exam_attempts), 0);
+    const simulatorTotal = enrolled.reduce((sum, item) => sum + number(item.simulator_attempts), 0);
+    const finalExamTotal = enrolled.reduce((sum, item) => sum + number(item.final_exam_attempts), 0);
     const hoursTotal = enrollments
       .filter((item) => item.status !== 'cancelled')
       .reduce((sum, item) => sum + number(item.estimated_hours), 0);
-    const studySecondsTotal = enrolled.reduce((sum, item) => {
-      const progress = learningSnapshot.progressByCourse.get(item.course_key);
-      return sum + Math.max(number(item.study_seconds), number(progress?.studySeconds));
-    }, 0);
-    const overallProgress = enrolled.length
-      ? Math.round(enrolled.reduce((sum, item) => {
-        const entry = learningSnapshot.coursesByKey.get(item.course_key) || catalogCourseSummary(catalogEntry(item.course_key));
-        return sum + courseProgressDetails(item.course_key, entry).progressPercent;
-      }, 0) / enrolled.length)
-      : 0;
+    const studySecondsTotal = number(learningSnapshot.verifiedSummary.study_seconds);
+    const overallProgress = number(learningSnapshot.verifiedSummary.progress_percent);
 
     const enrollmentCards = enrollments.map((item) => {
       const entry = catalogEntry(item.course_key) || {};
@@ -3188,7 +3266,7 @@
     const courseData = state.adminCoursesByKey.get(item.course_key)
       || Registry.get(item.course_key)
       || catalogCourseSummary(entry);
-    const details = courseProgressDetailsFrom(item.course_key, courseData, item.progress, item);
+    const details = courseProgressDetailsFrom(item.course_key, courseData, {}, item);
     const statusLabel = item.status === 'active' ? 'Activo' : item.status === 'completed' ? 'Completado' : 'Cancelado';
     const chapterRows = details.chapters.map((chapter) => `<li>
       <span><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><small>${chapter.touched}/${chapter.objectiveCount} LO · ${chapter.studyMinutes} min</small></span>
@@ -3242,7 +3320,7 @@
       const courseData = state.adminCoursesByKey.get(item.course_key)
         || Registry.get(item.course_key)
         || catalogCourseSummary(entry);
-      return courseProgressDetailsFrom(item.course_key, courseData, item.progress, item);
+      return courseProgressDetailsFrom(item.course_key, courseData, {}, item);
     });
     const lastSeenAt = user.last_seen_at || user.last_sign_in_at || user.created_at;
     const progressPercent = details.length
@@ -3397,27 +3475,27 @@
         <div class="sectionIntro">
           <span class="sectionKicker">Información legal</span>
           <h1 id="legalTitle">Política de privacidad y términos de uso</h1>
-          <p>AcademiaQA es una plataforma independiente de preparación y aprendizaje. Esta información resume cómo funciona el sitio estático y qué responsabilidades aplican al usarlo.</p>
+          <p>QAvance es una plataforma independiente de preparación y aprendizaje. Esta información resume cómo funciona el sitio estático y qué responsabilidades aplican al usarlo.</p>
         </div>
         <div class="legalGrid">
           <article class="legalCard" id="privacidad">
             <h3>Política de privacidad</h3>
-            <p>AcademiaQA utiliza inicio de sesión con Google mediante Supabase Auth para acceder a los cursos. Al ingresar se procesan el identificador de cuenta, nombre y correo proporcionados por Google para mantener la sesión y asociar tus matrículas. AcademiaQA no recibe tu contraseña de Google.</p>
+            <p>QAvance utiliza inicio de sesión con Google mediante Supabase Auth para acceder a los cursos. Al ingresar se procesan el identificador de cuenta, nombre y correo proporcionados por Google para mantener la sesión y asociar tus matrículas. QAvance no recibe tu contraseña de Google.</p>
             <p>Las matrículas, fechas de inicio, avance por capítulo, tiempo activo de estudio, respuestas acumuladas y resultados de simulacros o exámenes finales se guardan en Supabase para recuperar el aprendizaje entre dispositivos y generar métricas de uso. El navegador conserva una copia local para dar continuidad a la experiencia.</p>
             <p>Cancelar un curso detiene su estado activo, pero conserva el historial para que puedas reactivarlo. Después de cancelarlo, puedes usar <b>Eliminar curso</b> en Mi cuenta para borrar permanentemente su matrícula, avance, tiempo e intentos; para solicitar la eliminación completa de la cuenta o de otros datos personales usa el formulario de contacto.</p>
-            <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
-            <p>Wompi procesa los pagos de certificados y aportes. AcademiaQA conserva la referencia, el estado y el valor de la transacción, pero no recibe ni almacena números de tarjeta ni credenciales bancarias.</p>
+            <p>QAvance utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
+            <p>Wompi procesa los pagos de certificados y aportes. QAvance conserva la referencia, el estado y el valor de la transacción, pero no recibe ni almacena números de tarjeta ni credenciales bancarias.</p>
             <p>Para emitir un certificado se solicita nombre completo, tipo y número de documento. El número completo aparece únicamente en el PDF privado; la validación pública muestra solo los últimos caracteres enmascarados. El usuario autoriza expresamente esa consulta pública antes de la emisión.</p>
           </article>
           <article class="legalCard" id="terminos">
             <h3>Términos y condiciones</h3>
             <p>El contenido se ofrece para estudio personal y no garantiza la aprobación de certificaciones oficiales ni sustituye materiales, reglas o exámenes de las entidades certificadoras.</p>
-            <p>AcademiaQA puede emitir certificados internos de finalización después de completar el curso, aprobar su examen final y confirmar el pago. Estos documentos acreditan únicamente la finalización dentro de AcademiaQA y no equivalen a una certificación oficial de ISTQB, CertiProf ni de otra entidad.</p>
+            <p>QAvance puede emitir certificados internos de finalización después de completar el curso, aprobar su examen final y confirmar el pago. Estos documentos acreditan únicamente la finalización dentro de QAvance y no equivalen a una certificación oficial de ISTQB, CertiProf ni de otra entidad.</p>
             <p>El valor se presenta en USD 25 como referencia y se cobra en pesos colombianos usando la TRM consultada al crear la orden. El importe exacto en COP se informa antes de abrir Wompi.</p>
           </article>
           <article class="legalCard">
             <h3>Aviso independiente</h3>
-            <p>AcademiaQA no representa a ISTQB, CertiProf, Scrum.org, Scrum Inc., la Comisión Europea ni otras entidades mencionadas. Las marcas pertenecen a sus titulares.</p>
+            <p>QAvance no representa a ISTQB, CertiProf, Scrum.org, Scrum Inc., la Comisión Europea ni otras entidades mencionadas. Las marcas pertenecen a sus titulares.</p>
           </article>
         </div>
       </section>
@@ -3433,9 +3511,9 @@
 
   function contactMessageText() {
     const category = $('contactCategory')?.value || 'General';
-    const relatedCourse = $('contactCourse')?.value || 'General AcademiaQA';
-    const subject = ($('contactSubject')?.value || '').trim() || 'Mensaje AcademiaQA';
-    const message = ($('contactMessage')?.value || '').trim() || 'Hola, quiero contactar sobre AcademiaQA.';
+    const relatedCourse = $('contactCourse')?.value || 'General QAvance';
+    const subject = ($('contactSubject')?.value || '').trim() || 'Mensaje QAvance';
+    const message = ($('contactMessage')?.value || '').trim() || 'Hola, quiero contactar sobre QAvance.';
     return [
       `Categoría: ${category}`,
       `Curso relacionado: ${relatedCourse}`,
@@ -3450,7 +3528,7 @@
 
   function sendContactMessage() {
     const text = contactMessageText();
-    const subject = ($('contactSubject')?.value || '').trim() || 'Mensaje AcademiaQA';
+    const subject = ($('contactSubject')?.value || '').trim() || 'Mensaje QAvance';
     const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
 
     notify(`Se abrirá tu correo para enviar el mensaje a ${CONTACT_EMAIL}.`, 'info');
@@ -3489,7 +3567,7 @@
       ${renderFreeCertBand()}
 
       <section class="legalNotice" aria-label="Aviso legal">
-        <b>Aviso legal:</b> AcademiaQA es una plataforma independiente de preparación y aprendizaje. Sus certificados internos de finalización no son certificaciones oficiales ni sustituyen syllabus, glosarios, reglas, materiales o exámenes de las entidades certificadoras.
+        <b>Aviso legal:</b> QAvance es una plataforma independiente de preparación y aprendizaje. Sus certificados internos de finalización no son certificaciones oficiales ni sustituyen syllabus, glosarios, reglas, materiales o exámenes de las entidades certificadoras.
         <div class="legalQuickLinks">
           <a class="btn secondary" href="${h(publicPath('legal'))}" data-view="legal" data-view-anchor="privacidad">Política de privacidad</a>
           <a class="btn secondary" href="${h(publicPath('legal'))}" data-view="legal" data-view-anchor="terminos">Términos y condiciones</a>
@@ -3503,13 +3581,13 @@
     const coverage = course?.syllabusCoverageNote || {};
     const validation = course?.qaValidation || {};
     const updatedAt = String(coverage.updatedAt || validation.validatedAt || course?.generatedAt || '').slice(0, 10);
-    const source = coverage.source || validation.sourceSyllabus || course?.meta?.subtitle || 'Contenido académico de AcademiaQA';
+    const source = coverage.source || validation.sourceSyllabus || course?.meta?.subtitle || 'Contenido académico de QAvance';
     const version = course?.meta?.versionLabel || course?.meta?.code || activeCourseKey.toUpperCase();
     return `<aside class="courseAcademicTrace" aria-label="Información académica del curso">
       <span><b>Versión:</b> ${h(version)}</span>
       <span><b>Fuente de referencia:</b> ${h(source)}</span>
       <span><b>Actualizado:</b> ${h(updatedAt || 'Fecha no disponible')}</span>
-      <span><b>Publicación:</b> AcademiaQA</span>
+      <span><b>Publicación:</b> QAvance</span>
     </aside>`;
   }
 
@@ -4694,12 +4772,13 @@
     saveProgress(progress);
     if (Auth?.isAuthenticated?.()) {
       Promise.all([Cloud.flushProgress(activeCourseKey), verifiedCompletion])
-        .then(([, result]) => {
+        .then(async ([, result]) => {
           if (!result) {
             notify('El resultado quedó guardado en este dispositivo, pero aún no está acreditado en la nube.', 'warning', 8_000);
             return;
           }
           updateEnrollmentSnapshot(result.enrollment);
+          await refreshVerifiedLearningDashboard();
           const differsFromLocal = number(result.correct_answers) !== correct
             || number(result.earned_points) !== earned
             || number(result.total_points) !== totalPoints;

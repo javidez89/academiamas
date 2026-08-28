@@ -8,7 +8,7 @@ const certificate = {
   certificate_code: 'ACQA-123456789ABC',
   course_key: 'ctfl',
   course_name: 'ISTQB® Certified Tester Foundation Level 4.0 (CTFL)',
-  full_name: 'Javier AcademiaQA',
+  full_name: 'Javier QAvance',
   document_type: 'CC',
   document_last4: '4506',
   estimated_hours: 40,
@@ -72,12 +72,22 @@ try {
     amount_in_cents: 10000000,
     currency: 'COP'
   };
-  await useMockedSupabase(paymentPage, MOCK_SESSION, [enrollment], { certificateOrders: [pendingOrder] });
+  await useMockedSupabase(paymentPage, MOCK_SESSION, [enrollment], {
+    certificateOrders: [pendingOrder],
+    verifiedCourses: [{
+      ...enrollment,
+      verified: true,
+      progress_percent: 100,
+      mastery_percent: 100,
+      final_exam_eligible: true,
+      chapters: []
+    }]
+  });
   await paymentPage.goto(`${BASE_URL}/mi-cuenta/?certificado=pago&id=transaction-test-1234`, { waitUntil: 'domcontentloaded' });
   await paymentPage.getByRole('heading', { name: /Confirma la información que aparecerá en el PDF/i }).waitFor();
   assert.equal(new URL(paymentPage.url()).pathname, '/mi-cuenta/', 'El retorno de Wompi debe conservar la ruta de Mi cuenta.');
   assert.equal(new URL(paymentPage.url()).search, '', 'La transacción debe limpiarse de la barra después de confirmarse.');
-  await paymentPage.getByLabel('Nombre completo').fill('Javier AcademiaQA');
+  await paymentPage.getByLabel('Nombre completo').fill('Javier QAvance');
   await paymentPage.getByLabel('Tipo de documento').selectOption('CC');
   await paymentPage.getByLabel('Número de documento').fill('1020304506');
   await paymentPage.locator('input[name="publicConsent"]').check();

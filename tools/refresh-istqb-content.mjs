@@ -232,11 +232,11 @@ function originalCtAiQuestion(course, template, index, id = template.id) {
     stem,
     options: choice.options,
     correct: choice.correct,
-    explanation: `${correctText} Esta pregunta es original de AcademiaQA y evalúa ${template.lo} (${template.k}).`,
+    explanation: `${correctText} Esta pregunta es original de QAvance y evalúa ${template.lo} (${template.k}).`,
     multi: false,
     difficulty: template.k === 'K3' ? 'aplicación' : 'normal',
     points: template.k === 'K3' ? 2 : 1,
-    source: 'AcademiaQA: pregunta original alineada al syllabus ISTQB CT-AI v2.0 y a la cobertura del examen de muestra v2.1'
+    source: 'QAvance: pregunta original alineada al syllabus ISTQB CT-AI v2.0 y a la cobertura del examen de muestra v2.1'
   };
 }
 
@@ -247,7 +247,7 @@ async function refreshCtAi() {
       ? originalCtAiQuestion(course, question, index)
       : {
           ...question,
-          source: 'AcademiaQA: banco original alineado al syllabus ISTQB CT-AI v2.0'
+          source: 'QAvance: banco original alineado al syllabus ISTQB CT-AI v2.0'
         }
   ));
 
@@ -304,7 +304,7 @@ async function refreshCtfl() {
       explanation: explanation.length >= 40
         ? explanation
         : `${explanation}${explanation ? ' ' : ''}Objetivo evaluado: ${objective?.text || question.lo}.`,
-      source: 'AcademiaQA: pregunta original alineada al syllabus ISTQB CTFL v4.0.1'
+      source: 'QAvance: pregunta original alineada al syllabus ISTQB CTFL v4.0.1'
     }, index);
   });
   if (course.qaValidation.answerOrderVersion !== 'balanced-v2') {
@@ -324,7 +324,7 @@ async function refreshCtfl() {
   course.qaValidation.questionBankAudit.correctedItems = [
     'Trazabilidad actualizada al syllabus CTFL v4.0.1 y a Exam Structure Tables v1.18.',
     'Las explicaciones breves se completaron con el objetivo evaluado.',
-    'Las preguntas son originales de AcademiaQA; los exámenes de muestra se usan solo como referencia de cobertura.'
+    'Las preguntas son originales de QAvance; los exámenes de muestra se usan solo como referencia de cobertura.'
   ];
   course.syllabusCoverageNote.source = 'ISTQB CTFL Syllabus v4.0.1 EN y traducción v4.0 ES';
   course.syllabusCoverageNote.updatedAt = TODAY;

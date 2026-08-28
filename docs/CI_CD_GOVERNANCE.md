@@ -2,7 +2,7 @@
 
 ## Decisión arquitectónica
 
-AcademiaQA adoptará **Trunk-Based Development con ramas cortas**. Para un sitio estático mantenido por un equipo pequeño, este modelo reduce divergencia, simplifica GitHub Pages y permite entregar varias historias por sprint sin sostener ramas `develop`, `release` y `hotfix` de larga duración.
+QAvance adoptará **Trunk-Based Development con ramas cortas**. Para un sitio estático mantenido por un equipo pequeño, este modelo reduce divergencia, simplifica GitHub Pages y permite entregar varias historias por sprint sin sostener ramas `develop`, `release` y `hotfix` de larga duración.
 
 `main` es la única rama de integración y debe permanecer desplegable. No se permiten pushes directos. Todo cambio entra mediante pull request con controles automáticos y revisión proporcional al riesgo.
 
@@ -141,7 +141,7 @@ BREAKING CHANGE: las claves anteriores requieren migración durante la carga.
 
 ## Versionamiento semántico
 
-AcademiaQA usa `MAJOR.MINOR.PATCH`:
+QAvance usa `MAJOR.MINOR.PATCH`:
 
 - **MAJOR:** contrato incompatible de curso/progreso, eliminación de rutas o migración sin compatibilidad.
 - **MINOR:** curso nuevo, módulo nuevo, nueva ruta o capacidad compatible.

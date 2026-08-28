@@ -49,9 +49,9 @@ function saveCourse(key, file, course) {
 }
 
 function sourceInSpanish(value) {
-  if (/traducci[oó]n al espa[nñ]ol de AcademiaQA/i.test(String(value || ''))) return String(value);
+  if (/traducci[oó]n al espa[nñ]ol de QAvance/i.test(String(value || ''))) return String(value);
   const source = String(value || '').replace(/\s*·\s*original en ingl[eé]s\s*$/i, '');
-  return `${source} · traducción al español de AcademiaQA basada en el original en inglés`;
+  return `${source} · traducción al español de QAvance basada en el original en inglés`;
 }
 
 function cacheKey(text) {

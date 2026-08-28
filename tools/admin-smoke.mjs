@@ -25,7 +25,14 @@ const adminUsers = [{
     final_exam_attempts: 1,
     best_final_exam_score: 70,
     final_exam_passed: false,
-    progress: { studySeconds: 5400, byLo: {}, chapterActivity: {}, attempts: [] }
+    progress_percent: 40,
+    mastery_percent: 35,
+    chapter_average: 42,
+    chapter_domain_average: 33,
+    final_exam_eligible: false,
+    verified: true,
+    chapters: [],
+    progress: { studySeconds: 999999, byLo: {}, chapterActivity: {}, attempts: [{ mode: 'final-exam', passed: true, scorePct: 100 }] }
   }]
 }];
 
@@ -55,6 +62,8 @@ try {
   await adminPage.getByText('En línea', { exact: true }).waitFor();
   await adminPage.getByText('Ver cursos y avance por capítulo', { exact: true }).click();
   await adminPage.getByText(/Certified Tester Foundation Level 4\.0/).waitFor();
+  assert.match(await adminPage.locator('.adminEnrollmentRow').innerText(), /Avance\s+40%/i,
+    'Administración debe mostrar el agregado oficial e ignorar el JSON de progreso manipulable.');
   assert.equal(await adminPage.locator('[data-auth-admin-link]').evaluate((element) => element.hidden), false, 'El enlace administrativo debe habilitarse solo al administrador.');
   assert.ok(await adminPage.evaluate(() => window.__supabaseMock.rpcCounts.is_platform_admin) <= 2, 'La autorización administrativa no debe entrar en un ciclo de consultas.');
   const overflow = await adminPage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

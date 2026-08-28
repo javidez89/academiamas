@@ -1,7 +1,7 @@
 # Auditoría de fuentes y bancos ISTQB
 
 Fecha de revisión: 2026-08-06  
-Carpeta de conocimiento: Google Drive de AcademiaQA  
+Carpeta de conocimiento: Google Drive de QAvance
 Alcance de publicación: contenido de estudio y preguntas originales; no se incorporan PDF oficiales al repositorio.
 
 ## Inventario de Drive

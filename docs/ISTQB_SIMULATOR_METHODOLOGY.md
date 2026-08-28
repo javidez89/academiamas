@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Los simuladores de AcademiaQA reproducen la estructura de evaluacion publicada para cada certificacion sin presentarse como examenes oficiales. Las preguntas son originales, estan redactadas en espanol y se alinean con los objetivos de aprendizaje (LO), capitulos y niveles cognitivos K del syllabus correspondiente.
+Los simuladores de QAvance reproducen la estructura de evaluacion publicada para cada certificacion sin presentarse como examenes oficiales. Las preguntas son originales, estan redactadas en espanol y se alinean con los objetivos de aprendizaje (LO), capitulos y niveles cognitivos K del syllabus correspondiente.
 
 ## Fuentes y versiones
 

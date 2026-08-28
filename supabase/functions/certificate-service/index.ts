@@ -147,7 +147,12 @@ function publicOrder(order: JsonObject | null): JsonObject | null {
   };
 }
 
-async function completedEnrollment(admin: ReturnType<typeof projectClients>['admin'], userId: string, courseKey: string): Promise<CompletedEnrollmentRecord> {
+async function completedEnrollment(
+  user: ReturnType<typeof projectClients>['user'],
+  admin: ReturnType<typeof projectClients>['admin'],
+  userId: string,
+  courseKey: string
+): Promise<CompletedEnrollmentRecord> {
   const { data, error } = await admin
     .from('course_enrollments')
     .select('course_key,status,started_at,estimated_hours,final_exam_passed,final_exam_passed_at,completed_at')
@@ -156,10 +161,26 @@ async function completedEnrollment(admin: ReturnType<typeof projectClients>['adm
     .maybeSingle();
   if (error) throw error;
   const enrollment = data as EnrollmentRecord | null;
-  if (!enrollment || enrollment.status !== 'completed' || enrollment.final_exam_passed !== true || !enrollment.completed_at) {
+  const dashboardResult = await user.rpc('get_verified_learning_dashboard');
+  if (dashboardResult.error) throw dashboardResult.error;
+  const verifiedCourse = (Array.isArray(dashboardResult.data?.courses) ? dashboardResult.data.courses : [])
+    .find((item: JsonObject) => item.course_key === courseKey);
+  if (
+    !enrollment
+    || verifiedCourse?.verified !== true
+    || verifiedCourse?.final_exam_passed !== true
+    || Number(verifiedCourse?.progress_percent || 0) !== 100
+    || !verifiedCourse?.completed_at
+  ) {
     throw Object.assign(new Error('El certificado se habilita al completar el curso y aprobar el examen final.'), { status: 403 });
   }
-  return enrollment as CompletedEnrollmentRecord;
+  return {
+    ...enrollment,
+    status: 'completed',
+    final_exam_passed: true,
+    final_exam_passed_at: String(verifiedCourse.completed_at),
+    completed_at: String(verifiedCourse.completed_at)
+  } as CompletedEnrollmentRecord;
 }
 
 async function certificateModules(
@@ -195,10 +216,10 @@ async function checkoutForOrder(order: JsonObject, email: string) {
 }
 
 async function createCheckout(request: Request, body: JsonObject) {
-  const { admin, currentUser } = await authenticatedContext(request);
+  const { user, admin, currentUser } = await authenticatedContext(request);
   const course = certificateCourse(body.courseKey);
   if (!course) throw Object.assign(new Error('Curso no válido.'), { status: 400 });
-  await completedEnrollment(admin, currentUser.id, course.key);
+  await completedEnrollment(user, admin, currentUser.id, course.key);
 
   const existingCertificate = await admin
     .from('certificates')
@@ -326,7 +347,7 @@ function identityInput(body: JsonObject) {
 }
 
 async function issueCertificate(request: Request, body: JsonObject) {
-  const { admin, currentUser } = await authenticatedContext(request);
+  const { user, admin, currentUser } = await authenticatedContext(request);
   const orderId = String(body.orderId || '').trim();
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) throw Object.assign(new Error('Orden de certificado no válida.'), { status: 400 });
   const identity = identityInput(body);
@@ -345,7 +366,7 @@ async function issueCertificate(request: Request, body: JsonObject) {
 
   const course = certificateCourse(order.course_key);
   if (!course) throw Object.assign(new Error('Curso no válido.'), { status: 400 });
-  const enrollment = await completedEnrollment(admin, currentUser.id, course.key);
+  const enrollment = await completedEnrollment(user, admin, currentUser.id, course.key);
 
   const existing = await admin
     .from('certificates')
@@ -372,7 +393,7 @@ async function issueCertificate(request: Request, body: JsonObject) {
     completedAt: enrollment.completed_at,
     issuedAt,
     validationUrl,
-    logoUrl: String(Deno.env.get('ACADEMIAQA_LOGO_URL') || `${siteOrigin()}/assets/img/academiaqa-logo.png`),
+    logoUrl: String(Deno.env.get('ACADEMIAQA_LOGO_URL') || `${siteOrigin()}/assets/img/qavance-logo.png`),
     signatureUrl: String(Deno.env.get('ACADEMIAQA_SIGNATURE_URL') || '').trim() || undefined,
     modules
   });
@@ -411,7 +432,7 @@ async function issueCertificate(request: Request, body: JsonObject) {
   }).eq('id', order.id);
   if (consumed.error) throw consumed.error;
 
-  const filename = `Constancia-AcademiaQA-${course.key}-${code}.pdf`;
+  const filename = `Constancia-QAvance-${course.key}-${code}.pdf`;
   const signed = await admin.storage.from(CERTIFICATE_BUCKET).createSignedUrl(pdfPath, 900, { download: filename });
   if (signed.error) throw signed.error;
   return jsonResponse(request, {
@@ -433,7 +454,7 @@ async function certificateDownload(request: Request, body: JsonObject) {
     const adminAccess = await user.rpc('is_platform_admin');
     if (adminAccess.error || adminAccess.data !== true) throw Object.assign(new Error('No tienes permiso para descargar este certificado.'), { status: 403 });
   }
-  const filename = `Constancia-AcademiaQA-${certificate.course_key}-${code}.pdf`;
+  const filename = `Constancia-QAvance-${certificate.course_key}-${code}.pdf`;
   const signed = await admin.storage.from(CERTIFICATE_BUCKET).createSignedUrl(certificate.pdf_path, 900, { download: filename });
   if (signed.error) throw signed.error;
   return jsonResponse(request, { downloadUrl: signed.data.signedUrl });

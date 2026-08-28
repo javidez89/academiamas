@@ -14,6 +14,6 @@ El curso Scrum Fundamentals es una adaptación educativa en español basada en e
 
 El curso Cybersecurity Awareness es una adaptación educativa en español basada en el PDF Cybersecurity Awareness.pdf aportado por el usuario para Cybersecurity Awareness Professional Certification (CAPC). No se incluye el PDF fuente en el repositorio.
 
-Los enlaces de examen abierto de CertiProf se muestran como recursos externos. AcademiaQA no administra esos exámenes ni controla disponibilidad, emisión de certificados, insignias digitales, requisitos o cambios de condiciones.
+Los enlaces de examen abierto de CertiProf se muestran como recursos externos. QAvance no administra esos exámenes ni controla disponibilidad, emisión de certificados, insignias digitales, requisitos o cambios de condiciones.
 
 El repositorio no debe incluir credenciales, tokens, datos personales, secretos, llaves privadas ni contenido premium cuya autorización dependa únicamente del código del navegador.

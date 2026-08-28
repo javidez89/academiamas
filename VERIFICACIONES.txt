@@ -9,7 +9,7 @@ OK: courses/ctfl/course-data.js
 OK: courses/ctai/course-data.js
 
 === Verificación funcional ===
-OK: Home pública AcademiaQA.
+OK: Home pública QAvance.
 OK: Rutas de aprendizaje visibles.
 OK: CTFL 4.0 y CT-AI 2.0 continúan gratis.
 OK: Filtros de catálogo por área.

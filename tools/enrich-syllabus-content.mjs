@@ -126,7 +126,7 @@ function buildCaseStudy(chapter, courseName) {
     challenge: examples[1] || pitfalls[0] || `El equipo necesita tomar una decisión verificable sin perder de vista el riesgo y el objetivo del ${courseName}.`,
     approach: bullets[0] || chapter.summary || `Analiza el contexto, identifica la evidencia necesaria y aplica los conceptos del capítulo antes de decidir.`,
     evidence: bullets[1] || pitfalls[1] || 'La decisión debe quedar respaldada por resultados observables, trazabilidad y una explicación clara del riesgo residual.',
-    attribution: 'Escenario didáctico elaborado por AcademiaQA.'
+    attribution: 'Escenario didáctico elaborado por QAvance.'
   };
 }
 
@@ -140,7 +140,7 @@ function enrichTeachingContent(key, course) {
       const chapter = course.chapters.find((item) => Number(item.id) === Number(objective.chapter));
       objective.example = `En un equipo real, aplica “${objective.text}” al escenario de ${String(chapter?.title || courseName).toLowerCase()} y documenta la evidencia que sustenta la decisión.`;
     }
-    objective.exampleAttribution = 'Ejemplo didáctico elaborado por AcademiaQA.';
+    objective.exampleAttribution = 'Ejemplo didáctico elaborado por QAvance.';
   }
 }
 

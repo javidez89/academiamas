@@ -3,7 +3,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 
 const ROOT = process.cwd();
-const sourcePath = path.join(ROOT, 'assets', 'img', 'academiaqa-logo.png');
+const sourcePath = path.join(ROOT, 'assets', 'img', 'qavance-logo-source.png');
 const source = await fs.readFile(sourcePath);
 const sourceUrl = `data:image/png;base64,${source.toString('base64')}`;
 const browser = await chromium.launch({ headless: true });
@@ -23,19 +23,22 @@ async function renderAsset({ file, width, height, type, quality = 0.9, draw }) {
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = 'high';
 
+      const logoCrop = { x: 12, y: 18, width: 1721, height: 523 };
+      const iconCrop = { x: 12, y: 18, width: 500, height: 500 };
+
       if (draw === 'logo') {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, outputWidth, outputHeight);
-        context.drawImage(image, 0, 0, outputWidth, outputHeight);
+        context.drawImage(image, logoCrop.x, logoCrop.y, logoCrop.width, logoCrop.height, 0, 0, outputWidth, outputHeight);
       } else if (draw === 'icon') {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, outputWidth, outputHeight);
-        context.drawImage(image, 22, 18, 458, 399, 2, 2, outputWidth - 4, outputHeight - 4);
+        context.drawImage(image, iconCrop.x, iconCrop.y, iconCrop.width, iconCrop.height, 2, 2, outputWidth - 4, outputHeight - 4);
       } else if (draw === 'maskable') {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, outputWidth, outputHeight);
         const inset = Math.round(outputWidth * 0.16);
-        context.drawImage(image, 22, 18, 458, 399, inset, inset, outputWidth - (inset * 2), outputHeight - (inset * 2));
+        context.drawImage(image, iconCrop.x, iconCrop.y, iconCrop.width, iconCrop.height, inset, inset, outputWidth - (inset * 2), outputHeight - (inset * 2));
       } else {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, outputWidth, outputHeight);
@@ -44,8 +47,8 @@ async function renderAsset({ file, width, height, type, quality = 0.9, draw }) {
         context.fillStyle = '#1d9bd7';
         context.fillRect(0, outputHeight - 22, outputWidth, 22);
         const logoWidth = 1080;
-        const logoHeight = Math.round(logoWidth * 435 / 1640);
-        context.drawImage(image, (outputWidth - logoWidth) / 2, 116, logoWidth, logoHeight);
+        const logoHeight = Math.round(logoWidth * logoCrop.height / logoCrop.width);
+        context.drawImage(image, logoCrop.x, logoCrop.y, logoCrop.width, logoCrop.height, (outputWidth - logoWidth) / 2, 92, logoWidth, logoHeight);
         context.fillStyle = '#143d70';
         context.font = '700 31px Arial, sans-serif';
         context.textAlign = 'center';
@@ -64,8 +67,9 @@ async function renderAsset({ file, width, height, type, quality = 0.9, draw }) {
 
 try {
   await Promise.all([
-    renderAsset({ file: 'assets/img/academiaqa-logo-660.webp', width: 660, height: 175, type: 'image/webp', quality: 0.9, draw: 'logo' }),
-    renderAsset({ file: 'assets/img/academiaqa-social.jpg', width: 1200, height: 630, type: 'image/jpeg', quality: 0.9, draw: 'social' }),
+    renderAsset({ file: 'assets/img/qavance-logo.png', width: 1320, height: 402, type: 'image/png', draw: 'logo' }),
+    renderAsset({ file: 'assets/img/qavance-logo-660.webp', width: 660, height: 201, type: 'image/webp', quality: 0.9, draw: 'logo' }),
+    renderAsset({ file: 'assets/img/qavance-social.jpg', width: 1200, height: 630, type: 'image/jpeg', quality: 0.9, draw: 'social' }),
     renderAsset({ file: 'assets/img/favicon-48.png', width: 48, height: 48, type: 'image/png', draw: 'icon' }),
     renderAsset({ file: 'assets/img/apple-touch-icon.png', width: 180, height: 180, type: 'image/png', draw: 'icon' }),
     renderAsset({ file: 'assets/img/pwa-icon-192.png', width: 192, height: 192, type: 'image/png', draw: 'icon' }),

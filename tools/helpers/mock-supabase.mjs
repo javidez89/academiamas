@@ -1,5 +1,5 @@
-export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], audioFailure = false, publicActivitySummary = {} }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedAudioFailure, mockedPublicActivitySummary }) => {
+export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -28,6 +28,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       verifiedAssessment: null,
       verifiedAssessmentHistory: [],
       verifiedAssessmentCalls: [],
+      verifiedCourseOverrides: new Map((mockedVerifiedCourses || []).map((item) => [item.course_key, structuredClone(item)])),
       rpcCounts: {},
       calls: persistedSignOutCall ? { signOut: persistedSignOutCall } : {}
     };
@@ -109,6 +110,122 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       const a = normalizedIndices(left);
       const b = normalizedIndices(right);
       return a.length === b.length && a.every((value, index) => value === b[index]);
+    }
+
+    function verifiedDashboard() {
+      const courses = state.enrollments.map((item) => {
+        const loadedCourse = window.AcademyRegistry?.get?.(item.course_key);
+        const latestPractice = new Map();
+        state.verifiedAssessmentHistory
+          .filter((attempt) => attempt.course_key === item.course_key && attempt.activity_type === 'practice')
+          .forEach((attempt) => Object.entries(attempt.answers || {}).forEach(([questionId, selected]) => {
+            const question = courseQuestion(item.course_key, questionId);
+            if (question) latestPractice.set(questionId, { question, correct: equalIndices(selected, question.correct) });
+          }));
+        const chapters = (loadedCourse?.chapters || []).map((chapter) => {
+          const chapterQuestions = (loadedCourse?.questions || []).filter((question) => Number(question.chapter) === Number(chapter.id));
+          const answers = [...latestPractice.values()].filter((answer) => Number(answer.question.chapter) === Number(chapter.id));
+          const readingSessions = state.learningActivityHistory.filter((activity) => (
+            activity.course_key === item.course_key
+            && activity.activity_type === 'reading'
+            && Number(activity.chapter_id) === Number(chapter.id)
+          ));
+          const studySeconds = readingSessions.reduce((sum, activity) => sum + Math.max(0, Number(activity.duration_seconds) || 0), 0);
+          const readingProgress = Math.min(100, Math.round((studySeconds * 100) / Math.max(60, Number(chapter.minutes || 1) * 60)));
+          const practiceCoverage = chapterQuestions.length ? Math.round((answers.length * 100) / chapterQuestions.length) : 0;
+          const uniqueCorrect = answers.filter((answer) => answer.correct).length;
+          const domain = chapterQuestions.length ? Math.round((uniqueCorrect * 100) / chapterQuestions.length) : 0;
+          const objectives = (loadedCourse?.objectives || []).filter((objective) => Number(objective.chapter) === Number(chapter.id));
+          return {
+            chapter_id: Number(chapter.id),
+            title: chapter.title,
+            suggested_minutes: Number(chapter.minutes || 1),
+            objective_count: objectives.length,
+            question_count: chapterQuestions.length,
+            study_seconds: studySeconds,
+            study_minutes: Math.round(studySeconds / 60),
+            unique_answered: answers.length,
+            unique_correct: uniqueCorrect,
+            touched_objectives: new Set(answers.map((answer) => answer.question.lo)).size,
+            reading_progress: readingProgress,
+            practice_coverage: practiceCoverage,
+            coverage: Math.min(100, Math.round((readingProgress * 0.4) + (practiceCoverage * 0.6))),
+            domain,
+            visited_at: readingSessions[0]?.started_at || null,
+            last_studied_at: readingSessions.at(-1)?.last_seen_at || null
+          };
+        });
+        const completedAttempts = state.verifiedAssessmentHistory.filter((attempt) => (
+          attempt.course_key === item.course_key && attempt.status === 'completed' && attempt.result
+        ));
+        const simulators = completedAttempts.filter((attempt) => attempt.activity_type === 'simulator');
+        const finals = completedAttempts.filter((attempt) => attempt.activity_type === 'final_exam');
+        const finalPassed = finals.some((attempt) => attempt.result?.passed === true);
+        const chapterAverage = chapters.length ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.coverage, 0) / chapters.length) : 0;
+        const totalQuestions = chapters.reduce((sum, chapter) => sum + chapter.question_count, 0);
+        const chapterDomainAverage = totalQuestions
+          ? Math.round(chapters.reduce((sum, chapter) => sum + (chapter.domain * chapter.question_count), 0) / totalQuestions)
+          : 0;
+        const finalScore = finals.length ? Math.max(...finals.map((attempt) => Number(attempt.result?.score || 0))) : 0;
+        const allSessions = state.learningActivityHistory.filter((activity) => activity.course_key === item.course_key);
+        const derived = {
+          ...item,
+          status: item.status === 'cancelled' ? 'cancelled' : finalPassed ? 'completed' : 'active',
+          legacy_status: item.status,
+          last_activity_at: allSessions.at(-1)?.last_seen_at || item.last_activity_at,
+          study_seconds: allSessions.reduce((sum, activity) => sum + Math.max(0, Number(activity.duration_seconds) || 0), 0),
+          verified_study_seconds: allSessions.reduce((sum, activity) => sum + Math.max(0, Number(activity.duration_seconds) || 0), 0),
+          session_count: allSessions.length,
+          simulator_attempts: simulators.length,
+          best_simulator_score: simulators.length ? Math.max(...simulators.map((attempt) => Number(attempt.result?.score || 0))) : 0,
+          practice_answers: latestPractice.size,
+          practice_correct: [...latestPractice.values()].filter((answer) => answer.correct).length,
+          final_exam_attempts: finals.length,
+          best_final_exam_score: finalScore,
+          final_exam_passed: finalPassed,
+          final_exam_passed_at: finals.find((attempt) => attempt.result?.passed)?.completed_at || null,
+          completed_at: finals.find((attempt) => attempt.result?.passed)?.completed_at || null,
+          chapter_count: chapters.length,
+          chapter_average: chapterAverage,
+          chapter_domain_average: chapterDomainAverage,
+          question_count: totalQuestions,
+          progress_percent: finalPassed ? 100 : Math.min(95, Math.round(chapterAverage * 0.95)),
+          mastery_percent: Math.min(100, Math.round(((chapterDomainAverage * 95) + (finalScore * 5)) / 100)),
+          final_exam_eligible: finalPassed || Math.min(95, Math.round(chapterAverage * 0.95)) >= 95,
+          verified: true,
+          chapters
+        };
+        const override = state.verifiedCourseOverrides.get(item.course_key);
+        if (!override) return derived;
+        const combined = { ...derived, ...structuredClone(override), verified: true };
+        if (item.status === 'cancelled') combined.status = 'cancelled';
+        if (finals.length) {
+          combined.final_exam_attempts = finals.length;
+          combined.best_final_exam_score = finalScore;
+          combined.final_exam_passed = finalPassed;
+          combined.final_exam_passed_at = derived.final_exam_passed_at;
+          combined.completed_at = derived.completed_at;
+          combined.progress_percent = finalPassed ? 100 : combined.progress_percent;
+          combined.status = finalPassed && item.status !== 'cancelled' ? 'completed' : combined.status;
+          combined.final_exam_eligible = finalPassed || combined.progress_percent >= 95;
+        }
+        return combined;
+      });
+      const active = courses.filter((course) => course.status !== 'cancelled');
+      return {
+        verified: true,
+        generated_at: new Date().toISOString(),
+        courses,
+        summary: {
+          enrolled_courses: active.length,
+          completed_courses: active.filter((course) => course.final_exam_passed).length,
+          progress_percent: active.length ? Math.round(active.reduce((sum, course) => sum + Number(course.progress_percent || 0), 0) / active.length) : 0,
+          mastery_percent: active.length ? Math.round(active.reduce((sum, course) => sum + Number(course.mastery_percent || 0), 0) / active.length) : 0,
+          study_seconds: active.reduce((sum, course) => sum + Number(course.study_seconds || 0), 0),
+          simulator_attempts: active.reduce((sum, course) => sum + Number(course.simulator_attempts || 0), 0),
+          final_exam_attempts: active.reduce((sum, course) => sum + Number(course.final_exam_attempts || 0), 0)
+        }
+      };
     }
 
     function queryFor(table, columns) {
@@ -275,6 +392,9 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 },
                 error: null
               };
+            }
+            if (name === 'get_verified_learning_dashboard') {
+              return { data: structuredClone(verifiedDashboard()), error: null };
             }
             if (name === 'is_platform_admin') {
               return { data: state.admin, error: null };
@@ -503,6 +623,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 return { data: { downloadUrl: 'data:application/pdf;base64,JVBERi0xLjQ=' }, error: null };
               }
               if (body.action === 'create-checkout') {
+                const verifiedCourse = verifiedDashboard().courses.find((item) => item.course_key === body.courseKey);
+                if (!verifiedCourse?.verified || !verifiedCourse.final_exam_passed || Number(verifiedCourse.progress_percent) !== 100) {
+                  return { data: null, error: { message: 'El certificado se habilita al completar el curso y aprobar el examen final.', status: 403 } };
+                }
                 const certificate = state.certificates.find((item) => item.course_key === body.courseKey);
                 if (certificate) return { data: { status: 'ISSUED', certificate: structuredClone(certificate) }, error: null };
                 const approved = state.certificateOrders.find((item) => item.course_key === body.courseKey && item.status === 'APPROVED');
@@ -524,6 +648,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               }
               if (body.action === 'issue-certificate') {
                 const order = state.certificateOrders.find((item) => item.id === body.orderId) || state.certificateOrders[0] || {};
+                const verifiedCourse = verifiedDashboard().courses.find((item) => item.course_key === order.course_key);
+                if (!verifiedCourse?.verified || !verifiedCourse.final_exam_passed || Number(verifiedCourse.progress_percent) !== 100) {
+                  return { data: null, error: { message: 'El certificado se habilita al completar el curso y aprobar el examen final.', status: 403 } };
+                }
                 const certificate = {
                   certificate_code: 'ACQA-123456789ABC',
                   course_key: order.course_key || 'ctfl',
@@ -571,14 +699,15 @@ export async function useMockedSupabase(page, session, enrollments = [], options
       online_students: 4,
       active_students: 3,
       measured_at: '2026-08-25T13:00:00.000Z'
-    }
+    },
+    mockedVerifiedCourses: options.verifiedCourses || []
   });
 }
 
 export const MOCK_USER = Object.freeze({
   id: 'f5faef51-a75a-4c3d-bd74-21fe19a3f60f',
   email: 'javier@example.com',
-  user_metadata: { full_name: 'Javier AcademiaQA' }
+  user_metadata: { full_name: 'Javier QAvance' }
 });
 
 export const MOCK_SESSION = Object.freeze({

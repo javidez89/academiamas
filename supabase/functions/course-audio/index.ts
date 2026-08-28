@@ -72,8 +72,8 @@ function audioResponse(request: Request, audio: Blob | ArrayBuffer, cacheStatus:
       ...corsHeaders(request),
       'Content-Type': 'audio/mpeg',
       'Cache-Control': 'private, max-age=86400',
-      'X-AcademiaQA-Audio-Cache': cacheStatus,
-      'X-AcademiaQA-Audio-Disclosure': 'AI-generated'
+      'X-QAvance-Audio-Cache': cacheStatus,
+      'X-QAvance-Audio-Disclosure': 'AI-generated'
     }
   });
 }

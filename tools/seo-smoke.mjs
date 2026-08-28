@@ -114,7 +114,7 @@ function validatePageMetadata(html, path) {
   assert.equal(alternate?.hreflang?.toLowerCase(), 'es-co', `hreflang incorrecto en ${path}.`);
   assert.equal(alternate?.href, expectedCanonical, `URL hreflang incorrecta en ${path}.`);
   assert.equal(favicon?.href, '/assets/img/favicon-48.png', `Favicon incorrecto en ${path}.`);
-  assert.equal(socialImage, `${PROD_BASE}/assets/img/academiaqa-social.jpg`, `Imagen social incorrecta en ${path}.`);
+  assert.equal(socialImage, `${PROD_BASE}/assets/img/qavance-social.jpg`, `Imagen social incorrecta en ${path}.`);
   assert.equal(googleTagCount, 1, `La etiqueta remota de Google Analytics falta o está duplicada en ${path}.`);
   assert.equal(googleConfigCount, 1, `La configuración de Google Analytics falta o está duplicada en ${path}.`);
   assert.match(html, /<head>\s*<!-- Google tag \(gtag\.js\) -->\s*<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=G-F5VK3VZYR0"><\/script>/i, `La etiqueta de Google no está inmediatamente después de <head> en ${path}.`);

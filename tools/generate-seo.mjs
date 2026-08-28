@@ -6,8 +6,8 @@ const ROOT = process.cwd();
 const DOMAIN = 'https://academiaqaoficial.com';
 const cleanDomain = DOMAIN.replace(/\/$/, '');
 const rootPath = (...parts) => path.join(ROOT, ...parts);
-const BRAND_LOGO = '/assets/img/academiaqa-logo-660.webp';
-const SOCIAL_IMAGE = '/assets/img/academiaqa-social.jpg';
+const BRAND_LOGO = '/assets/img/qavance-logo-660.webp';
+const SOCIAL_IMAGE = '/assets/img/qavance-social.jpg';
 const GOOGLE_TAG_ID = 'G-F5VK3VZYR0';
 const GOOGLE_TAG_SCRIPT = `  window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
@@ -58,7 +58,7 @@ function organization() {
   return {
     '@type': 'EducationalOrganization',
     '@id': urlFor('/#organization'),
-    name: 'AcademiaQA',
+    name: 'QAvance',
     url: urlFor('/'),
     logo: {
       '@type': 'ImageObject',
@@ -158,19 +158,19 @@ function seoCourseLabel(course) {
 
 function courseTitle(course) {
   const prefix = course.family === 'ISTQB' ? 'Curso ISTQB' : 'Curso';
-  return clip(`${prefix} ${seoCourseLabel(course)} gratis y simulador | AcademiaQA`, 65);
+  return clip(`${prefix} ${seoCourseLabel(course)} gratis y simulador | QAvance`, 65);
 }
 
 function examTitle(course) {
   const prefix = course.family === 'ISTQB' ? 'Simulacro ISTQB' : 'Simulacro';
-  return clip(`${prefix} ${seoCourseLabel(course)} gratis | AcademiaQA`, 65);
+  return clip(`${prefix} ${seoCourseLabel(course)} gratis | QAvance`, 65);
 }
 
 function chapterTitle(course, chapter) {
-  const detailed = `C${chapter.id}: ${chapter.title} | ${seoCourseLabel(course)} - AcademiaQA`;
+  const detailed = `C${chapter.id}: ${chapter.title} | ${seoCourseLabel(course)} - QAvance`;
   return detailed.length <= 65
     ? detailed
-    : `Capítulo ${chapter.id} ${seoCourseLabel(course)} | AcademiaQA`;
+    : `Capítulo ${chapter.id} ${seoCourseLabel(course)} | QAvance`;
 }
 
 function courseSummary(course) {
@@ -191,7 +191,7 @@ function courseDescription(course) {
   const counts = countsOf(course);
   const blueprint = blueprintOf(course);
   const name = seoCourseName(course);
-  return `Estudia ${name} con ${counts.chapters || 0} capítulos, ${counts.objectives || 0} objetivos LO, práctica y simulacro de ${blueprint.totalQuestions || 0} preguntas en AcademiaQA.`;
+  return `Estudia ${name} con ${counts.chapters || 0} capítulos, ${counts.objectives || 0} objetivos LO, práctica y simulacro de ${blueprint.totalQuestions || 0} preguntas en QAvance.`;
 }
 
 function examDescription(course) {
@@ -199,7 +199,7 @@ function examDescription(course) {
   const blueprint = blueprintOf(course);
   const name = seoCourseName(course);
   const points = blueprint.totalPoints || blueprint.totalQuestions || 0;
-  return `Practica con el simulacro de ${name}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${points}. Acceso gratis en AcademiaQA.`;
+  return `Practica con el simulacro de ${name}: ${blueprint.totalQuestions || 0} preguntas, ${blueprint.minutes || 0} minutos y aprobación de ${blueprint.passingScore || 0}/${points}. Acceso gratis en QAvance.`;
 }
 
 function courseEntity(course, courseData = {}) {
@@ -225,7 +225,7 @@ function courseEntity(course, courseData = {}) {
 function courseList(catalog, courseDataByKey = new Map()) {
   return {
     '@type': 'ItemList',
-    name: 'Cursos disponibles en AcademiaQA',
+    name: 'Cursos disponibles en QAvance',
     numberOfItems: catalog.length,
     itemListElement: catalog.map((course, index) => ({
       '@type': 'ListItem',
@@ -291,9 +291,9 @@ function courseSourceDetails(course, courseData = {}) {
   const dataMeta = courseData.meta || {};
   return {
     version: dataMeta.versionLabel || metaOf(course).code || course.key,
-    source: coverage.source || validation.sourceSyllabus || metaOf(course).subtitle || 'Contenido académico de AcademiaQA',
+    source: coverage.source || validation.sourceSyllabus || metaOf(course).subtitle || 'Contenido académico de QAvance',
     updatedAt: String(coverage.updatedAt || validation.validatedAt || courseData.generatedAt || course.generatedAt || '').slice(0, 10),
-    responsible: 'AcademiaQA'
+    responsible: 'QAvance'
   };
 }
 
@@ -385,7 +385,7 @@ ${analyticsTags()}
   <base href="/">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="es_CO">
-  <meta property="og:site_name" content="AcademiaQA">
+  <meta property="og:site_name" content="QAvance">
   <meta property="og:title" content="${h(title)}">
   <meta property="og:description" content="${h(cleanDescription)}">
   <meta property="og:url" content="${h(canonical)}">
@@ -393,12 +393,12 @@ ${analyticsTags()}
   <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
+  <meta property="og:image:alt" content="QAvance - Testing, Agilismo, Proyectos e IA">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${h(title)}">
   <meta name="twitter:description" content="${h(cleanDescription)}">
   <meta name="twitter:image" content="${h(urlFor(SOCIAL_IMAGE))}">
-  <meta name="twitter:image:alt" content="AcademiaQA - QA &amp; Testing Academia">
+  <meta name="twitter:image:alt" content="QAvance - Testing, Agilismo, Proyectos e IA">
   <title>${h(title)}</title>
   <script type="application/ld+json">${jsonLd({
     '@context': 'https://schema.org',
@@ -445,7 +445,7 @@ function shell({ page, content, catalog }, version) {
   <header id="inicio"${isPublicPage ? ' class="homeHeader"' : ''}>
     <div class="wrap siteTopbar">
       <a class="brandMark" href="/" data-home-anchor="inicio" aria-label="Ir al inicio">
-        <picture><source type="image/webp" srcset="/assets/img/academiaqa-logo-660.webp"><img class="brandLogo" src="/assets/img/academiaqa-logo.png" width="660" height="175" alt="AcademiaQA - QA &amp; Testing Academia" decoding="async"></picture>
+        <picture><source type="image/webp" srcset="/assets/img/qavance-logo-660.webp"><img class="brandLogo" src="/assets/img/qavance-logo.png" width="660" height="201" alt="QAvance - Testing, Agilismo, Proyectos e IA" decoding="async"></picture>
       </a>
       <button class="menuToggle" type="button" data-action="toggle-site-menu" aria-controls="siteMenu" aria-expanded="false">
         <span class="srOnly">Abrir menú principal</span>
@@ -465,7 +465,7 @@ function shell({ page, content, catalog }, version) {
     </div>
     <div class="wrap hero">
       <div>
-        ${isPublicPage ? `<span class="heroTitleText" id="heroTitle">${h(page.heroTitle || 'AcademiaQA')}</span>` : `<h1 id="heroTitle">${h(page.heroTitle || 'AcademiaQA')}</h1>`}
+        ${isPublicPage ? `<span class="heroTitleText" id="heroTitle">${h(page.heroTitle || 'QAvance')}</span>` : `<h1 id="heroTitle">${h(page.heroTitle || 'QAvance')}</h1>`}
         <p class="subtitle" id="heroSubtitle">${h(page.heroSubtitle || page.description)}</p>
         <div class="topbadges">
           <span class="badge" id="topChapters">${h(heroBadges.chapters)}</span>
@@ -507,7 +507,7 @@ function shell({ page, content, catalog }, version) {
       <button class="modalClose" type="button" data-action="close-certificate-modal" aria-label="Cerrar">X</button>
       <div class="certificateModalBody" id="certificateModalBody">
         <div class="certificateModalLoading" role="status">
-          <span class="sectionKicker">Certificados AcademiaQA</span>
+          <span class="sectionKicker">Certificados QAvance</span>
           <h2 id="certificateModalTitle">Preparando información segura...</h2>
         </div>
       </div>
@@ -530,14 +530,14 @@ function shell({ page, content, catalog }, version) {
         <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards <small>glosario</small></button>
         <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas <small>errores</small></button>
         <div class="note small"><b>Nota:</b> cada certificación conserva progreso independiente. Las preguntas de práctica están alineadas al temario y no duplican literalmente el examen oficial.</div>
-        <div class="btnrow"><button class="btn secondary" type="button" id="resetProgress">Borrar avance</button></div>
+        <div class="btnrow"><button class="btn secondary" type="button" id="resetProgress">Limpiar datos locales</button></div>
       </aside>
 
       <section id="app" aria-label="Contenido del curso">
 ${content}
       </section>
     </div>
-    <div class="footer${page.path === '/' ? ' homeFooter' : ''}" id="footerText"${isPublicPage && page.path !== '/' ? ' hidden' : ''}>${page.path === '/' ? 'AcademiaQA' : ''}</div>
+    <div class="footer${page.path === '/' ? ' homeFooter' : ''}" id="footerText"${isPublicPage && page.path !== '/' ? ' hidden' : ''}>${page.path === '/' ? 'QAvance' : ''}</div>
   </main>
   <button class="backToTop" id="backToTop" type="button" data-action="back-to-top" aria-label="Volver al inicio" title="Volver al inicio" hidden><span aria-hidden="true">↑</span></button>
 </body>
@@ -599,7 +599,7 @@ function homeContent(catalog) {
           </section>
           <section class="communityActivity" aria-labelledby="communityActivityTitle" aria-live="polite">
             <div class="communityActivityCopy">
-              <span class="sectionKicker">Comunidad AcademiaQA</span>
+              <span class="sectionKicker">Comunidad QAvance</span>
               <h2 id="communityActivityTitle">Aprendemos en comunidad.</h2>
             </div>
             <div class="communityMetric"><strong data-community-registered>—</strong><span>Personas registradas</span></div>
@@ -622,7 +622,7 @@ function publicContent(kind, catalog) {
 
   if (kind === 'courses') {
     return `        <div class="card">
-          <span class="sectionKicker">AcademiaQA</span>
+          <span class="sectionKicker">QAvance</span>
           <h1 id="coursesTitle">Cursos disponibles</h1>
           <p>${h(intro)}</p>
           <div class="availableCoursesGrid">${courseGrid}</div>
@@ -631,7 +631,7 @@ function publicContent(kind, catalog) {
 
   if (kind === 'routes') {
     return `        <div class="card">
-          <span class="sectionKicker">AcademiaQA</span>
+          <span class="sectionKicker">QAvance</span>
           <h1 id="routesTitle">Ruta de aprendizaje</h1>
           <p>${h(intro)}</p>
           ${badges(tagList)}
@@ -641,7 +641,7 @@ function publicContent(kind, catalog) {
 
   if (kind === 'contact') {
     return `        <div class="card">
-          <span class="sectionKicker">AcademiaQA</span>
+          <span class="sectionKicker">QAvance</span>
           <h1 id="contactTitle">Contáctanos</h1>
           <p>${h(intro)}</p>
           ${badges(tagList)}
@@ -649,12 +649,12 @@ function publicContent(kind, catalog) {
   }
 
   return `        <div class="card">
-          <span class="sectionKicker">AcademiaQA</span>
+          <span class="sectionKicker">QAvance</span>
           <h1 id="legalTitle">Politica de privacidad y terminos de uso</h1>
           <p>${h(intro)}</p>
-          <p>AcademiaQA requiere inicio de sesión con Google mediante Supabase Auth para entrar a los cursos. AcademiaQA no recibe la contraseña de Google. Las matrículas, el avance por capítulo, el tiempo activo de estudio y los resultados se sincronizan con Supabase y conservan una copia local en el navegador.</p>
+          <p>QAvance requiere inicio de sesión con Google mediante Supabase Auth para entrar a los cursos. QAvance no recibe la contraseña de Google. Las matrículas, el avance por capítulo, el tiempo activo de estudio y los resultados se sincronizan con Supabase y conservan una copia local en el navegador.</p>
           <p>Cancelar un curso conserva su historial para permitir la reactivación. El usuario puede eliminar definitivamente un curso cancelado desde Mi cuenta, lo que borra su matrícula, avance, tiempo e intentos asociados.</p>
-          <p>AcademiaQA utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
+          <p>QAvance utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
           ${badges(tagList)}
         </div>`;
 }
@@ -721,7 +721,7 @@ function website() {
     '@type': 'WebSite',
     '@id': urlFor('/#website'),
     url: urlFor('/'),
-    name: 'AcademiaQA',
+    name: 'QAvance',
     inLanguage: 'es-CO',
     publisher: { '@id': urlFor('/#organization') }
   };
@@ -734,8 +734,8 @@ function pageDefinitions(catalog, courseDataByKey) {
     {
       key: 'home',
       path: '/',
-      title: 'Cursos QA gratis y simulacros ISTQB | AcademiaQA',
-      heroTitle: 'AcademiaQA',
+      title: 'Cursos QA gratis y simulacros ISTQB | QAvance',
+      heroTitle: 'QAvance',
       description: 'Aprende QA y testing con cursos gratis, syllabus, práctica, flashcards y simulacros para ISTQB, IA, Scrum y gestión de proyectos.',
       schema: [organization(), website()],
       content: homeContent(catalog)
@@ -743,7 +743,7 @@ function pageDefinitions(catalog, courseDataByKey) {
     {
       key: 'courses',
       path: '/cursos/',
-      title: 'Cursos gratis de QA, Testing, IA y Scrum | AcademiaQA',
+      title: 'Cursos gratis de QA, Testing, IA y Scrum | QAvance',
       heroTitle: 'Cursos',
       description: `Explora ${totals.courses} cursos gratis de QA, testing, IA, Scrum, gestión de proyectos y ciberseguridad con syllabus, práctica y simulacros.`,
       schema: [
@@ -755,7 +755,7 @@ function pageDefinitions(catalog, courseDataByKey) {
     {
       key: 'routes',
       path: '/ruta-aprendizaje/',
-      title: 'Rutas para aprender QA, Testing, IA y Scrum | AcademiaQA',
+      title: 'Rutas para aprender QA, Testing, IA y Scrum | QAvance',
       heroTitle: 'Ruta de aprendizaje',
       description: 'Elige una ruta de aprendizaje gratuita en QA, testing, IA, Scrum, gestión de proyectos o ciberseguridad y avanza hasta el simulacro.',
       schema: [
@@ -767,39 +767,39 @@ function pageDefinitions(catalog, courseDataByKey) {
     {
       key: 'contact',
       path: '/contactanos/',
-      title: 'Contáctanos | AcademiaQA',
+      title: 'Contáctanos | QAvance',
       heroTitle: 'Contáctanos',
-      description: 'Contacta a AcademiaQA para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.',
+      description: 'Contacta a QAvance para reportar un problema, sugerir una mejora académica o proponer una colaboración para la comunidad QA.',
       schema: [breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Contáctanos', path: '/contactanos/' }])],
       content: publicContent('contact', catalog)
     },
     {
       key: 'legal',
       path: '/legal/',
-      title: 'Información legal y privacidad | AcademiaQA',
+      title: 'Información legal y privacidad | QAvance',
       heroTitle: 'Información legal',
-      description: 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de AcademiaQA.',
+      description: 'Consulta la política de privacidad, los términos de uso y el aviso de plataforma educativa independiente de QAvance.',
       schema: [breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Información legal', path: '/legal/' }])],
       content: publicContent('legal', catalog)
     },
     {
       key: 'verify-certificate',
       path: '/validar-certificado/',
-      title: 'Validar certificado AcademiaQA | Consulta pública',
+      title: 'Validar certificado QAvance | Consulta pública',
       heroTitle: 'Validar certificado',
-      description: 'Consulta un certificado de finalización de AcademiaQA mediante su código único y verifica su estado, curso y fecha de emisión.',
+      description: 'Consulta un certificado de finalización de QAvance mediante su código único y verifica su estado, curso y fecha de emisión.',
       schema: [breadcrumb([{ name: 'Inicio', path: '/' }, { name: 'Validar certificado', path: '/validar-certificado/' }])],
       content: `        <div class="publicHome publicPage certificateValidationPage" id="validar-certificado">
           <section class="certificateValidationHero" aria-labelledby="certificateValidationTitle">
             <span class="sectionKicker">Validación pública</span>
-            <h1 id="certificateValidationTitle">Valida un certificado AcademiaQA</h1>
+            <h1 id="certificateValidationTitle">Valida un certificado QAvance</h1>
             <p>Consulta el código único impreso en el PDF o abre la URL incluida en su código QR.</p>
             <form class="certificateValidationForm" data-certificate-validation-form>
               <label for="certificateCodeInput">Código del certificado</label>
               <div><input id="certificateCodeInput" name="certificateCode" type="text" maxlength="17" placeholder="ACQA-XXXXXXXXXXXX" autocomplete="off" required><button class="btn" type="submit">Validar</button></div>
             </form>
           </section>
-          <div class="note certificateValidationDisclaimer"><b>Alcance:</b> AcademiaQA valida la finalización de sus cursos internos. Este registro no reemplaza ni representa una certificación oficial de ISTQB, CertiProf u otra entidad certificadora.</div>
+          <div class="note certificateValidationDisclaimer"><b>Alcance:</b> QAvance valida la finalización de sus cursos internos. Este registro no reemplaza ni representa una certificación oficial de ISTQB, CertiProf u otra entidad certificadora.</div>
         </div>`
     }
   ];
@@ -855,7 +855,7 @@ function pageDefinitions(catalog, courseDataByKey) {
         ...courseHeroProperties(course),
         title: chapterTitle(course, chapter),
         heroTitle: meta.name || course.key,
-        description: `Capítulo ${chapter.id} de ${seoCourseLabel(course)}: ${plain(chapter.summary || chapter.title)} Estudia objetivos LO, términos y ejemplos en AcademiaQA.`,
+        description: `Capítulo ${chapter.id} de ${seoCourseLabel(course)}: ${plain(chapter.summary || chapter.title)} Estudia objetivos LO, términos y ejemplos en QAvance.`,
         schema: [
           chapterEntity(course, courseData, chapter),
           breadcrumb([
@@ -879,9 +879,9 @@ function privatePageDefinitions(catalog) {
   const account = {
     key: 'account',
     path: '/mi-cuenta/',
-    title: 'Mi cuenta | AcademiaQA',
+    title: 'Mi cuenta | QAvance',
     heroTitle: 'Mi cuenta',
-    description: 'Consulta tus matrículas, avance y actividad de aprendizaje en AcademiaQA.',
+    description: 'Consulta tus matrículas, avance y actividad de aprendizaje en QAvance.',
     robots: 'noindex, nofollow',
     schema: [],
     content: `        <div class="publicHome publicPage accountPage" id="mi-cuenta">
@@ -896,9 +896,9 @@ function privatePageDefinitions(catalog) {
   const admin = {
     key: 'admin',
     path: '/admin/',
-    title: 'Administración | AcademiaQA',
+    title: 'Administración | QAvance',
     heroTitle: 'Administración',
-    description: 'Panel privado de usuarios y aprendizaje de AcademiaQA.',
+    description: 'Panel privado de usuarios y aprendizaje de QAvance.',
     robots: 'noindex, nofollow',
     schema: [],
     content: `        <div class="publicHome publicPage adminPage" id="admin">
@@ -918,7 +918,7 @@ function privatePageDefinitions(catalog) {
       key: `${course.key}-final-exam`,
       path: coursePath(course.key, 'examen-final'),
       ...courseHeroProperties(course),
-      title: `Examen final ${meta.name || course.key} | AcademiaQA`,
+      title: `Examen final ${meta.name || course.key} | QAvance`,
       heroTitle: meta.name || course.key,
       description: `Examen final interno de ${meta.name || course.key} con ${blueprint.totalQuestions || 0} preguntas y aprobación de ${blueprint.passingScore || 0}/${blueprint.totalPoints || blueprint.totalQuestions || 0}.`,
       robots: 'noindex, nofollow',

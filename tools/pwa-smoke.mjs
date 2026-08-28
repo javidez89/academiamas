@@ -12,7 +12,7 @@ assert.equal(manifest.start_url, '/');
 assert.equal(manifest.scope, '/');
 assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.lang, 'es-CO');
-assert.match(manifest.name, /AcademiaQA/);
+assert.match(manifest.name, /QAvance/);
 assert.ok(manifest.icons.some((icon) => icon.sizes === '192x192' && icon.purpose === 'any'));
 assert.ok(manifest.icons.some((icon) => icon.sizes === '512x512' && icon.purpose === 'any'));
 assert.ok(manifest.icons.some((icon) => icon.sizes === '512x512' && icon.purpose === 'maskable'));

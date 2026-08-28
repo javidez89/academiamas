@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { MOCK_SESSION, useMockedSupabase } from './helpers/mock-supabase.mjs';
-import { completeCourseStudy } from './helpers/learning-progress.mjs';
+import { completeCourseStudy, seedVerifiedCourseStudy } from './helpers/learning-progress.mjs';
 
 const BASE_URL = (process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/').replace(/\/+$/, '');
 const browser = await chromium.launch({ headless: true });
@@ -118,6 +118,12 @@ try {
   assert.equal(await lockedFinalExam.isDisabled(), true, 'El examen final debe permanecer bloqueado antes del 95%.');
   await completeCourseStudy(page, 'ctfl');
   await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => (
+    document.querySelector('.navbtn[data-view="finalExam"] small')?.textContent.trim() === '0% / 95%'
+  ));
+  assert.equal(await page.locator('[data-view="finalExam"]').first().isDisabled(), true,
+    'Manipular el avance local no debe habilitar el examen final.');
+  await seedVerifiedCourseStudy(page, 'ctfl');
   await page.waitForFunction(() => (
     document.querySelector('.navbtn[data-view="finalExam"] small')?.textContent.trim() === 'habilitado'
   ));

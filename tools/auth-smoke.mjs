@@ -34,7 +34,7 @@ try {
   await authenticatedPage.getByRole('button', { name: /Javier/i }).click();
   assert.equal(await authenticatedPage.getByText('javier@example.com').isVisible(), true);
   await authenticatedPage.getByRole('link', { name: 'Ver mi cuenta' }).click();
-  await authenticatedPage.getByRole('heading', { name: /Hola, Javier AcademiaQA/i }).waitFor();
+  await authenticatedPage.getByRole('heading', { name: /Hola, Javier QAvance/i }).waitFor();
   assert.equal(new URL(authenticatedPage.url()).pathname, '/mi-cuenta/');
   const signOutButton = authenticatedPage.locator('#authControl [data-auth-sign-out]');
   if (!(await signOutButton.isVisible())) {

@@ -1,4 +1,4 @@
-# SEO técnico de AcademiaQA
+# SEO técnico de QAvance
 
 ## Datos estructurados
 
@@ -9,7 +9,7 @@ El sitio genera JSON-LD desde `tools/generate-seo.mjs` sin leer ni modificar los
 - Página de curso: `Course` y `BreadcrumbList`.
 - Página de simulacro: `LearningResource` y `BreadcrumbList`.
 
-No se usa `FAQPage` porque AcademiaQA no es un sitio gubernamental o de salud elegible para su resultado enriquecido habitual. Tampoco se usa `QAPage`: ese tipo exige una sola pregunta con respuestas aportadas por usuarios. Las flashcards pueden evaluarse en una fase posterior como contenido educativo estructurado cuando cada pregunta y respuesta tenga una URL indexable y esté visible en el HTML inicial.
+No se usa `FAQPage` porque QAvance no es un sitio gubernamental o de salud elegible para su resultado enriquecido habitual. Tampoco se usa `QAPage`: ese tipo exige una sola pregunta con respuestas aportadas por usuarios. Las flashcards pueden evaluarse en una fase posterior como contenido educativo estructurado cuando cada pregunta y respuesta tenga una URL indexable y esté visible en el HTML inicial.
 
 ## Jerarquía semántica
 

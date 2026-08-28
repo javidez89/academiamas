@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import { chromium } from 'playwright';
 import { MOCK_SESSION, useMockedSupabase } from './helpers/mock-supabase.mjs';
-import { completeCourseStudy } from './helpers/learning-progress.mjs';
+import { completeCourseStudy, seedVerifiedCourseStudy } from './helpers/learning-progress.mjs';
 
 const ROOT = process.cwd();
 const BASE_URL = (process.env.ACADEMIAQA_URL || 'http://127.0.0.1:8080/').replace(/\/+$/, '');
@@ -55,6 +55,9 @@ try {
     assert.equal(await page.getByRole('button', { name: /Iniciar examen final/i }).count(), 0, `El examen final de ${entry.key} no debe abrir antes del 95%.`);
     await completeCourseStudy(page, entry.key);
     await page.reload({ waitUntil: 'domcontentloaded' });
+    assert.equal(await page.getByRole('button', { name: /Iniciar examen final/i }).count(), 0,
+      `El progreso local de ${entry.key} no debe desbloquear el examen.`);
+    await seedVerifiedCourseStudy(page, entry.key);
     await page.getByRole('button', { name: /Iniciar examen final/i }).waitFor();
   }
 

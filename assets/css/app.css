@@ -138,7 +138,7 @@ details.contentDetails summary{cursor:pointer;font-weight:850;color:#143d70}
 
 .siteTopbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:26px}
 .brandMark{display:inline-flex;align-items:center;color:#fff;text-decoration:none;min-width:0;background:#fff;border:1px solid rgba(255,255,255,.5);border-radius:14px;padding:6px 10px;box-shadow:0 10px 24px rgba(0,0,0,.18)}
-.brandLogo{display:block;width:230px;height:auto;aspect-ratio:1640/435;object-fit:contain}
+.brandLogo{display:block;width:230px;height:auto;aspect-ratio:660/201;object-fit:contain}
 .siteNav{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .siteNav a,.siteNav button{color:#eef8ff;text-decoration:none;font-weight:850;border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:8px 11px;background:rgba(255,255,255,.08);font:inherit;cursor:pointer}
 .siteNav a:hover,.siteNav button:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.45)}

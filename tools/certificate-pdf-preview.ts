@@ -5,8 +5,8 @@ import {
   preparationCourseName
 } from '../supabase/functions/_shared/certificate-pdf.ts';
 
-const OUTPUT_PATH = new URL('../output/pdf/Constancia-AcademiaQA-Muestra.pdf', import.meta.url);
-const LOGO_PATH = new URL('../assets/img/academiaqa-logo.png', import.meta.url);
+const OUTPUT_PATH = new URL('../output/pdf/Constancia-QAvance-Muestra.pdf', import.meta.url);
+const LOGO_PATH = new URL('../assets/img/qavance-logo.png', import.meta.url);
 const CODE = 'ACQA-123456789ABC';
 const VALIDATION_URL = `https://academiaqaoficial.com/validar-certificado/?codigo=${CODE}`;
 
