@@ -4,8 +4,12 @@ import { certificateCourse } from '../_shared/course-catalog.ts';
 import { allowedCourseAudioHash } from '../_shared/course-audio-manifest.ts';
 
 const AUDIO_BUCKET = 'course-audio';
-const DAILY_GENERATION_LIMIT = 40;
-const OPENAI_SPEECH_URL = 'https://api.openai.com/v1/audio/speech';
+const AUDIO_PROVIDER = 'azure-speech-f0';
+const AUDIO_VOICE = 'es-CO-SalomeNeural';
+const AUDIO_LOCALE = 'es-CO';
+const AUDIO_FORMAT = 'audio-24khz-48kbitrate-mono-mp3';
+const AUDIO_VERSION = 'natural-v2';
+const FREE_MONTHLY_CHARACTER_LIMIT = 500_000;
 
 type JsonObject = Record<string, unknown>;
 
@@ -27,6 +31,7 @@ function projectClients(authorization: string) {
   const secretKey = environmentKey('SUPABASE_SECRET_KEYS', 'SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !publishableKey || !secretKey) throw new Error('Configuración de Supabase incompleta.');
   return {
+    secretKey,
     user: createClient(url, publishableKey, {
       global: { headers: { Authorization: authorization } },
       auth: { persistSession: false, autoRefreshToken: false }
@@ -35,14 +40,23 @@ function projectClients(authorization: string) {
   };
 }
 
+async function secretMatches(left: string, right: string): Promise<boolean> {
+  if (!left || !right) return false;
+  const [leftHash, rightHash] = await Promise.all([sha256(left), sha256(right)]);
+  return leftHash === rightHash;
+}
+
 async function authenticatedContext(request: Request) {
   const authorization = String(request.headers.get('authorization') || '').trim();
   const token = authorization.replace(/^Bearer\s+/i, '');
   if (!token || token === authorization) throw Object.assign(new Error('Debes iniciar sesión.'), { status: 401 });
   const clients = projectClients(authorization);
+  if (await secretMatches(token, clients.secretKey)) {
+    return { ...clients, currentUser: null, serviceRequest: true };
+  }
   const { data, error } = await clients.user.auth.getUser(token);
   if (error || !data.user) throw Object.assign(new Error('La sesión no es válida.'), { status: 401 });
-  return { ...clients, currentUser: data.user };
+  return { ...clients, currentUser: data.user, serviceRequest: false };
 }
 
 function normalizedInput(body: JsonObject) {
@@ -65,6 +79,15 @@ async function sha256(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((item) => item.toString(16).padStart(2, '0')).join('');
 }
 
+function escapeXml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
 function audioResponse(request: Request, audio: Blob | ArrayBuffer, cacheStatus: string): Response {
   return new Response(audio, {
     status: 200,
@@ -73,7 +96,9 @@ function audioResponse(request: Request, audio: Blob | ArrayBuffer, cacheStatus:
       'Content-Type': 'audio/mpeg',
       'Cache-Control': 'private, max-age=86400',
       'X-QAvance-Audio-Cache': cacheStatus,
-      'X-QAvance-Audio-Disclosure': 'AI-generated'
+      'X-QAvance-Audio-Provider': AUDIO_PROVIDER,
+      'X-QAvance-Audio-Voice': AUDIO_VOICE,
+      'X-QAvance-Audio-Disclosure': 'AI-generated, permanently cached'
     }
   });
 }
@@ -90,70 +115,137 @@ async function verifyEnrollment(admin: ReturnType<typeof projectClients>['admin'
   if (!data) throw Object.assign(new Error('Debes estar inscrito en el curso.'), { status: 403 });
 }
 
-async function consumeDailyGeneration(admin: ReturnType<typeof projectClients>['admin'], userId: string) {
-  const { data, error } = await admin
-    .rpc('consume_course_audio_generation', {
-      p_user_id: userId,
-      p_daily_limit: DAILY_GENERATION_LIMIT
-    });
+async function reserveGeneration(
+  admin: ReturnType<typeof projectClients>['admin'],
+  audioHash: string,
+  courseKey: string,
+  contentId: string,
+  characterCount: number
+) {
+  const { data, error } = await admin.rpc('reserve_course_audio_generation', {
+    p_audio_hash: audioHash,
+    p_provider: AUDIO_PROVIDER,
+    p_voice: AUDIO_VOICE,
+    p_course_key: courseKey,
+    p_content_id: contentId,
+    p_character_count: characterCount,
+    p_monthly_limit: FREE_MONTHLY_CHARACTER_LIMIT
+  });
   if (error) throw error;
-  if (data !== true) {
-    throw Object.assign(new Error('Alcanzaste el límite diario de narraciones nuevas. Las narraciones ya generadas siguen disponibles.'), { status: 429 });
+  return data as { status?: string; remainingCharacters?: number };
+}
+
+async function completeGeneration(admin: ReturnType<typeof projectClients>['admin'], audioHash: string, path: string) {
+  const { error } = await admin.rpc('complete_course_audio_generation', {
+    p_audio_hash: audioHash,
+    p_object_path: path
+  });
+  if (error) throw error;
+}
+
+async function failGeneration(admin: ReturnType<typeof projectClients>['admin'], audioHash: string, message: string) {
+  const { error } = await admin.rpc('fail_course_audio_generation', {
+    p_audio_hash: audioHash,
+    p_error: message
+  });
+  if (error) console.error('course-audio reservation cleanup error', error.message);
+}
+
+async function synthesizeWithAzure(text: string): Promise<ArrayBuffer> {
+  const key = String(Deno.env.get('AZURE_SPEECH_KEY') || '').trim();
+  const region = String(Deno.env.get('AZURE_SPEECH_REGION') || '').trim().toLowerCase();
+  if (!key || !region) throw Object.assign(new Error('La voz natural aún no está configurada.'), { status: 503 });
+  if (!/^[a-z0-9-]{2,40}$/.test(region)) throw Object.assign(new Error('La región de Azure Speech no es válida.'), { status: 503 });
+
+  const ssml = `<speak version="1.0" xml:lang="${AUDIO_LOCALE}"><voice name="${AUDIO_VOICE}"><prosody rate="-4%">${escapeXml(text)}</prosody></voice></speak>`;
+  const response = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+    method: 'POST',
+    headers: {
+      'Ocp-Apim-Subscription-Key': key,
+      'Content-Type': 'application/ssml+xml',
+      'X-Microsoft-OutputFormat': AUDIO_FORMAT,
+      'User-Agent': 'QAvance-course-audio'
+    },
+    body: ssml
+  });
+  if (!response.ok) {
+    const providerMessage = (await response.text()).slice(0, 300);
+    console.error('Azure Speech error', response.status, providerMessage);
+    const status = response.status === 429 ? 429 : 502;
+    throw Object.assign(new Error(response.status === 429
+      ? 'Azure Speech alcanzó su límite temporal de solicitudes.'
+      : 'No fue posible generar la narración natural.'), { status, providerStatus: response.status });
   }
+  return response.arrayBuffer();
 }
 
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) });
   if (request.method !== 'POST') return jsonResponse(request, { error: 'Método no permitido.' }, 405);
 
+  let reservedAudioHash = '';
   try {
-    const { admin, currentUser } = await authenticatedContext(request);
+    const { admin, currentUser, serviceRequest } = await authenticatedContext(request);
     const body = await request.json() as JsonObject;
     const { course, contentId, text } = normalizedInput(body);
-    await verifyEnrollment(admin, currentUser.id, course.key);
+    if (!serviceRequest) await verifyEnrollment(admin, currentUser!.id, course.key);
 
     const contentHash = await sha256(text);
     if (!allowedCourseAudioHash(course.key, contentId, contentHash)) {
       throw Object.assign(new Error('El contenido solicitado no pertenece al material publicado del curso.'), { status: 400 });
     }
-    const audioHash = await sha256(`gpt-4o-mini-tts|marin|es-CO|natural-v1|${text}`);
-    const path = `v1/${course.key}/${contentId}/${audioHash}.mp3`;
+
+    const audioHash = await sha256(`${AUDIO_PROVIDER}|${AUDIO_VOICE}|${AUDIO_LOCALE}|${AUDIO_FORMAT}|${AUDIO_VERSION}|${text}`);
+    const path = `v2/${course.key}/${contentId}/${audioHash}.mp3`;
     const cached = await admin.storage.from(AUDIO_BUCKET).download(path);
     if (!cached.error && cached.data) return audioResponse(request, cached.data, 'HIT');
 
-    await consumeDailyGeneration(admin, currentUser.id);
-    const openAiKey = String(Deno.env.get('OPENAI_API_KEY') || '').trim();
-    if (!openAiKey) throw Object.assign(new Error('La narración con OpenAI aún no está configurada.'), { status: 503 });
-
-    const speech = await fetch(OPENAI_SPEECH_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini-tts',
-        voice: 'marin',
-        input: text,
-        instructions: 'Habla en español latinoamericano neutro, con una voz cálida, conversacional y humana. Actúa como docente práctico de QA: usa un ritmo sereno, variaciones naturales de entonación, pausas breves al cambiar de idea y énfasis suave en los conceptos clave. Pronuncia las siglas letra por letra cuando corresponda y los términos en inglés con claridad. Evita sonar como locutor publicitario o leer listas de forma monótona.',
-        response_format: 'mp3',
-        speed: 1
-      })
-    });
-    if (!speech.ok) {
-      console.error('OpenAI speech error', speech.status);
-      throw Object.assign(new Error('No fue posible generar la narración.'), { status: 502 });
+    if (!serviceRequest || body.action !== 'prefetch') {
+      throw Object.assign(new Error('Esta narración natural aún se está preparando. Se usará la voz del dispositivo.'), { status: 503 });
     }
 
-    const audio = await speech.arrayBuffer();
+    const azureKey = String(Deno.env.get('AZURE_SPEECH_KEY') || '').trim();
+    const azureRegion = String(Deno.env.get('AZURE_SPEECH_REGION') || '').trim();
+    if (!azureKey || !azureRegion) {
+      throw Object.assign(new Error('Configura AZURE_SPEECH_KEY y AZURE_SPEECH_REGION antes de generar audios.'), { status: 503 });
+    }
+
+    const reservation = await reserveGeneration(admin, audioHash, course.key, contentId, text.length);
+    if (reservation?.status === 'limit') {
+      throw Object.assign(new Error(`Se alcanzó el límite gratuito mensual. Quedan ${Number(reservation.remainingCharacters) || 0} caracteres disponibles.`), { status: 429 });
+    }
+    if (reservation?.status === 'pending') {
+      throw Object.assign(new Error('La narración ya está en proceso de generación.'), { status: 409 });
+    }
+    if (reservation?.status === 'failed') {
+      throw Object.assign(new Error('La narración falló en este ciclo gratuito y se reintentará en el siguiente.'), { status: 503 });
+    }
+    if (reservation?.status === 'ready') {
+      throw Object.assign(new Error('El registro del audio existe, pero el archivo no está disponible.'), { status: 503 });
+    }
+    if (reservation?.status !== 'reserved') throw new Error('No fue posible reservar la generación de audio.');
+    reservedAudioHash = audioHash;
+
+    const audio = await synthesizeWithAzure(text);
     const uploaded = await admin.storage.from(AUDIO_BUCKET).upload(path, audio, {
       contentType: 'audio/mpeg',
       cacheControl: '31536000',
       upsert: false
     });
     if (uploaded.error && !String(uploaded.error.message || '').toLowerCase().includes('already exists')) throw uploaded.error;
+    await completeGeneration(admin, audioHash, path);
+    reservedAudioHash = '';
     return audioResponse(request, audio, 'MISS');
   } catch (error) {
+    if (reservedAudioHash) {
+      try {
+        const authorization = String(request.headers.get('authorization') || '').trim();
+        const { admin } = projectClients(authorization);
+        await failGeneration(admin, reservedAudioHash, String((error as Error)?.message || 'Unknown generation error'));
+      } catch (cleanupError) {
+        console.error('course-audio failure registration error', cleanupError instanceof Error ? cleanupError.message : 'unknown');
+      }
+    }
     console.error('course-audio error', error instanceof Error ? error.message : 'unknown');
     const status = Number((error as { status?: number })?.status) || 500;
     return jsonResponse(request, {

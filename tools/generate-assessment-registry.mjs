@@ -16,6 +16,10 @@ function fingerprint(value) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+function normalizeLineEndings(value) {
+  return String(value).replaceAll('\r\n', '\n');
+}
+
 async function loadCourses() {
   const entries = await fs.readdir(path.join(ROOT, 'courses'), { withFileTypes: true });
   const courses = [];
@@ -186,7 +190,11 @@ if (mode === '--write' && destination) {
   console.log(`Assessment registry generated: ${courses.length} cursos, ${courses.reduce((sum, course) => sum + course.questions.length, 0)} preguntas.`);
 } else if (mode === '--check' && destination) {
   const current = await fs.readFile(destination, 'utf8');
-  assert.equal(current, sql, `El registro ${path.relative(ROOT, destination)} no coincide con los bancos actuales.`);
+  assert.equal(
+    normalizeLineEndings(current),
+    normalizeLineEndings(sql),
+    `El registro ${path.relative(ROOT, destination)} no coincide con los bancos actuales.`
+  );
   console.log(`Assessment registry OK: ${courses.length} cursos y ${courses.reduce((sum, course) => sum + course.questions.length, 0)} preguntas.`);
 } else {
   throw new Error('Usa --write <migración.sql> o --check <migración.sql>.');

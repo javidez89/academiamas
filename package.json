@@ -15,6 +15,8 @@
     "generate:seo": "node tools/generate-seo.mjs",
     "generate:brand": "node tools/generate-brand-assets.mjs",
     "generate:audio-manifest": "node tools/generate-audio-manifest.mjs",
+    "audio:cache-plan": "node tools/generate-course-audio-cache.mjs",
+    "audio:cache-generate": "node tools/generate-course-audio-cache.mjs --generate",
     "translate:syllabus": "node tools/translate-syllabus-content.mjs",
     "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs && node tools/audio-manifest-unit.mjs && npm run test:verified-time && npm run test:verified-assessment && npm run test:authoritative-progress",
     "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs && node tools/question-bank-sources-audit.mjs",

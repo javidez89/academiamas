@@ -12,6 +12,10 @@ function sqlText(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
+function normalizeLineEndings(value) {
+  return String(value).replaceAll('\r\n', '\n');
+}
+
 async function loadCourses() {
   const entries = await fs.readdir(path.join(ROOT, 'courses'), { withFileTypes: true });
   const courses = [];
@@ -96,6 +100,10 @@ if (process.argv[2] === '--write') {
   await fs.writeFile(migrationPath, expected, 'utf8');
   console.log(`Requisitos generados: ${courses.length} cursos y ${courses.reduce((sum, course) => sum + course.chapters.length, 0)} capítulos.`);
 } else {
-  assert.equal(current, expected, `Los requisitos de ${path.relative(ROOT, migrationPath)} no coinciden con los cursos actuales.`);
+  assert.equal(
+    normalizeLineEndings(current),
+    normalizeLineEndings(expected),
+    `Los requisitos de ${path.relative(ROOT, migrationPath)} no coinciden con los cursos actuales.`
+  );
   console.log(`Requisitos OK: ${courses.length} cursos y ${courses.reduce((sum, course) => sum + course.chapters.length, 0)} capítulos.`);
 }

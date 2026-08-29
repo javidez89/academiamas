@@ -29,6 +29,11 @@ try {
     assert.equal(await section.locator('.studyPathGrid article').count(), 4);
     assert.equal(await section.getByText('Lee o escucha los capítulos', { exact: true }).isVisible(), true);
     assert.equal(await section.getByText('Simula, aprueba y valida', { exact: true }).isVisible(), true);
+    assert.equal(await section.locator('.homeAudioFeature').count(), 1);
+    assert.equal(await section.getByRole('heading', { name: 'Lee cada idea. Escúchala a tu ritmo.' }).isVisible(), true);
+    assert.equal(await section.getByText('Voz femenina en español colombiano y respaldo de voz del dispositivo.', { exact: true }).isVisible(), true);
+    assert.equal(await section.getByText('Pausa, repite y muévete por la barra de avance.', { exact: true }).isVisible(), true);
+    assert.equal(await section.getByText('Ajusta la velocidad a 0.75x, 1x o 1.25x.', { exact: true }).isVisible(), true);
     assert.equal(await section.locator('.homeAchievementFeature').count(), 1);
     assert.equal(await section.locator('.homeReferenceMedia img').count(), 1);
     assert.equal(await section.getByText('Practica con intención', { exact: true }).count(), 0);
@@ -59,6 +64,10 @@ try {
       getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length
     ));
     assert.equal(renderedColumns, viewport.name === 'mobile' ? 1 : 2, `El bloque de logro ${viewport.name} no tiene las columnas esperadas.`);
+    const audioColumns = await section.locator('.homeAudioFeature').evaluate((element) => (
+      getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length
+    ));
+    assert.equal(audioColumns, viewport.name === 'mobile' ? 1 : 2, `El bloque de audio ${viewport.name} no tiene las columnas esperadas.`);
 
     const pageText = await page.locator('body').innerText();
     assert.equal(pageText.includes('PEDRO MENDEZ'), false);
@@ -90,7 +99,7 @@ try {
     await page.close();
   }
 
-  console.log('Home journey smoke OK: recorrido unificado, logro compartible, orden, privacidad y responsive.');
+  console.log('Home journey smoke OK: lectura, audio, recorrido, logro compartible, privacidad y responsive.');
 } finally {
   await browser.close();
 }

@@ -6,12 +6,13 @@ const appUrl = new URL('../assets/js/app.js', import.meta.url);
 const cloudUrl = new URL('../assets/js/cloud.js', import.meta.url);
 const certificateUrl = new URL('../supabase/functions/certificate-service/index.ts', import.meta.url);
 
-const [sql, app, cloud, certificate] = await Promise.all([
+const [sql, appSource, cloud, certificate] = await Promise.all([
   readFile(migrationUrl, 'utf8'),
   readFile(appUrl, 'utf8'),
   readFile(cloudUrl, 'utf8'),
   readFile(certificateUrl, 'utf8')
 ]);
+const app = appSource.replaceAll('\r\n', '\n');
 
 assert.match(sql, /create table private\.course_chapter_requirements/i,
   'Los requisitos académicos deben permanecer en el esquema privado.');

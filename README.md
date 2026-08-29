@@ -49,6 +49,10 @@ Sube toda la carpeta al repositorio y publica la rama desde GitHub Pages. `index
 
 Ejecuta `npm run test:content` para validar cobertura LO/K de preguntas y flashcards, explicaciones, duplicados, distribución de respuestas, capacidad de las matrices, puntos e intentos consecutivos sin repetición. La metodología y sus límites están documentados en [`docs/ISTQB_SIMULATOR_METHODOLOGY.md`](docs/ISTQB_SIMULATOR_METHODOLOGY.md).
 
+### Audio natural de estudio
+
+La narración usa archivos privados y permanentes por hash, con voz en español del dispositivo como respaldo. La configuración gratuita, el presupuesto mensual y la generación incremental para cursos actuales y futuros se documentan en [`docs/operations/FREE_NATURAL_AUDIO.md`](docs/operations/FREE_NATURAL_AUDIO.md).
+
 ### Prueba local recomendada
 
 Desde la carpeta ejecuta:

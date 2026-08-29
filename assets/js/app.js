@@ -2378,7 +2378,7 @@
           <p>Elige tu curso, lee o escucha cada capítulo, practica por objetivo y presenta el examen final. Cuando apruebes, podrás emitir opcionalmente una constancia digital verificable.</p>
         </div>
         <div class="homeCourseAdvantagesAction">
-          <span><b>Capítulos</b> Texto y audio</span>
+          <span><b>Audio de estudio</b> Voz en español</span>
           <span><b>Meta del curso</b> Examen final</span>
           <a class="btn" href="${h(publicPath('courses'))}" data-view="courses">Explorar cursos</a>
         </div>
@@ -2390,6 +2390,29 @@
         <article><strong>3</strong><h3>Practica por foco</h3><p>Filtra las preguntas por capítulo, nivel K u objetivo de aprendizaje.</p></article>
         <article><strong>4</strong><h3>Simula, aprueba y valida</h3><p>Refuerza con simulacros y presenta el examen final. Al aprobar, podrás emitir tu constancia.</p></article>
       </div>
+
+      <article class="homeAudioFeature" aria-labelledby="homeAudioFeatureTitle">
+        <div class="homeAudioPreview" aria-hidden="true">
+          <div class="homeAudioPreviewHead">
+            <span class="homeAudioSpeaker">◖)))</span>
+            <div><small>CAPÍTULO EN REPRODUCCIÓN</small><strong>Fundamentos de la prueba</strong></div>
+          </div>
+          <div class="homeAudioWave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="homeAudioTimeline"><span></span></div>
+          <div class="homeAudioControls"><b>0:00</b><span>0.75x</span><span class="active">1x</span><span>1.25x</span><b>8:24</b></div>
+        </div>
+        <div class="homeAudioCopy">
+          <span class="sectionKicker">Texto y audio en el mismo lugar</span>
+          <h3 id="homeAudioFeatureTitle">Lee cada idea. Escúchala a tu ritmo.</h3>
+          <p>Los capítulos, objetivos de aprendizaje y materiales ampliados se pueden estudiar en pantalla o escuchar en español, sin perder el punto de lectura.</p>
+          <ul class="homeAudioBenefits">
+            <li>Voz femenina en español colombiano y respaldo de voz del dispositivo.</li>
+            <li>Pausa, repite y muévete por la barra de avance.</li>
+            <li>Ajusta la velocidad a 0.75x, 1x o 1.25x.</li>
+          </ul>
+          <a class="btn secondary" href="${h(publicPath('courses'))}" data-view="courses">Explorar cursos con audio</a>
+        </div>
+      </article>
 
       <article class="homeAchievementFeature">
         <a class="homeAchievementVisual homeReferenceMedia homeReferenceCertificate" href="${h(publicPath('verifyCertificate'))}" data-view="verifyCertificate" aria-label="Ir a la validación pública de constancias">
@@ -3926,7 +3949,7 @@
       <button class="narrationPrimary" type="button" data-action="toggle-narration" data-narration-id="${h(contentId)}" data-narration-label="${h(label)}" aria-label="${h(primaryLabel)} ${h(label)}" ${status === 'loading' ? 'disabled' : ''}><span class="narrationIcon" aria-hidden="true">${icon}</span><span class="narrationButtonText">${h(primaryLabel)}</span></button>
       <button class="narrationIconButton" type="button" data-action="repeat-narration" aria-label="Repetir narración" title="Repetir" ${active && narrationState.text ? '' : 'disabled'}>↻</button>
       <div class="narrationSpeed" role="group" aria-label="Velocidad de narración">${[0.75, 1, 1.25].map((speed) => `<button type="button" data-action="narration-speed" data-speed="${speed}" aria-pressed="${narrationState.speed === speed}">${speed}x</button>`).join('')}</div>
-      <span class="narrationStatus" aria-live="polite">${status === 'loading' ? `Generando voz${segmentStatus}...` : active && narrationState.source === 'device' ? 'Voz del dispositivo' : `Narración generada con IA${segmentStatus}`}</span>
+      <span class="narrationStatus" aria-live="polite">${status === 'loading' ? `Preparando audio${segmentStatus}...` : active && narrationState.source === 'device' ? 'Voz del dispositivo' : active && narrationState.source === 'cloud' ? `Voz natural QAvance${segmentStatus}` : 'Disponible en texto y audio'}</span>
       <div class="narrationTimeline">
         <input type="range" min="0" max="${timeline.total || 1}" step="0.1" value="${timeline.current}" data-narration-seek="${h(contentId)}" aria-label="Posición de ${h(label)}" aria-valuetext="${h(formatNarrationTime(timeline.current))} de ${h(formatNarrationTime(timeline.total))}" ${timeline.enabled ? '' : 'disabled'}>
         <div class="narrationTimes" aria-hidden="true"><span data-narration-current>${h(formatNarrationTime(timeline.current))}</span><span data-narration-duration>${h(formatNarrationTime(timeline.total))}</span></div>
@@ -3975,14 +3998,14 @@
     const durations = narrationDurations();
     const activeIndex = narrationState.source === 'device' ? narrationState.deviceIndex : narrationState.chunkIndex;
     const offset = durations.slice(0, activeIndex).reduce((total, duration) => total + duration, 0);
-    const localTime = narrationState.source === 'openai'
+    const localTime = narrationState.source === 'cloud'
       ? (Number.isFinite(narrationAudio.currentTime) ? narrationAudio.currentTime : 0)
       : narrationState.source === 'device' ? deviceNarrationLocalTime() : 0;
     const total = durations.reduce((sum, duration) => sum + duration, 0);
     return {
       current: Math.min(total, Math.max(0, offset + localTime)),
       total,
-      enabled: ['openai', 'device'].includes(narrationState.source) && narrationState.status !== 'loading'
+      enabled: ['cloud', 'device'].includes(narrationState.source) && narrationState.status !== 'loading'
     };
   }
 
@@ -4060,8 +4083,10 @@
       const statusElement = control.querySelector('.narrationStatus');
       const segmentStatus = active && narrationState.chunks?.length > 1 ? ` · parte ${narrationState.chunkIndex + 1} de ${narrationState.chunks.length}` : '';
       setTextIfChanged(statusElement, status === 'loading'
-        ? `Generando voz${segmentStatus}...`
-        : active && narrationState.source === 'device' ? 'Voz del dispositivo · avance sincronizado' : `Narración generada con IA${segmentStatus}`);
+        ? `Preparando audio${segmentStatus}...`
+        : active && narrationState.source === 'device'
+          ? 'Voz del dispositivo · avance sincronizado'
+          : active && narrationState.source === 'cloud' ? `Voz natural QAvance${segmentStatus}` : 'Disponible en texto y audio');
     });
     updateNarrationTimeline();
   }
@@ -4297,9 +4322,9 @@
     };
     updateNarrationControls();
     try {
-      await playOpenAiNarrationChunk(0);
+      await playCloudNarrationChunk(0);
     } catch (error) {
-      console.warn('Narración OpenAI no disponible; se usará la voz del dispositivo.', error);
+      console.warn('Narración natural en caché no disponible; se usará la voz del dispositivo.', error);
       try {
         playWithDeviceVoice();
         notify('La voz en la nube no está disponible; se está usando la voz en español del dispositivo.', 'info', 6_000);
@@ -4311,13 +4336,13 @@
     }
   }
 
-  async function playOpenAiNarrationChunk(index, { seekTime = 0, autoplay = true } = {}) {
+  async function playCloudNarrationChunk(index, { seekTime = 0, autoplay = true } = {}) {
     const chunks = narrationState.chunks || [];
     const chunk = chunks[index];
     if (!chunk) return;
     const loadToken = ++narrationLoadToken;
     releaseNarrationAudio();
-    narrationState = { ...narrationState, chunkIndex: index, status: 'loading', source: 'openai', utterance: null };
+    narrationState = { ...narrationState, chunkIndex: index, status: 'loading', source: 'cloud', utterance: null };
     updateNarrationControls();
     const segmentId = narrationSegmentId(narrationState.contentId, index, chunks.length);
     const blob = await Cloud.getCourseAudio(activeCourseKey, segmentId, chunk);
@@ -4344,7 +4369,7 @@
     narrationAudio.ontimeupdate = updateNarrationTimeline;
     narrationAudio.onended = () => {
       if (index + 1 < chunks.length) {
-        playOpenAiNarrationChunk(index + 1).catch((error) => {
+        playCloudNarrationChunk(index + 1).catch((error) => {
           console.warn('No fue posible continuar la narración.', error);
           narrationState.status = 'idle';
           updateNarrationControls();
@@ -4355,13 +4380,13 @@
       narrationState.status = 'idle';
       updateNarrationControls();
     };
-    narrationState = { ...narrationState, status: autoplay ? 'playing' : 'paused', source: 'openai' };
+    narrationState = { ...narrationState, status: autoplay ? 'playing' : 'paused', source: 'cloud' };
     if (autoplay) await narrationAudio.play();
     updateNarrationControls();
   }
 
   async function seekNarration(globalTime) {
-    if (!['openai', 'device'].includes(narrationState.source)) return;
+    if (!['cloud', 'device'].includes(narrationState.source)) return;
     if (narrationState.source === 'device') {
       const shouldPlay = narrationState.status === 'playing';
       freezeDeviceNarrationPosition();
@@ -4383,7 +4408,7 @@
       return;
     }
     try {
-      await playOpenAiNarrationChunk(position.index, { seekTime: position.localTime, autoplay: shouldPlay });
+      await playCloudNarrationChunk(position.index, { seekTime: position.localTime, autoplay: shouldPlay });
     } catch (error) {
       console.warn('No fue posible cambiar la posición de la narración.', error);
       notify('No fue posible ir a ese punto de la narración.', 'error');
@@ -4396,7 +4421,7 @@
       playWithDeviceVoice({ globalTime: 0, autoplay: true });
       return;
     }
-    playOpenAiNarrationChunk(0).catch(() => notify('No fue posible repetir la narración.', 'error'));
+    playCloudNarrationChunk(0).catch(() => notify('No fue posible repetir la narración.', 'error'));
   }
 
   function setNarrationSpeed(speed) {
