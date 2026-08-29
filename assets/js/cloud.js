@@ -480,6 +480,95 @@
     return data && typeof data === 'object' ? data : { total: 0, certificates: [] };
   }
 
+  async function submitContactMessage(input = {}) {
+    const client = requireClient();
+    const { data, error } = await client.rpc('submit_contact_message', {
+      p_full_name: String(input.fullName || '').trim(),
+      p_email: String(input.email || '').trim().toLowerCase(),
+      p_subject: String(input.subject || '').trim(),
+      p_message: String(input.message || '').trim(),
+      p_source_path: String(input.sourcePath || '').trim().slice(0, 300),
+      p_website: String(input.website || '').trim()
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
+  async function listApprovedCourseReviews(courseKey = '', limit = 8) {
+    const client = requireClient();
+    const { data, error } = await client.rpc('list_approved_course_reviews', {
+      p_course_key: courseKey ? normalizeCourseKey(courseKey) : null,
+      p_limit: Math.max(1, Math.min(24, Math.trunc(Number(limit) || 8)))
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : { average_rating: 0, total: 0, reviews: [] };
+  }
+
+  async function getMyCourseReview(courseKey) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('get_my_course_review', {
+      p_course_key: normalizeCourseKey(courseKey)
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
+  async function submitCourseReview(courseKey, rating, comment = '') {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('submit_course_review', {
+      p_course_key: normalizeCourseKey(courseKey),
+      p_rating: Math.trunc(Number(rating)),
+      p_comment: String(comment || '').trim().slice(0, 1000) || null
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
+  async function listAdminContactMessages({ status = '', search = '', limit = 100, offset = 0 } = {}) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_list_contact_messages', {
+      p_status: String(status || '').trim(),
+      p_search: String(search || '').trim().slice(0, 120),
+      p_limit: Math.max(1, Math.min(200, Math.trunc(Number(limit) || 100))),
+      p_offset: Math.max(0, Math.trunc(Number(offset) || 0))
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : { total: 0, messages: [] };
+  }
+
+  async function updateAdminContactMessage(messageId, status, adminReply = '') {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_update_contact_message', {
+      p_message_id: String(messageId || '').trim(),
+      p_status: String(status || '').trim(),
+      p_admin_reply: String(adminReply || '').trim() || null
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
+  async function listAdminCourseReviews({ status = '', search = '', limit = 100, offset = 0 } = {}) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_list_course_reviews', {
+      p_status: String(status || '').trim(),
+      p_search: String(search || '').trim().slice(0, 120),
+      p_limit: Math.max(1, Math.min(200, Math.trunc(Number(limit) || 100))),
+      p_offset: Math.max(0, Math.trunc(Number(offset) || 0))
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : { total: 0, reviews: [] };
+  }
+
+  async function moderateAdminCourseReview(reviewId, status) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_moderate_course_review', {
+      p_review_id: String(reviewId || '').trim(),
+      p_status: String(status || '').trim()
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
   global.AcademyCloud = Object.freeze({
     getProfile,
     listEnrollments,
@@ -511,6 +600,14 @@
     getAdminDashboardSummary,
     listAdminUsers,
     listAdminCertificates,
+    submitContactMessage,
+    listApprovedCourseReviews,
+    getMyCourseReview,
+    submitCourseReview,
+    listAdminContactMessages,
+    updateAdminContactMessage,
+    listAdminCourseReviews,
+    moderateAdminCourseReview,
     mergeProgress
   });
 }(window));

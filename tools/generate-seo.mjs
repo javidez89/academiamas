@@ -339,7 +339,7 @@ function authControl() {
           <button class="authSignIn" type="button" data-auth-sign-in disabled>Cuenta</button>
           <div class="authUser" data-auth-user hidden>
             <button class="authUserButton" type="button" data-auth-menu-toggle aria-expanded="false" aria-controls="authMenu">
-              <span class="authAvatar" data-auth-initial aria-hidden="true">A</span>
+              <span class="authAvatar"><img data-auth-avatar alt="" referrerpolicy="no-referrer" hidden><span data-auth-initial aria-hidden="true">A</span></span>
               <span data-auth-name>Mi cuenta</span>
             </button>
             <div class="authMenu" id="authMenu" data-auth-menu hidden>
@@ -373,7 +373,7 @@ ${analyticsTags()}
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#0b315d">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://lh3.googleusercontent.com https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://sysdlcsdvvbaybhqfivj.supabase.co https://www.datos.gov.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=()">
   <meta name="robots" content="${h(robots || 'index, follow')}">
   <meta name="description" content="${h(cleanDescription)}">

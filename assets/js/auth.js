@@ -36,6 +36,18 @@
     return (name.match(/[\p{L}\p{N}]/u)?.[0] || 'A').toUpperCase();
   }
 
+  function avatarUrl(user) {
+    const metadata = user?.user_metadata || {};
+    const value = String(metadata.avatar_url || metadata.picture || '').trim();
+    if (!value) return '';
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' ? url.href : '';
+    } catch {
+      return '';
+    }
+  }
+
   function setText(selector, value) {
     const element = authRoot()?.querySelector(selector);
     if (element) element.textContent = String(value || '');
@@ -76,10 +88,24 @@
 
     if (user) {
       const name = displayName(user);
+      const picture = avatarUrl(user);
+      const avatar = root.querySelector('[data-auth-avatar]');
+      const initial = root.querySelector('[data-auth-initial]');
       setText('[data-auth-name]', name.split(/\s+/)[0]);
       setText('[data-auth-full-name]', name);
       setText('[data-auth-email]', user.email || 'Cuenta de Google');
       setText('[data-auth-initial]', initialFor(user));
+      if (avatar) {
+        avatar.hidden = !picture;
+        avatar.alt = `Foto de perfil de ${name}`;
+        avatar.onerror = () => {
+          avatar.hidden = true;
+          if (initial) initial.hidden = false;
+        };
+        if (picture) avatar.src = picture;
+        else avatar.removeAttribute('src');
+      }
+      if (initial) initial.hidden = Boolean(picture);
       setStatus(`Sesión iniciada como ${name}.`);
     } else {
       closeMenu();

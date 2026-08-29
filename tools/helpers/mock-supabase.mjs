@@ -1,5 +1,5 @@
-export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress }) => {
+export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], contactMessages = [], courseReviews = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -20,6 +20,8 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       certificates: structuredClone(mockedCertificates || []),
       certificateOrders: structuredClone(mockedCertificateOrders || []),
       adminCertificates: structuredClone(mockedAdminCertificates || []),
+      contactMessages: structuredClone(mockedContactMessages || []),
+      courseReviews: structuredClone(mockedCourseReviews || []),
       audioFailure: Boolean(mockedAudioFailure),
       publicActivitySummary: structuredClone(mockedPublicActivitySummary || {}),
       learningActivity: null,
@@ -249,7 +251,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 id: user.id,
                 email: user.email,
                 full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
-                avatar_url: null,
+                avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
                 provider: 'google',
                 country: null,
                 created_at: new Date().toISOString(),
@@ -428,6 +430,72 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 || String(item.certificate_code || '').toLowerCase().includes(search)
                 || String(item.course_name || '').toLowerCase().includes(search));
               return { data: { total: matches.length, certificates: structuredClone(matches) }, error: null };
+            }
+            if (name === 'submit_contact_message') {
+              const message = {
+                id: crypto.randomUUID(), user_id: user?.id || null,
+                full_name: args.p_full_name, email: args.p_email, subject: args.p_subject,
+                message: args.p_message, source_path: args.p_source_path, status: 'new',
+                admin_reply: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+              };
+              state.contactMessages.unshift(message);
+              return { data: { id: message.id, status: 'received', created_at: message.created_at }, error: null };
+            }
+            if (name === 'list_approved_course_reviews') {
+              const courseKey = String(args?.p_course_key || '');
+              const approved = state.courseReviews.filter((item) => item.status === 'approved' && (!courseKey || item.course_key === courseKey));
+              const limit = Number(args?.p_limit || 8);
+              return { data: {
+                average_rating: approved.length ? Math.round((approved.reduce((sum, item) => sum + Number(item.rating || 0), 0) / approved.length) * 10) / 10 : 0,
+                total: approved.length,
+                reviews: structuredClone(approved.slice(0, limit).map((item) => ({
+                  id: item.id, course_key: item.course_key, rating: item.rating, comment: item.comment,
+                  display_name: item.display_name || item.full_name || 'Estudiante', created_at: item.created_at
+                })))
+              }, error: null };
+            }
+            if (name === 'get_my_course_review') {
+              const review = state.courseReviews.find((item) => item.user_id === user?.id && item.course_key === args.p_course_key);
+              return { data: review ? structuredClone(review) : null, error: null };
+            }
+            if (name === 'submit_course_review') {
+              if (!user || !enrollment(args.p_course_key) || enrollment(args.p_course_key).status === 'cancelled') {
+                return { data: null, error: { code: '42501', message: 'Debes estar inscrito en el curso para calificarlo' } };
+              }
+              let review = state.courseReviews.find((item) => item.user_id === user.id && item.course_key === args.p_course_key);
+              const now = new Date().toISOString();
+              if (!review) {
+                review = { id: crypto.randomUUID(), user_id: user.id, course_key: args.p_course_key, created_at: now };
+                state.courseReviews.unshift(review);
+              }
+              Object.assign(review, { rating: args.p_rating, comment: args.p_comment, status: 'pending', updated_at: now });
+              return { data: structuredClone(review), error: null };
+            }
+            if (name === 'admin_list_contact_messages') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const search = String(args?.p_search || '').toLowerCase();
+              const matches = state.contactMessages.filter((item) => !search || [item.full_name, item.email, item.subject].some((value) => String(value || '').toLowerCase().includes(search)));
+              return { data: { total: matches.length, messages: structuredClone(matches) }, error: null };
+            }
+            if (name === 'admin_update_contact_message') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const message = state.contactMessages.find((item) => item.id === args.p_message_id);
+              if (!message) return { data: null, error: { code: 'P0002', message: 'Mensaje no encontrado' } };
+              Object.assign(message, { status: args.p_status, admin_reply: args.p_admin_reply || message.admin_reply, updated_at: new Date().toISOString() });
+              return { data: structuredClone(message), error: null };
+            }
+            if (name === 'admin_list_course_reviews') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const search = String(args?.p_search || '').toLowerCase();
+              const matches = state.courseReviews.filter((item) => !search || [item.full_name, item.email, item.course_key].some((value) => String(value || '').toLowerCase().includes(search)));
+              return { data: { total: matches.length, reviews: structuredClone(matches) }, error: null };
+            }
+            if (name === 'admin_moderate_course_review') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const review = state.courseReviews.find((item) => item.id === args.p_review_id);
+              if (!review) return { data: null, error: { code: 'P0002', message: 'Calificación no encontrada' } };
+              Object.assign(review, { status: args.p_status, updated_at: new Date().toISOString() });
+              return { data: structuredClone(review), error: null };
             }
             if (name === 'enroll_in_course') {
               return { data: [structuredClone(ensureEnrollment(args.p_course_key, args.p_estimated_hours))], error: null };
@@ -699,6 +767,8 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedCertificates: options.certificates || [],
     mockedCertificateOrders: options.certificateOrders || [],
     mockedAdminCertificates: options.adminCertificates || [],
+    mockedContactMessages: options.contactMessages || [],
+    mockedCourseReviews: options.courseReviews || [],
     mockedAudioFailure: Boolean(options.audioFailure),
     mockedPublicActivitySummary: options.publicActivitySummary || {
       registered_students: 18,
@@ -715,7 +785,7 @@ export async function useMockedSupabase(page, session, enrollments = [], options
 export const MOCK_USER = Object.freeze({
   id: 'f5faef51-a75a-4c3d-bd74-21fe19a3f60f',
   email: 'javier@example.com',
-  user_metadata: { full_name: 'Javier QAvance' }
+  user_metadata: { full_name: 'Javier QAvance', avatar_url: 'https://lh3.googleusercontent.com/avatar-javier.png' }
 });
 
 export const MOCK_SESSION = Object.freeze({

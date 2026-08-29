@@ -305,13 +305,31 @@
       certificateValidationError: '',
       certificateValidationCode: '',
       certificateValidationResult: null,
+      contactSubmitting: false,
+      contactResult: '',
+      contactError: '',
+      publicReviewsLoading: false,
+      publicReviews: [],
+      publicReviewAverage: 0,
+      publicReviewTotal: 0,
+      courseReviewLoading: false,
+      courseReviewSubmitting: false,
+      courseReview: null,
+      courseReviews: [],
+      courseReviewAverage: 0,
+      courseReviewTotal: 0,
       adminLoading: false,
       adminError: '',
+      adminSection: 'users',
       adminSummary: {},
       adminUsers: [],
       adminTotal: 0,
       adminCertificates: [],
       adminCertificateTotal: 0,
+      adminMessages: [],
+      adminMessageTotal: 0,
+      adminReviews: [],
+      adminReviewTotal: 0,
       adminSearch: '',
       adminFilter: 'all',
       adminCoursesByKey: new Map(),
@@ -553,6 +571,20 @@
   }
 
   async function handleSubmit(event) {
+    const contactForm = event.target.closest('[data-contact-form]');
+    if (contactForm) {
+      event.preventDefault();
+      await submitContactForm(contactForm);
+      return;
+    }
+
+    const courseReviewForm = event.target.closest('[data-course-review-form]');
+    if (courseReviewForm) {
+      event.preventDefault();
+      await submitCourseReviewForm(courseReviewForm);
+      return;
+    }
+
     const certificateIdentityForm = event.target.closest('[data-certificate-identity-form]');
     if (certificateIdentityForm) {
       event.preventDefault();
@@ -651,6 +683,18 @@
           : 'all';
         render();
         break;
+      case 'admin-section':
+        state.adminSection = ['users', 'messages', 'reviews', 'certificates'].includes(actionTarget.dataset.section)
+          ? actionTarget.dataset.section
+          : 'users';
+        render();
+        break;
+      case 'admin-message-status':
+        await updateAdminMessage(actionTarget);
+        break;
+      case 'admin-review-status':
+        await moderateAdminReview(actionTarget);
+        break;
       case 'admin-refresh':
         await refreshAdmin();
         break;
@@ -690,9 +734,6 @@
         break;
       case 'home-slide-go':
         setHomeSlide(actionTarget.dataset.slide);
-        break;
-      case 'send-contact-message':
-        sendContactMessage();
         break;
       case 'select-coffee-tier':
         selectCoffeeTier(actionTarget);
@@ -1666,6 +1707,7 @@
     updateCourseUi();
     startStudyTimer();
     render();
+    await refreshCourseReviews();
     if (options.updateHash !== false && !PUBLIC_VIEWS.has(state.view)) {
       pushRoute(coursePath(normalizedKey, state.view));
     }
@@ -1694,6 +1736,7 @@
     }
 
     setView(view, options);
+    if (view === 'home') await refreshPublicReviews();
   }
 
   function setView(view, options = {}) {
@@ -2856,9 +2899,10 @@
   }
 
   function renderContactPage() {
-    const courseOptions = publicCourseEntries()
-      .map(([key, item]) => `<option value="${h(item.meta?.name || key)}">${h(coursePublicVersion(key, item))} · ${h(item.meta?.name || key)}</option>`)
-      .join('');
+    const user = Auth?.getUser?.();
+    const metadata = user?.user_metadata || {};
+    const fullName = metadata.full_name || metadata.name || '';
+    const email = user?.email || '';
 
     return `<div class="publicHome publicPage contactPage">
       <section class="contactHero" id="contactanos" aria-labelledby="contactTitle">
@@ -2871,32 +2915,26 @@
 
       <section class="contactFormShell" aria-label="Formulario de contacto">
         <div class="contactFormGrid">
-          <form class="contactForm" id="contactForm">
-            <label for="contactCategory">Categoría</label>
-            <select id="contactCategory">
-              <option>Bug o problema técnico</option>
-              <option>Error académico o contenido</option>
-              <option>Propuesta de nuevo curso</option>
-              <option>Colaboración</option>
-              <option>Otro</option>
-            </select>
+          <form class="contactForm" id="contactForm" data-contact-form>
+            <label for="contactFullName">Nombre completo</label>
+            <input id="contactFullName" name="fullName" type="text" minlength="2" maxlength="120" autocomplete="name" required value="${h(fullName)}" placeholder="Tu nombre y apellido">
 
-            <label for="contactCourse">Curso relacionado</label>
-            <select id="contactCourse">
-              <option>General QAvance</option>
-              ${courseOptions}
-            </select>
+            <label for="contactEmail">Correo electrónico</label>
+            <input id="contactEmail" name="email" type="email" maxlength="254" autocomplete="email" required value="${h(email)}" placeholder="nombre@correo.com">
 
             <label for="contactSubject">Asunto</label>
-            <input id="contactSubject" type="text" maxlength="140" placeholder="Ej. No se conserva el filtro de práctica">
+            <input id="contactSubject" name="subject" type="text" minlength="3" maxlength="160" required placeholder="¿En qué podemos ayudarte?">
 
             <label for="contactMessage">Mensaje</label>
-            <textarea id="contactMessage" maxlength="1800" placeholder="Describe el contexto, pasos para reproducirlo o propuesta..."></textarea>
+            <textarea id="contactMessage" name="message" minlength="10" maxlength="5000" required placeholder="Cuéntanos el contexto con el mayor detalle posible."></textarea>
+
+            <div class="contactHoneypot" aria-hidden="true"><label for="contactWebsite">Sitio web</label><input id="contactWebsite" name="website" type="text" tabindex="-1" autocomplete="off"></div>
 
             <div class="contactSubmitRow">
-              <button class="btn contactSubmit" type="button" data-action="send-contact-message">Enviar mensaje</button>
-              <span>Se abrirá tu correo con el mensaje listo para enviar a ${CONTACT_EMAIL}.</span>
+              <button class="btn contactSubmit" type="submit" ${state.contactSubmitting ? 'disabled' : ''}>${state.contactSubmitting ? 'Enviando...' : 'Enviar mensaje'}</button>
+              <span>Guardaremos tu solicitud para gestionarla y responder al correo indicado.</span>
             </div>
+            <p class="contactFormStatus ${state.contactError ? 'error' : state.contactResult ? 'success' : ''}" role="status" aria-live="polite">${h(state.contactError || state.contactResult)}</p>
           </form>
 
           <aside class="contactSide" aria-labelledby="socialTitle">
@@ -3286,10 +3324,12 @@
     state.adminError = '';
     if (!silent) render();
     try {
-      const [summary, result, certificateResult] = await Promise.all([
+      const [summary, result, certificateResult, messageResult, reviewResult] = await Promise.all([
         Cloud.getAdminDashboardSummary(),
         Cloud.listAdminUsers({ search: state.adminSearch, limit: 50, offset: 0 }),
-        Cloud.listAdminCertificates({ search: state.adminSearch, limit: 100, offset: 0 })
+        Cloud.listAdminCertificates({ search: state.adminSearch, limit: 100, offset: 0 }),
+        Cloud.listAdminContactMessages({ search: state.adminSearch, limit: 100, offset: 0 }),
+        Cloud.listAdminCourseReviews({ search: state.adminSearch, limit: 100, offset: 0 })
       ]);
       const users = Array.isArray(result?.users) ? result.users : [];
       const courseKeys = [...new Set(users.flatMap((user) => (
@@ -3310,6 +3350,10 @@
       state.adminTotal = number(result?.total);
       state.adminCertificates = Array.isArray(certificateResult?.certificates) ? certificateResult.certificates : [];
       state.adminCertificateTotal = number(certificateResult?.total);
+      state.adminMessages = Array.isArray(messageResult?.messages) ? messageResult.messages : [];
+      state.adminMessageTotal = number(messageResult?.total);
+      state.adminReviews = Array.isArray(reviewResult?.reviews) ? reviewResult.reviews : [];
+      state.adminReviewTotal = number(reviewResult?.total);
       state.adminCoursesByKey = new Map(loadedCourses.filter(([, value]) => value));
     } catch (error) {
       console.error(error);
@@ -3421,6 +3465,40 @@
     return true;
   }
 
+  function adminMessageStatusLabel(status) {
+    return ({ new: 'Nuevo', in_progress: 'En gestión', responded: 'Respondido', closed: 'Cerrado' })[status] || 'Nuevo';
+  }
+
+  async function updateAdminMessage(target) {
+    const messageId = String(target.dataset.messageId || '');
+    const status = String(target.dataset.status || 'in_progress');
+    const reply = document.querySelector(`[data-admin-message-reply="${messageId}"]`)?.value?.trim() || '';
+    try {
+      await Cloud.updateAdminContactMessage(messageId, status, reply);
+      notify(status === 'responded' ? 'Respuesta registrada.' : 'Estado del mensaje actualizado.', 'success');
+      if (status === 'responded') {
+        const email = String(target.dataset.email || '');
+        const subject = `Re: ${String(target.dataset.subject || 'Mensaje QAvance')}`;
+        global.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(reply)}`, '_blank', 'noopener');
+      }
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible actualizar el mensaje.', 'error');
+    }
+  }
+
+  async function moderateAdminReview(target) {
+    try {
+      await Cloud.moderateAdminCourseReview(target.dataset.reviewId, target.dataset.status);
+      notify(target.dataset.status === 'approved' ? 'Calificación aprobada y publicada.' : 'Calificación no publicada.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible moderar la calificación.', 'error');
+    }
+  }
+
   function renderAdminPage() {
     if (!Auth?.isAuthenticated?.()) {
       return `<div class="publicHome publicPage adminPage" id="admin">
@@ -3494,6 +3572,34 @@
       <div><strong>${h(formatDate(certificate.issued_at))}</strong><small>${number(certificate.estimated_hours)} h estimadas</small></div>
       <div class="adminCertificateActions"><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Validar</button><button class="btn" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Ver PDF</button></div>
     </article>`).join('');
+    const messageRows = state.adminMessages.map((message) => `<article class="adminInboxCard">
+      <div class="adminCardHead"><div><span class="reviewStatus ${h(message.status)}">${h(adminMessageStatusLabel(message.status))}</span><h3>${h(message.subject)}</h3></div><time datetime="${h(message.created_at)}">${h(formatDate(message.created_at))}</time></div>
+      <div class="adminInboxIdentity"><strong>${h(message.full_name)}</strong><a href="mailto:${h(message.email)}">${h(message.email)}</a></div>
+      <p class="adminInboxMessage">${h(message.message)}</p>
+      <label for="adminReply${h(message.id)}">Respuesta administrativa</label>
+      <textarea id="adminReply${h(message.id)}" data-admin-message-reply="${h(message.id)}" maxlength="5000" placeholder="Escribe la respuesta que quedará registrada...">${h(message.admin_reply || '')}</textarea>
+      <div class="adminInboxActions">
+        <button class="btn secondary" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="in_progress">Marcar en gestión</button>
+        <button class="btn" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="responded" data-email="${h(message.email)}" data-subject="${h(message.subject)}">Guardar y responder por correo</button>
+        <button class="btn secondary" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="closed">Cerrar</button>
+      </div>
+    </article>`).join('');
+    const reviewRows = state.adminReviews.map((review) => {
+      const entry = catalogEntry(review.course_key) || {};
+      return `<article class="adminReviewCard">
+        <div class="adminCardHead"><div><span class="reviewStatus ${h(review.status)}">${h(reviewStatusLabel(review.status))}</span><div class="studentReviewStars" aria-label="${number(review.rating)} de 5 estrellas">${starText(review.rating)}</div></div><time datetime="${h(review.created_at)}">${h(formatDate(review.created_at))}</time></div>
+        <h3>${h(entry.meta?.name || review.course_key)}</h3>
+        <p>${h(review.comment || 'Calificación sin comentario.')}</p>
+        <div class="adminInboxIdentity"><strong>${h(review.full_name || 'Usuario')}</strong><a href="mailto:${h(review.email || '')}">${h(review.email || 'Sin correo')}</a></div>
+        <div class="adminInboxActions"><button class="btn good" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="approved">Aprobar</button><button class="btn secondary" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="rejected">Declinar</button></div>
+      </article>`;
+    }).join('');
+    const adminTabs = [
+      ['users', 'Usuarios', state.adminTotal],
+      ['messages', 'Mensajes', state.adminMessageTotal],
+      ['reviews', 'Calificaciones', state.adminReviewTotal],
+      ['certificates', 'Certificados', state.adminCertificateTotal]
+    ];
 
     return `<div class="publicHome publicPage adminPage" id="admin">
       <section class="adminHeader" aria-labelledby="adminTitle">
@@ -3512,7 +3618,8 @@
           <div class="metric"><span>Certificados emitidos</span><strong>${number(summary.issued_certificates)}</strong></div>
         </div>
       </section>
-      <section class="adminDirectory" aria-labelledby="adminUsersTitle">
+      <nav class="adminSectionTabs" aria-label="Secciones de administración">${adminTabs.map(([key, label, count]) => `<button type="button" data-action="admin-section" data-section="${key}" aria-pressed="${state.adminSection === key}" class="${state.adminSection === key ? 'active' : ''}">${label}<span>${count}</span></button>`).join('')}</nav>
+      <section class="adminDirectory" aria-labelledby="adminUsersTitle" ${state.adminSection === 'users' ? '' : 'hidden'}>
         <div class="adminDirectoryHead">
           <div><h2 id="adminUsersTitle">Usuarios y correos activos</h2><p>${state.adminTotal} registro${state.adminTotal === 1 ? '' : 's'} en el directorio.</p></div>
           <form class="adminSearchForm" data-admin-search-form role="search">
@@ -3531,7 +3638,15 @@
           <div class="adminUserList">${userRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron usuarios para este filtro.</p>' : '')}</div>
         </div>
       </section>
-      <section class="adminCertificates" aria-labelledby="adminCertificatesTitle">
+      <section class="adminInbox" aria-labelledby="adminMessagesTitle" ${state.adminSection === 'messages' ? '' : 'hidden'}>
+        <div class="adminDirectoryHead"><div><h2 id="adminMessagesTitle">Mensajes de contacto</h2><p>${state.adminMessageTotal} mensaje${state.adminMessageTotal === 1 ? '' : 's'} almacenado${state.adminMessageTotal === 1 ? '' : 's'}.</p></div></div>
+        <div class="adminInboxGrid">${messageRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron mensajes.</p>' : '')}</div>
+      </section>
+      <section class="adminReviews" aria-labelledby="adminReviewsTitle" ${state.adminSection === 'reviews' ? '' : 'hidden'}>
+        <div class="adminDirectoryHead"><div><h2 id="adminReviewsTitle">Calificaciones de cursos</h2><p>Aprueba o declina cada experiencia antes de publicarla.</p></div></div>
+        <div class="adminReviewGrid">${reviewRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron calificaciones.</p>' : '')}</div>
+      </section>
+      <section class="adminCertificates" aria-labelledby="adminCertificatesTitle" ${state.adminSection === 'certificates' ? '' : 'hidden'}>
         <div class="adminDirectoryHead"><div><h2 id="adminCertificatesTitle">Certificados obtenidos</h2><p>${state.adminCertificateTotal} certificado${state.adminCertificateTotal === 1 ? '' : 's'} registrado${state.adminCertificateTotal === 1 ? '' : 's'}.</p></div></div>
         <div class="adminCertificateTable"><div class="adminCertificateHeader"><span>Certificado</span><span>Usuario</span><span>Curso</span><span>Emisión</span><span>Acciones</span></div>${certificateRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron certificados para este filtro.</p>' : '')}</div>
       </section>
@@ -3551,6 +3666,7 @@
             <h3>Política de privacidad</h3>
             <p>QAvance utiliza inicio de sesión con Google mediante Supabase Auth para acceder a los cursos. Al ingresar se procesan el identificador de cuenta, nombre y correo proporcionados por Google para mantener la sesión y asociar tus matrículas. QAvance no recibe tu contraseña de Google.</p>
             <p>Las matrículas, fechas de inicio, avance por capítulo, tiempo activo de estudio, respuestas acumuladas y resultados de simulacros o exámenes finales se guardan en Supabase para recuperar el aprendizaje entre dispositivos y generar métricas de uso. El navegador conserva una copia local para dar continuidad a la experiencia.</p>
+            <p>Los mensajes enviados mediante el formulario de contacto se almacenan para gestionarlos y responder al correo indicado. Las calificaciones de cursos se asocian a la cuenta inscrita; solo el nombre abreviado, las estrellas y el comentario aparecen públicamente después de moderación administrativa.</p>
             <p>Cancelar un curso detiene su estado activo, pero conserva el historial para que puedas reactivarlo. Después de cancelarlo, puedes usar <b>Eliminar curso</b> en Mi cuenta para borrar permanentemente su matrícula, avance, tiempo e intentos; para solicitar la eliminación completa de la cuenta o de otros datos personales usa el formulario de contacto.</p>
             <p>QAvance utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
             <p>Wompi procesa los pagos de certificados y aportes. QAvance conserva la referencia, el estado y el valor de la transacción, pero no recibe ni almacena números de tarjeta ni credenciales bancarias.</p>
@@ -3578,30 +3694,156 @@
     return `<span class="brandSocialIcon">${icons[name] || ''}</span>`;
   }
 
-  function contactMessageText() {
-    const category = $('contactCategory')?.value || 'General';
-    const relatedCourse = $('contactCourse')?.value || 'General QAvance';
-    const subject = ($('contactSubject')?.value || '').trim() || 'Mensaje QAvance';
-    const message = ($('contactMessage')?.value || '').trim() || 'Hola, quiero contactar sobre QAvance.';
-    return [
-      `Categoría: ${category}`,
-      `Curso relacionado: ${relatedCourse}`,
-      `Asunto: ${subject}`,
-      '',
-      message,
-      '',
-      `Página: ${global.location.href}`,
-      `Navegador: ${global.navigator?.userAgent || 'N/D'}`
-    ].join('\n');
+  async function submitContactForm(form) {
+    if (state.contactSubmitting || !form.reportValidity()) return;
+    const data = new FormData(form);
+    state.contactSubmitting = true;
+    state.contactResult = '';
+    state.contactError = '';
+    const submitButton = form.querySelector('[type="submit"]');
+    const status = form.querySelector('.contactFormStatus');
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Enviando...';
+    }
+    if (status) status.textContent = '';
+    try {
+      await Cloud.submitContactMessage({
+        fullName: data.get('fullName'),
+        email: data.get('email'),
+        subject: data.get('subject'),
+        message: data.get('message'),
+        website: data.get('website'),
+        sourcePath: `${global.location.pathname}${global.location.search}${global.location.hash}`
+      });
+      state.contactResult = 'Mensaje enviado. Lo revisaremos desde el panel administrativo y responderemos a tu correo.';
+      notify('Mensaje enviado correctamente.', 'success');
+      form.reset();
+    } catch (error) {
+      console.error(error);
+      state.contactError = error?.message || 'No fue posible enviar el mensaje. Intenta nuevamente.';
+    } finally {
+      state.contactSubmitting = false;
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Enviar mensaje';
+      }
+      if (status) {
+        status.textContent = state.contactError || state.contactResult;
+        status.className = `contactFormStatus ${state.contactError ? 'error' : 'success'}`;
+      }
+    }
   }
 
-  function sendContactMessage() {
-    const text = contactMessageText();
-    const subject = ($('contactSubject')?.value || '').trim() || 'Mensaje QAvance';
-    const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  function starText(rating) {
+    const value = Math.max(0, Math.min(5, Math.trunc(number(rating))));
+    return `${'★'.repeat(value)}${'☆'.repeat(5 - value)}`;
+  }
 
-    notify(`Se abrirá tu correo para enviar el mensaje a ${CONTACT_EMAIL}.`, 'info');
-    global.location.href = mailto;
+  function reviewStatusLabel(status) {
+    return status === 'approved' ? 'Publicada' : status === 'rejected' ? 'No publicada' : 'Pendiente de revisión';
+  }
+
+  function renderReviewCards(reviews, { showCourse = false } = {}) {
+    return (Array.isArray(reviews) ? reviews : []).map((review) => {
+      const entry = catalogEntry(review.course_key) || {};
+      return `<article class="studentReviewCard">
+        <div class="studentReviewStars" aria-label="${number(review.rating)} de 5 estrellas">${starText(review.rating)}</div>
+        ${review.comment ? `<blockquote>${h(review.comment)}</blockquote>` : '<p class="small">Calificación sin comentario.</p>'}
+        <footer><strong>${h(review.display_name || 'Estudiante')}</strong>${showCourse ? `<span>${h(entry.meta?.name || review.course_key)}</span>` : ''}</footer>
+      </article>`;
+    }).join('');
+  }
+
+  function renderStudentTestimonials() {
+    const reviews = Array.isArray(state.publicReviews) ? state.publicReviews : [];
+    return `<section class="homeSection studentVoices" aria-labelledby="studentVoicesTitle">
+      <div class="sectionIntro">
+        <span class="sectionKicker">Experiencias verificadas</span>
+        <h2 id="studentVoicesTitle">Qué piensan nuestros estudiantes</h2>
+        <p>${state.publicReviewTotal ? `${state.publicReviewAverage} de 5 · ${state.publicReviewTotal} calificación${state.publicReviewTotal === 1 ? '' : 'es'} aprobada${state.publicReviewTotal === 1 ? '' : 's'}.` : 'Las experiencias aprobadas por el equipo se publicarán aquí.'}</p>
+      </div>
+      ${state.publicReviewsLoading ? '<p class="reviewEmpty" role="status">Cargando experiencias...</p>' : reviews.length ? `<div class="studentReviewGrid">${renderReviewCards(reviews, { showCourse: true })}</div>` : '<p class="reviewEmpty">Todavía no hay comentarios publicados.</p>'}
+    </section>`;
+  }
+
+  async function refreshPublicReviews({ silent = false } = {}) {
+    if (!silent) state.publicReviewsLoading = true;
+    try {
+      const result = await Cloud.listApprovedCourseReviews('', 6);
+      state.publicReviews = Array.isArray(result?.reviews) ? result.reviews : [];
+      state.publicReviewAverage = number(result?.average_rating);
+      state.publicReviewTotal = number(result?.total);
+    } catch (error) {
+      console.warn('No fue posible cargar las calificaciones públicas.', error);
+    } finally {
+      state.publicReviewsLoading = false;
+      if (state.view === 'home') render();
+    }
+  }
+
+  async function refreshCourseReviews({ silent = false } = {}) {
+    if (!activeCourseKey || !Auth?.isAuthenticated?.()) return;
+    if (!silent) state.courseReviewLoading = true;
+    try {
+      const [mine, result] = await Promise.all([
+        Cloud.getMyCourseReview(activeCourseKey),
+        Cloud.listApprovedCourseReviews(activeCourseKey, 6)
+      ]);
+      state.courseReview = mine;
+      state.courseReviews = Array.isArray(result?.reviews) ? result.reviews : [];
+      state.courseReviewAverage = number(result?.average_rating);
+      state.courseReviewTotal = number(result?.total);
+    } catch (error) {
+      console.warn('No fue posible cargar las calificaciones del curso.', error);
+    } finally {
+      state.courseReviewLoading = false;
+      if (state.view === 'dashboard') render();
+    }
+  }
+
+  async function submitCourseReviewForm(form) {
+    if (state.courseReviewSubmitting || !form.reportValidity()) return;
+    const data = new FormData(form);
+    const rating = Math.trunc(Number(data.get('rating')));
+    if (rating < 1 || rating > 5) {
+      notify('Selecciona una calificación de 1 a 5 estrellas.', 'warning');
+      return;
+    }
+    state.courseReviewSubmitting = true;
+    render();
+    try {
+      state.courseReview = await Cloud.submitCourseReview(activeCourseKey, rating, data.get('comment'));
+      notify('Calificación enviada. Se publicará cuando sea aprobada.', 'success');
+      await refreshCourseReviews({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible enviar la calificación.', 'error');
+    } finally {
+      state.courseReviewSubmitting = false;
+      if (state.view === 'dashboard') render();
+    }
+  }
+
+  function renderCourseReviewSection() {
+    const mine = state.courseReview || {};
+    const rating = number(mine.rating);
+    const reviews = Array.isArray(state.courseReviews) ? state.courseReviews : [];
+    return `<section class="courseReviewSection card" aria-labelledby="courseReviewTitle">
+      <div class="courseReviewHeader">
+        <div><span class="sectionKicker">Tu experiencia</span><h2 id="courseReviewTitle">Califica este curso</h2><p>Tu comentario es opcional. Cada publicación pasa por moderación antes de aparecer en la plataforma.</p></div>
+        ${state.courseReviewTotal ? `<div class="courseReviewSummary"><strong>${state.courseReviewAverage}</strong><span aria-label="${state.courseReviewAverage} de 5 estrellas">${starText(Math.round(state.courseReviewAverage))}</span><small>${state.courseReviewTotal} publicada${state.courseReviewTotal === 1 ? '' : 's'}</small></div>` : ''}
+      </div>
+      <form class="courseReviewForm" data-course-review-form>
+        <fieldset><legend>Calificación</legend><div class="starRating">
+          ${[5, 4, 3, 2, 1].map((value) => `<input id="courseRating${value}" name="rating" type="radio" value="${value}" ${rating === value ? 'checked' : ''} required><label for="courseRating${value}" title="${value} estrella${value === 1 ? '' : 's'}"><span aria-hidden="true">★</span><span class="srOnly">${value} estrella${value === 1 ? '' : 's'}</span></label>`).join('')}
+        </div></fieldset>
+        <label for="courseReviewComment">Comentario <span>(opcional)</span></label>
+        <textarea id="courseReviewComment" name="comment" maxlength="1000" placeholder="¿Qué te ayudó más de este curso?">${h(mine.comment || '')}</textarea>
+        <div class="courseReviewActions"><button class="btn" type="submit" ${state.courseReviewSubmitting ? 'disabled' : ''}>${state.courseReviewSubmitting ? 'Enviando...' : rating ? 'Actualizar calificación' : 'Enviar calificación'}</button>${mine.status ? `<span class="reviewStatus ${h(mine.status)}">${h(reviewStatusLabel(mine.status))}</span>` : ''}</div>
+      </form>
+      <div class="coursePublishedReviews"><h3>Opiniones publicadas</h3>${state.courseReviewLoading ? '<p class="reviewEmpty">Cargando...</p>' : reviews.length ? `<div class="studentReviewGrid">${renderReviewCards(reviews)}</div>` : '<p class="reviewEmpty">Este curso todavía no tiene comentarios publicados.</p>'}</div>
+    </section>`;
   }
 
   function renderHome() {
@@ -3630,6 +3872,8 @@
       ${renderHomeAvailableCoursesSection()}
 
       ${renderHomeCourseAdvantages()}
+
+      ${renderStudentTestimonials()}
 
       ${renderDonationSpotlight()}
 
@@ -3724,7 +3968,7 @@
           ? `<a class="btn warn" href="${h(coursePath(activeCourseKey, 'finalExam'))}" data-view="finalExam">Examen final</a>`
           : `<button class="btn warn" type="button" disabled aria-disabled="true">Examen final · requiere ${FINAL_EXAM_UNLOCK_PROGRESS}%</button>`}
       </div>
-    </div>`;
+    </div>${renderCourseReviewSection()}`;
   }
 
   function renderBlueprintTable() {
@@ -5119,6 +5363,7 @@
       } else {
         state = createState(initialRoute.view);
         render();
+        if (initialRoute.view === 'home') await refreshPublicReviews();
         if (initialRoute.view === 'account' && Auth?.isAuthenticated?.()) await refreshAccount();
         if (initialRoute.view === 'admin' && Auth?.isAuthenticated?.() && Auth?.isAdmin?.()) await refreshAdmin();
         if (initialRoute.view === 'verifyCertificate') {

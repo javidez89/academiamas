@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.21.0] - 2026-08-29
+
+### Added
+- Formulario de contacto persistido en Supabase con bandeja administrativa y seguimiento de respuestas.
+- Calificaciones de una a cinco estrellas por curso, comentarios opcionales y moderación previa a su publicación.
+- Opiniones aprobadas en el inicio y en cada curso, junto con audio natural precalculado y reutilizable para el material de estudio.
+
+### Changed
+- La cuenta autenticada muestra la fotografía de perfil de Google con una inicial segura como respaldo.
+- Las respuestas de contacto quedan registradas y permiten continuar la conversación desde el cliente de correo del administrador.
+- La versión PWA renueva su caché para distribuir los nuevos módulos y páginas SEO.
+
+### Security
+- Los mensajes y calificaciones permanecen en tablas privadas; el acceso se realiza mediante RPC validados y permisos mínimos.
+- El formulario incluye límites por correo y usuario, bloqueo de envíos simultáneos y campo señuelo contra automatización.
+- Solo estudiantes autenticados con matrícula activa o completada pueden calificar, y únicamente las opiniones aprobadas son públicas.
+
 ## [v0.20.0] - 2026-08-27
 
 ### Added
