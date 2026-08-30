@@ -81,11 +81,30 @@ function breadcrumb(items) {
   };
 }
 
+const COURSE_VIEW_SEGMENTS = Object.freeze({
+  panel: '',
+  dashboard: '',
+  syllabus: 'syllabus',
+  study: 'syllabus',
+  objetivos: 'objetivos',
+  objectives: 'objetivos',
+  practica: 'practica',
+  practice: 'practica',
+  simulacro: 'simulacro',
+  exam: 'simulacro',
+  'examen-final': 'examen-final',
+  finalExam: 'examen-final',
+  k3: 'k3',
+  k3lab: 'k3',
+  flashcards: 'flashcards',
+  estadisticas: 'estadisticas',
+  analytics: 'estadisticas'
+});
+
 function coursePath(key, view = 'panel') {
   const base = `/curso/${encodeURIComponent(key)}/`;
-  if (view === 'simulacro') return `${base}simulacro/`;
-  if (view === 'examen-final') return `${base}examen-final/`;
-  return base;
+  const segment = COURSE_VIEW_SEGMENTS[view] ?? '';
+  return segment ? `${base}${segment}/` : base;
 }
 
 function chapterPath(key, chapterId) {
@@ -957,7 +976,35 @@ function privatePageDefinitions(catalog) {
     };
   });
 
-  return [account, admin, ...finalExams];
+  const internalViews = [
+    ['syllabus', 'Syllabus y capítulos'],
+    ['objetivos', 'Objetivos de aprendizaje'],
+    ['practica', 'Práctica personalizada'],
+    ['k3', 'Laboratorio K3'],
+    ['flashcards', 'Flashcards'],
+    ['estadisticas', 'Estadísticas del curso']
+  ];
+  const internalCoursePages = catalog.flatMap((course) => {
+    const meta = metaOf(course);
+    return internalViews.map(([view, label]) => ({
+      key: `${course.key}-${view}`,
+      path: coursePath(course.key, view),
+      ...courseHeroProperties(course),
+      title: `${label} · ${meta.name || course.key} | QAvance`,
+      heroTitle: meta.name || course.key,
+      description: `${label} del curso ${meta.name || course.key} en QAvance.`,
+      robots: 'noindex, follow',
+      schema: [],
+      content: `        <div class="card">
+          <span class="sectionKicker">${h(meta.code || course.key)}</span>
+          <h2>${h(label)}</h2>
+          <p>Inicia sesión para continuar en esta sección y conservar tu avance en la nube.</p>
+          <a class="btn" href="${h(coursePath(course.key))}">Volver al curso</a>
+        </div>`
+    }));
+  });
+
+  return [account, admin, ...finalExams, ...internalCoursePages];
 }
 
 function outputPath(routePath) {

@@ -1793,6 +1793,13 @@
     }
   }
 
+  function activateCourseView(view) {
+    state.view = view;
+    syncNavigationState();
+    updateDocumentMetadata();
+    pushRoute(routePathForView(view));
+  }
+
   function syncNavigationState() {
     const finalExamDetails = course ? courseProgressDetails(activeCourseKey, course) : null;
     document.querySelectorAll('.navbtn[data-view], .siteNav [data-view]').forEach((item) => {
@@ -5102,8 +5109,7 @@
     state.mode = filter.mode || 'study';
     state.startTime = Date.now();
     state.questionLocked = false;
-    state.view = 'practice';
-    document.querySelectorAll('.navbtn[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === 'practice'));
+    activateCourseView('practice');
     dom.app.innerHTML = renderPractice();
     renderSession();
     startVerifiedAssessment('practice', {
@@ -5396,7 +5402,7 @@
     state.mode = 'exam';
     state.startTime = Date.now();
     state.questionLocked = false;
-    state.view = 'exam';
+    activateCourseView('exam');
     setExamFocus(true);
     dom.app.innerHTML = renderExam();
     global.scrollTo({ top: 0, behavior: 'smooth' });
@@ -5425,7 +5431,7 @@
     state.mode = 'final-exam';
     state.startTime = Date.now();
     state.questionLocked = false;
-    state.view = 'finalExam';
+    activateCourseView('finalExam');
     setExamFocus(true);
     dom.app.innerHTML = renderFinalExam();
     global.scrollTo({ top: 0, behavior: 'smooth' });

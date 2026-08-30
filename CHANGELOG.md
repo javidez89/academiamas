@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.22.1] - 2026-08-30
+
+### Fixed
+- Recuperación no destructiva del progreso anterior al despliegue autoritativo como histórico no verificado.
+- Las rutas de capítulos, práctica, simulacro y demás vistas internas conservan la sección actual al recargar con `F5`.
+- Las acciones que inician práctica, simulacro o examen final actualizan inmediatamente la URL limpia.
+
+### Security
+- El histórico recuperado no modifica el avance oficial ni habilita exámenes finales o constancias.
+- La migración solo agrega snapshots inmutables; no altera matrículas, progreso fuente, sesiones verificadas ni intentos.
+
 ## [v0.22.0] - 2026-08-30
 
 ### Added
