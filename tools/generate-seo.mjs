@@ -835,14 +835,13 @@ function pageDefinitions(catalog, courseDataByKey) {
       content: `        <div class="publicHome publicPage certificateValidationPage" id="validar-certificado">
           <section class="certificateValidationHero" aria-labelledby="certificateValidationTitle">
             <span class="sectionKicker">Validación pública</span>
-            <h1 id="certificateValidationTitle">Valida un certificado QAvance</h1>
-            <p>Consulta el código único impreso en el PDF o abre la URL incluida en su código QR.</p>
+            <h1 id="certificateValidationTitle">Comprueba una constancia QAvance</h1>
+            <p>Ingresa el código único del documento para consultar su registro público, vigencia y datos de emisión.</p>
             <form class="certificateValidationForm" data-certificate-validation-form>
               <label for="certificateCodeInput">Código del certificado</label>
               <div><input id="certificateCodeInput" name="certificateCode" type="text" maxlength="17" placeholder="ACQA-XXXXXXXXXXXX" autocomplete="off" required><button class="btn" type="submit">Validar</button></div>
             </form>
           </section>
-          <div class="note certificateValidationDisclaimer"><b>Alcance:</b> QAvance valida la finalización de sus cursos internos. Este registro no reemplaza ni representa una certificación oficial de ISTQB, CertiProf u otra entidad certificadora.</div>
         </div>`
     }
   ];

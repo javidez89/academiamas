@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.23.0] - 2026-08-30
+
+### Added
+- Bandejas administrativas por estado para mensajes y calificaciones, con respuestas gestionadas dentro de QAvance.
+- Configuración centralizada de LinkedIn, Facebook, TikTok, YouTube y comunidad de WhatsApp desde administración.
+- Acceso permanente para enviar mensajes a soporte desde Mi cuenta.
+
+### Changed
+- Los mensajes respondidos, completados, cerrados y archivados conservan trazabilidad y permanecen consultables.
+- Las calificaciones aprobadas, declinadas y archivadas se organizan en paneles de moderación con confirmaciones visibles.
+- El panel del curso prioriza los temas por fortalecer y ofrece acceso directo a la práctica.
+- La validación pública de constancias presenta una interfaz más clara y enfocada en la consulta.
+- Mi cuenta y administración conservan su ruta y sección activa al recargar con `F5`.
+
+### Security
+- La configuración de canales reside en una tabla privada con escritura exclusiva para administradores verificados en servidor.
+- La migración no modifica matrículas, progreso, tiempo de estudio, respuestas, intentos ni históricos académicos.
+
 ## [v0.22.1] - 2026-08-30
 
 ### Fixed

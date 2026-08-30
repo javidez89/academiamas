@@ -96,7 +96,7 @@ try {
   await admin.getByRole('button', { name: 'Revocar' }).click();
   await admin.getByText('Revocado', { exact: true }).waitFor();
   await admin.getByRole('button', { name: 'Archivar' }).click();
-  await admin.getByText('Archivado', { exact: true }).waitFor();
+  await admin.locator('.adminCertificates .accountStatus', { hasText: 'Archivado' }).waitFor();
 
   const governance = await admin.evaluate(() => ({
     access: window.__supabaseMock.adminGovernance[0],

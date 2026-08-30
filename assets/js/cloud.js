@@ -575,6 +575,26 @@
     return data && typeof data === 'object' ? data : { total: 0, reviews: [] };
   }
 
+  async function getPublicSocialSettings() {
+    const client = requireClient();
+    const { data, error } = await client.rpc('get_public_social_settings');
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : {};
+  }
+
+  async function updateAdminSocialSettings(input = {}) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_update_social_settings', {
+      p_linkedin_url: String(input.linkedinUrl || '').trim() || null,
+      p_facebook_url: String(input.facebookUrl || '').trim() || null,
+      p_tiktok_url: String(input.tiktokUrl || '').trim() || null,
+      p_youtube_url: String(input.youtubeUrl || '').trim() || null,
+      p_whatsapp_url: String(input.whatsappUrl || '').trim() || null
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : {};
+  }
+
   async function moderateAdminCourseReview(reviewId, status) {
     const { client } = requireUser();
     const { data, error } = await client.rpc('admin_moderate_course_review', {
@@ -702,6 +722,8 @@
     updateAdminContactMessage,
     listAdminCourseReviews,
     moderateAdminCourseReview,
+    getPublicSocialSettings,
+    updateAdminSocialSettings,
     listAdminUserGovernance,
     setAdminUserBlocked,
     setAdminUserRole,

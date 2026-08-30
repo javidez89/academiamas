@@ -9,6 +9,8 @@
   let session = null;
   let initialized = false;
   let admin = false;
+  let adminResolved = false;
+  let adminCheckFailed = false;
   let accessStatus = { blocked: false, blocked_at: null, reason: null, admin_role: null };
   let adminAccessRequest = null;
   let activityRequest = null;
@@ -123,6 +125,8 @@
   async function refreshAdminAccess(user) {
     if (!client || !user) {
       admin = false;
+      adminResolved = true;
+      adminCheckFailed = false;
       render(session, { notify: false });
       global.dispatchEvent(new CustomEvent('academiaqa:admin-change', { detail: { admin } }));
       return false;
@@ -130,6 +134,8 @@
     if (adminAccessRequest) return adminAccessRequest;
 
     const userId = user.id;
+    adminResolved = false;
+    adminCheckFailed = false;
     adminAccessRequest = (async () => {
       let nextAdmin = false;
       try {
@@ -138,10 +144,12 @@
         nextAdmin = data === true;
       } catch (error) {
         console.error('No fue posible verificar el acceso administrativo.', error);
+        adminCheckFailed = true;
       }
 
       if (session?.user?.id !== userId) return false;
       admin = nextAdmin;
+      adminResolved = true;
       render(session, { notify: false });
       global.dispatchEvent(new CustomEvent('academiaqa:admin-change', { detail: { admin } }));
       return admin;
@@ -341,6 +349,9 @@
     getAccessStatus: () => ({ ...accessStatus }),
     refreshAccessStatus: () => refreshAccessStatus(session?.user || null),
     isAdmin: () => admin,
+    isReady: () => ready,
+    isAdminResolved: () => adminResolved,
+    didAdminCheckFail: () => adminCheckFailed,
     refreshAdminAccess: () => refreshAdminAccess(session?.user || null)
   });
 

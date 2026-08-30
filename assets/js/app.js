@@ -20,6 +20,7 @@
   const LINKEDIN_URL = 'https://www.linkedin.com/in/javierchilatra89/';
   const SESSION_CLOSED_KEY = 'academiaqa.auth.sessionClosed';
   const READING_SCALE_KEY = 'academiaqa.accessibility.readingScale';
+  const ADMIN_SECTION_KEY = 'academiaqa.admin.section';
   const FINAL_EXAM_UNLOCK_PROGRESS = 95;
   const DEVICE_NARRATION_CHUNK_LIMIT = 260;
   const COMMUNITY_ACTIVITY_REFRESH_MS = 15_000;
@@ -240,6 +241,14 @@
     error: false
   };
   let communityActivityRequest = null;
+  let socialSettings = {
+    linkedin_url: LINKEDIN_URL,
+    facebook_url: '',
+    tiktok_url: '',
+    youtube_url: '',
+    whatsapp_url: ''
+  };
+  let socialSettingsRequest = null;
   let learningActivitySession = null;
   let learningActivityHeartbeatTimer = null;
   let learningActivityGeneration = 0;
@@ -274,6 +283,23 @@
   };
   let readingScale = loadReadingScale();
   const loadingCourseScripts = new Map();
+
+  function loadAdminSection() {
+    try {
+      const value = global.sessionStorage?.getItem(ADMIN_SECTION_KEY) || '';
+      return ['users', 'messages', 'reviews', 'certificates', 'socials'].includes(value) ? value : 'users';
+    } catch {
+      return 'users';
+    }
+  }
+
+  function saveAdminSection(value) {
+    try {
+      global.sessionStorage?.setItem(ADMIN_SECTION_KEY, value);
+    } catch {
+      // La ruta administrativa sigue siendo la fuente principal si el almacenamiento no está disponible.
+    }
+  }
 
   function createState(view = 'home') {
     return {
@@ -323,7 +349,7 @@
       courseReviewTotal: 0,
       adminLoading: false,
       adminError: '',
-      adminSection: 'users',
+      adminSection: view === 'admin' ? loadAdminSection() : 'users',
       adminSummary: {},
       adminUsers: [],
       adminTotal: 0,
@@ -333,6 +359,10 @@
       adminMessageTotal: 0,
       adminReviews: [],
       adminReviewTotal: 0,
+      adminMessageFilter: 'all',
+      adminReviewFilter: 'all',
+      adminSocialSettings: {},
+      adminSocialSaving: false,
       adminSearch: '',
       adminFilter: 'all',
       adminCoursesByKey: new Map(),
@@ -368,6 +398,75 @@
 
   function number(value, fallback = 0) {
     return Security.toFiniteNumber(value, fallback);
+  }
+
+  function safeHttpsUrl(value, allowedHosts = []) {
+    try {
+      const url = new URL(String(value || '').trim());
+      if (url.protocol !== 'https:') return '';
+      if (allowedHosts.length && !allowedHosts.includes(url.hostname.toLowerCase())) return '';
+      return url.href;
+    } catch {
+      return '';
+    }
+  }
+
+  function normalizeWhatsappUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const digits = raw.replace(/\D/g, '');
+    if (/^\+?[0-9\s()-]{7,20}$/.test(raw) && digits.length >= 7 && digits.length <= 15) {
+      return `https://wa.me/${digits}`;
+    }
+    const candidate = /^https:\/\//i.test(raw) ? raw : `https://${raw}`;
+    return safeHttpsUrl(candidate, ['wa.me', 'api.whatsapp.com', 'chat.whatsapp.com']);
+  }
+
+  function normalizedSocialSettings(value = {}) {
+    return {
+      linkedin_url: safeHttpsUrl(value.linkedin_url),
+      facebook_url: safeHttpsUrl(value.facebook_url),
+      tiktok_url: safeHttpsUrl(value.tiktok_url),
+      youtube_url: safeHttpsUrl(value.youtube_url),
+      whatsapp_url: normalizeWhatsappUrl(value.whatsapp_url)
+    };
+  }
+
+  function syncFloatingWhatsapp() {
+    let link = document.getElementById('whatsappCommunityLink');
+    if (!link) {
+      link = document.createElement('a');
+      link.id = 'whatsappCommunityLink';
+      link.className = 'whatsappCommunityLink';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.setAttribute('aria-label', 'Abrir la comunidad de QAvance en WhatsApp');
+      link.innerHTML = `${brandIcon('whatsapp')}<span>Comunidad</span>`;
+      document.body.appendChild(link);
+    }
+    const url = normalizeWhatsappUrl(socialSettings.whatsapp_url);
+    link.hidden = !url;
+    if (url) link.href = url;
+    else link.removeAttribute('href');
+  }
+
+  async function refreshSocialSettings({ force = false } = {}) {
+    if (socialSettingsRequest && !force) return socialSettingsRequest;
+    socialSettingsRequest = (async () => {
+      try {
+        const value = await Cloud.getPublicSocialSettings();
+        socialSettings = { ...socialSettings, ...normalizedSocialSettings(value) };
+      } catch (error) {
+        console.warn('No fue posible cargar los canales oficiales.', error);
+      }
+      syncFloatingWhatsapp();
+      return socialSettings;
+    })();
+    try {
+      return await socialSettingsRequest;
+    } finally {
+      socialSettingsRequest = null;
+    }
   }
 
   function setTextIfChanged(element, value) {
@@ -576,6 +675,13 @@
   }
 
   async function handleSubmit(event) {
+    const socialSettingsForm = event.target.closest('[data-admin-social-form]');
+    if (socialSettingsForm) {
+      event.preventDefault();
+      await saveAdminSocialSettings(socialSettingsForm);
+      return;
+    }
+
     const contactForm = event.target.closest('[data-contact-form]');
     if (contactForm) {
       event.preventDefault();
@@ -698,9 +804,22 @@
         render();
         break;
       case 'admin-section':
-        state.adminSection = ['users', 'messages', 'reviews', 'certificates'].includes(actionTarget.dataset.section)
+        state.adminSection = ['users', 'messages', 'reviews', 'certificates', 'socials'].includes(actionTarget.dataset.section)
           ? actionTarget.dataset.section
           : 'users';
+        saveAdminSection(state.adminSection);
+        render();
+        break;
+      case 'admin-message-filter':
+        state.adminMessageFilter = ['all', 'new', 'in_progress', 'responded', 'closed', 'archived'].includes(actionTarget.dataset.filter)
+          ? actionTarget.dataset.filter
+          : 'all';
+        render();
+        break;
+      case 'admin-review-filter':
+        state.adminReviewFilter = ['all', 'pending', 'approved', 'rejected', 'archived'].includes(actionTarget.dataset.filter)
+          ? actionTarget.dataset.filter
+          : 'all';
         render();
         break;
       case 'admin-message-status':
@@ -729,6 +848,11 @@
         break;
       case 'admin-refresh':
         await refreshAdmin();
+        break;
+      case 'admin-refresh-access':
+        await Auth?.refreshAdminAccess?.();
+        if (Auth?.isAdmin?.()) await refreshAdmin();
+        else render();
         break;
       case 'retry-course':
         await setCourse(actionTarget.dataset.course, {
@@ -2996,17 +3120,15 @@
 
             <div class="contactSubmitRow">
               <button class="btn contactSubmit" type="submit" ${state.contactSubmitting ? 'disabled' : ''}>${state.contactSubmitting ? 'Enviando...' : 'Enviar mensaje'}</button>
-              <span>Guardaremos tu solicitud para gestionarla y responder al correo indicado.</span>
+              <span>${user ? 'La respuesta aparecerá en Mis mensajes dentro de tu cuenta.' : 'Inicia sesión antes de enviar si deseas recibir la respuesta dentro de Mi cuenta.'}</span>
             </div>
             <p class="contactFormStatus ${state.contactError ? 'error' : state.contactResult ? 'success' : ''}" role="status" aria-live="polite">${h(state.contactError || state.contactResult)}</p>
           </form>
 
           <aside class="contactSide" aria-labelledby="socialTitle">
-            <h3 id="socialTitle">Canal oficial</h3>
-            <p>Para contacto directo, LinkedIn queda como canal principal.</p>
-            <div class="socialLogoLinks">
-              <a class="socialLogoLink linkedin" href="${LINKEDIN_URL}" target="_blank" rel="noopener noreferrer" aria-label="Abrir LinkedIn de Javier Chilatra">${brandIcon('linkedin')}<span>LinkedIn</span></a>
-            </div>
+            <h3 id="socialTitle">Canales oficiales</h3>
+            <p>Sigue a QAvance y accede a la comunidad desde nuestros canales configurados.</p>
+            ${renderSocialLinks()}
           </aside>
         </div>
       </section>
@@ -3117,15 +3239,14 @@
     return `<div class="publicHome publicPage certificateValidationPage" id="validar-certificado">
       <section class="certificateValidationHero" aria-labelledby="certificateValidationTitle">
         <span class="sectionKicker">Validación pública</span>
-        <h1 id="certificateValidationTitle">Valida un certificado QAvance</h1>
-        <p>Consulta el código único impreso en el PDF o abre la URL incluida en su código QR.</p>
+        <h1 id="certificateValidationTitle">Comprueba una constancia QAvance</h1>
+        <p>Ingresa el código único del documento para consultar su registro público, vigencia y datos de emisión.</p>
         <form class="certificateValidationForm" data-certificate-validation-form>
           <label for="certificateCodeInput">Código del certificado</label>
           <div><input id="certificateCodeInput" name="certificateCode" type="text" maxlength="17" placeholder="ACQA-XXXXXXXXXXXX" value="${h(state.certificateValidationCode)}" autocomplete="off" required><button class="btn" type="submit">Validar</button></div>
         </form>
       </section>
       ${statusPanel}
-      <div class="note certificateValidationDisclaimer"><b>Alcance:</b> QAvance valida la finalización de sus cursos internos. Este registro no reemplaza ni representa una certificación oficial de ISTQB, CertiProf u otra entidad certificadora.</div>
     </div>`;
   }
 
@@ -3396,8 +3517,8 @@
         ${enrollmentCards || (!state.accountLoading ? '<div class="card"><p>Aún no te has inscrito en un curso.</p><a class="btn" href="/cursos/" data-view="courses">Explorar cursos</a></div>' : '')}
       </section>
       <section class="accountMessages" aria-labelledby="accountMessagesTitle">
-        <div class="sectionIntro"><span class="sectionKicker">Soporte</span><h2 id="accountMessagesTitle">Mis mensajes</h2><p>Consulta tus solicitudes, su estado y las respuestas del equipo.</p></div>
-        <div class="accountMessageGrid">${accountMessageCards || (!state.accountLoading ? '<div class="card"><p>Aún no tienes mensajes vinculados a esta cuenta.</p><a class="btn secondary" href="/contactanos/" data-view="contact">Enviar un mensaje</a></div>' : '')}</div>
+        <div class="sectionIntro accountMessagesHead"><div><span class="sectionKicker">Soporte</span><h2 id="accountMessagesTitle">Mis mensajes</h2><p>Consulta tus solicitudes, su estado y las respuestas del equipo.</p></div><a class="btn" href="/contactanos/" data-view="contact">Enviar mensaje a soporte</a></div>
+        <div class="accountMessageGrid">${accountMessageCards || (!state.accountLoading ? '<div class="card"><p>Aún no tienes mensajes vinculados a esta cuenta.</p></div>' : '')}</div>
       </section>
     </div>`;
   }
@@ -3408,12 +3529,15 @@
     state.adminError = '';
     if (!silent) render();
     try {
-      const [summary, result, certificateResult, messageResult, reviewResult] = await Promise.all([
+      const [summary, result, certificateResult, messageResult, archivedMessageResult, reviewResult, archivedReviewResult, adminSocialSettings] = await Promise.all([
         Cloud.getAdminDashboardSummary(),
         Cloud.listAdminUsers({ search: state.adminSearch, limit: 50, offset: 0 }),
         Cloud.listAdminCertificates({ search: state.adminSearch, limit: 100, offset: 0 }),
         Cloud.listAdminContactMessages({ search: state.adminSearch, limit: 100, offset: 0 }),
-        Cloud.listAdminCourseReviews({ search: state.adminSearch, limit: 100, offset: 0 })
+        Cloud.listAdminContactMessages({ status: 'archived', search: state.adminSearch, limit: 100, offset: 0 }),
+        Cloud.listAdminCourseReviews({ search: state.adminSearch, limit: 100, offset: 0 }),
+        Cloud.listAdminCourseReviews({ status: 'archived', search: state.adminSearch, limit: 100, offset: 0 }),
+        Cloud.getPublicSocialSettings()
       ]);
       const users = Array.isArray(result?.users) ? result.users : [];
       const governance = await Cloud.listAdminUserGovernance(users.map((user) => user.id));
@@ -3436,10 +3560,19 @@
       state.adminTotal = number(result?.total);
       state.adminCertificates = Array.isArray(certificateResult?.certificates) ? certificateResult.certificates : [];
       state.adminCertificateTotal = number(certificateResult?.total);
-      state.adminMessages = Array.isArray(messageResult?.messages) ? messageResult.messages : [];
-      state.adminMessageTotal = number(messageResult?.total);
-      state.adminReviews = Array.isArray(reviewResult?.reviews) ? reviewResult.reviews : [];
-      state.adminReviewTotal = number(reviewResult?.total);
+      state.adminMessages = [
+        ...(Array.isArray(messageResult?.messages) ? messageResult.messages : []),
+        ...(Array.isArray(archivedMessageResult?.messages) ? archivedMessageResult.messages.map((item) => ({ ...item, archived: true })) : [])
+      ];
+      state.adminMessageTotal = number(messageResult?.total) + number(archivedMessageResult?.total);
+      state.adminReviews = [
+        ...(Array.isArray(reviewResult?.reviews) ? reviewResult.reviews : []),
+        ...(Array.isArray(archivedReviewResult?.reviews) ? archivedReviewResult.reviews.map((item) => ({ ...item, archived: true })) : [])
+      ];
+      state.adminReviewTotal = number(reviewResult?.total) + number(archivedReviewResult?.total);
+      state.adminSocialSettings = normalizedSocialSettings(adminSocialSettings);
+      socialSettings = { ...socialSettings, ...state.adminSocialSettings };
+      syncFloatingWhatsapp();
       state.adminCoursesByKey = new Map(loadedCourses.filter(([, value]) => value));
     } catch (error) {
       console.error(error);
@@ -3555,7 +3688,7 @@
   }
 
   function adminMessageStatusLabel(status) {
-    return ({ new: 'Nuevo', in_progress: 'En gestión', responded: 'Respondido', closed: 'Cerrado' })[status] || 'Nuevo';
+    return ({ new: 'Sin revisar', in_progress: 'En gestión', responded: 'Completado', closed: 'Cerrado', archived: 'Archivado' })[status] || 'Sin revisar';
   }
 
   function accountMessageStatusLabel(status) {
@@ -3568,12 +3701,7 @@
     const reply = document.querySelector(`[data-admin-message-reply="${messageId}"]`)?.value?.trim() || '';
     try {
       await Cloud.updateAdminContactMessage(messageId, status, reply);
-      notify(status === 'responded' ? 'Respuesta registrada.' : 'Estado del mensaje actualizado.', 'success');
-      if (status === 'responded') {
-        const email = String(target.dataset.email || '');
-        const subject = `Re: ${String(target.dataset.subject || 'Mensaje QAvance')}`;
-        global.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(reply)}`, '_blank', 'noopener');
-      }
+      notify(status === 'responded' ? 'Respuesta enviada dentro de QAvance.' : 'Estado del mensaje actualizado.', 'success');
       await refreshAdmin({ silent: true });
     } catch (error) {
       console.error(error);
@@ -3687,6 +3815,27 @@
       </div>`;
     }
 
+    if (!Auth?.isReady?.() || !Auth?.isAdminResolved?.()) {
+      return `<div class="publicHome publicPage adminPage" id="admin">
+        <section class="accountSignIn" aria-labelledby="adminTitle" aria-busy="true">
+          <span class="sectionKicker">Administración</span>
+          <h1 id="adminTitle">Verificando permisos seguros...</h1>
+          <p>Estamos restaurando tu sesión y tu rol administrativo. Permanecerás en esta página.</p>
+        </section>
+      </div>`;
+    }
+
+    if (Auth?.didAdminCheckFail?.()) {
+      return `<div class="publicHome publicPage adminPage" id="admin">
+        <section class="accountSignIn" aria-labelledby="adminTitle">
+          <span class="sectionKicker">Administración</span>
+          <h1 id="adminTitle">No fue posible verificar tus permisos</h1>
+          <p>Tu sesión continúa activa. Intenta nuevamente sin salir de esta página.</p>
+          <button class="btn" type="button" data-action="admin-refresh-access">Reintentar verificación</button>
+        </section>
+      </div>`;
+    }
+
     if (!Auth?.isAdmin?.()) {
       return `<div class="publicHome publicPage adminPage" id="admin">
         <section class="accountSignIn" aria-labelledby="adminTitle">
@@ -3755,34 +3904,60 @@
       <div><strong>${h(formatDate(certificate.issued_at))}</strong><small>${number(certificate.estimated_hours)} h estimadas</small></div>
       <div class="adminCertificateActions"><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Validar</button><button class="btn" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Ver PDF</button><button class="btn secondary" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.archived_at ? 'unarchive' : 'archive'}">${certificate.archived_at ? 'Restaurar' : 'Archivar'}</button><button class="btn ${certificate.status === 'VALID' ? 'bad' : 'good'}" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.status === 'VALID' ? 'revoke' : 'restore'}">${certificate.status === 'VALID' ? 'Revocar' : 'Restaurar validez'}</button></div>
     </article>`).join('');
-    const messageRows = state.adminMessages.map((message) => `<article class="adminInboxCard">
-      <div class="adminCardHead"><div><span class="reviewStatus ${h(message.status)}">${h(adminMessageStatusLabel(message.status))}</span><h3>${h(message.subject)}</h3></div><time datetime="${h(message.created_at)}">${h(formatDate(message.created_at))}</time></div>
-      <div class="adminInboxIdentity"><strong>${h(message.full_name)}</strong><a href="mailto:${h(message.email)}">${h(message.email)}</a></div>
+    const allAdminMessages = Array.isArray(state.adminMessages) ? state.adminMessages : [];
+    const messageStatus = (message) => message.archived ? 'archived' : message.status;
+    const messageFilters = [
+      ['all', 'Todos', allAdminMessages.length],
+      ['new', 'Sin revisar', allAdminMessages.filter((item) => messageStatus(item) === 'new').length],
+      ['in_progress', 'En gestión', allAdminMessages.filter((item) => messageStatus(item) === 'in_progress').length],
+      ['responded', 'Completados', allAdminMessages.filter((item) => messageStatus(item) === 'responded').length],
+      ['closed', 'Cerrados', allAdminMessages.filter((item) => messageStatus(item) === 'closed').length],
+      ['archived', 'Archivados', allAdminMessages.filter((item) => messageStatus(item) === 'archived').length]
+    ];
+    const visibleAdminMessages = state.adminMessageFilter === 'all'
+      ? allAdminMessages
+      : allAdminMessages.filter((item) => messageStatus(item) === state.adminMessageFilter);
+    const messageRows = visibleAdminMessages.map((message) => `<article class="adminInboxCard ${message.archived ? 'archived' : ''}">
+      <div class="adminCardHead"><div><span class="reviewStatus ${h(messageStatus(message))}">${h(adminMessageStatusLabel(messageStatus(message)))}</span><h3>${h(message.subject)}</h3></div><time datetime="${h(message.created_at)}">${h(formatDate(message.created_at))}</time></div>
+      <div class="adminInboxIdentity"><strong>${h(message.full_name)}</strong><span>${h(message.email)}</span></div>
       <p class="adminInboxMessage">${h(message.message)}</p>
-      <label for="adminReply${h(message.id)}">Respuesta administrativa</label>
-      <textarea id="adminReply${h(message.id)}" data-admin-message-reply="${h(message.id)}" maxlength="5000" placeholder="Escribe la respuesta que quedará registrada...">${h(message.admin_reply || '')}</textarea>
+      ${message.archived ? `${message.admin_reply ? `<div class="adminRecordedReply"><b>Respuesta registrada</b><p>${h(message.admin_reply)}</p></div>` : ''}<p class="small">Archivado para auditoría. No se muestra en la bandeja activa.</p>` : `<label for="adminReply${h(message.id)}">Respuesta dentro de QAvance</label>
+      <textarea id="adminReply${h(message.id)}" data-admin-message-reply="${h(message.id)}" maxlength="5000" placeholder="El usuario verá esta respuesta en Mi cuenta...">${h(message.admin_reply || '')}</textarea>
       <div class="adminInboxActions">
         <button class="btn secondary" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="in_progress">Marcar en gestión</button>
-        <button class="btn" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="responded" data-email="${h(message.email)}" data-subject="${h(message.subject)}">Guardar y responder por correo</button>
+        <button class="btn" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="responded">Responder en QAvance</button>
         <button class="btn secondary" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="closed">Cerrar</button>
         <button class="btn bad" type="button" data-action="admin-message-delete" data-message-id="${h(message.id)}">Archivar</button>
-      </div>
+      </div>`}
     </article>`).join('');
-    const reviewRows = state.adminReviews.map((review) => {
+    const allAdminReviews = Array.isArray(state.adminReviews) ? state.adminReviews : [];
+    const reviewStatus = (review) => review.archived ? 'archived' : review.status;
+    const reviewFilters = [
+      ['all', 'Todas', allAdminReviews.length],
+      ['pending', 'En revisión', allAdminReviews.filter((item) => reviewStatus(item) === 'pending').length],
+      ['approved', 'Publicadas', allAdminReviews.filter((item) => reviewStatus(item) === 'approved').length],
+      ['rejected', 'Declinadas', allAdminReviews.filter((item) => reviewStatus(item) === 'rejected').length],
+      ['archived', 'Archivadas', allAdminReviews.filter((item) => reviewStatus(item) === 'archived').length]
+    ];
+    const visibleAdminReviews = state.adminReviewFilter === 'all'
+      ? allAdminReviews
+      : allAdminReviews.filter((item) => reviewStatus(item) === state.adminReviewFilter);
+    const reviewRows = visibleAdminReviews.map((review) => {
       const entry = catalogEntry(review.course_key) || {};
-      return `<article class="adminReviewCard">
-        <div class="adminCardHead"><div><span class="reviewStatus ${h(review.status)}">${h(reviewStatusLabel(review.status))}</span><div class="studentReviewStars" aria-label="${number(review.rating)} de 5 estrellas">${starText(review.rating)}</div></div><time datetime="${h(review.created_at)}">${h(formatDate(review.created_at))}</time></div>
+      return `<article class="adminReviewCard ${review.archived ? 'archived' : ''}">
+        <div class="adminCardHead"><div><span class="reviewStatus ${h(reviewStatus(review))}">${h(reviewStatusLabel(reviewStatus(review)))}</span><div class="studentReviewStars" aria-label="${number(review.rating)} de 5 estrellas">${starText(review.rating)}</div></div><time datetime="${h(review.created_at)}">${h(formatDate(review.created_at))}</time></div>
         <h3>${h(entry.meta?.name || review.course_key)}</h3>
         <p>${h(review.comment || 'Calificación sin comentario.')}</p>
-        <div class="adminInboxIdentity"><strong>${h(review.full_name || 'Usuario')}</strong><a href="mailto:${h(review.email || '')}">${h(review.email || 'Sin correo')}</a></div>
-        <div class="adminInboxActions"><button class="btn good" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="approved">Aprobar</button><button class="btn secondary" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="rejected">Declinar</button><button class="btn bad" type="button" data-action="admin-review-delete" data-review-id="${h(review.id)}">Archivar</button></div>
+        <div class="adminInboxIdentity"><strong>${h(review.full_name || 'Usuario')}</strong><span>${h(review.email || 'Sin correo')}</span></div>
+        ${review.archived ? '<p class="small">Archivada para auditoría y fuera de publicación.</p>' : `<div class="adminInboxActions"><button class="btn good" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="approved">Aprobar</button><button class="btn secondary" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="rejected">Declinar</button><button class="btn bad" type="button" data-action="admin-review-delete" data-review-id="${h(review.id)}">Archivar</button></div>`}
       </article>`;
     }).join('');
     const adminTabs = [
       ['users', 'Usuarios', state.adminTotal],
       ['messages', 'Mensajes', state.adminMessageTotal],
       ['reviews', 'Calificaciones', state.adminReviewTotal],
-      ['certificates', 'Certificados', state.adminCertificateTotal]
+      ['certificates', 'Certificados', state.adminCertificateTotal],
+      ['socials', 'Redes sociales', 'Configurar']
     ];
 
     return `<div class="publicHome publicPage adminPage" id="admin">
@@ -3824,15 +3999,29 @@
       </section>
       <section class="adminInbox" aria-labelledby="adminMessagesTitle" ${state.adminSection === 'messages' ? '' : 'hidden'}>
         <div class="adminDirectoryHead"><div><h2 id="adminMessagesTitle">Mensajes de contacto</h2><p>${state.adminMessageTotal} mensaje${state.adminMessageTotal === 1 ? '' : 's'} almacenado${state.adminMessageTotal === 1 ? '' : 's'}.</p></div></div>
+        <div class="adminStateFilters" aria-label="Filtrar mensajes por estado">${messageFilters.map(([key, label, count]) => `<button type="button" data-action="admin-message-filter" data-filter="${key}" aria-pressed="${state.adminMessageFilter === key}" class="${state.adminMessageFilter === key ? 'active' : ''}"><span>${label}</span><strong>${count}</strong></button>`).join('')}</div>
         <div class="adminInboxGrid">${messageRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron mensajes.</p>' : '')}</div>
       </section>
       <section class="adminReviews" aria-labelledby="adminReviewsTitle" ${state.adminSection === 'reviews' ? '' : 'hidden'}>
         <div class="adminDirectoryHead"><div><h2 id="adminReviewsTitle">Calificaciones de cursos</h2><p>Aprueba o declina cada experiencia antes de publicarla.</p></div></div>
+        <div class="adminStateFilters" aria-label="Filtrar calificaciones por estado">${reviewFilters.map(([key, label, count]) => `<button type="button" data-action="admin-review-filter" data-filter="${key}" aria-pressed="${state.adminReviewFilter === key}" class="${state.adminReviewFilter === key ? 'active' : ''}"><span>${label}</span><strong>${count}</strong></button>`).join('')}</div>
         <div class="adminReviewGrid">${reviewRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron calificaciones.</p>' : '')}</div>
       </section>
       <section class="adminCertificates" aria-labelledby="adminCertificatesTitle" ${state.adminSection === 'certificates' ? '' : 'hidden'}>
         <div class="adminDirectoryHead"><div><h2 id="adminCertificatesTitle">Certificados obtenidos</h2><p>${state.adminCertificateTotal} certificado${state.adminCertificateTotal === 1 ? '' : 's'} registrado${state.adminCertificateTotal === 1 ? '' : 's'}.</p></div></div>
         <div class="adminCertificateTable"><div class="adminCertificateHeader"><span>Certificado</span><span>Usuario</span><span>Curso</span><span>Emisión</span><span>Acciones</span></div>${certificateRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron certificados para este filtro.</p>' : '')}</div>
+      </section>
+      <section class="adminSocials" aria-labelledby="adminSocialsTitle" ${state.adminSection === 'socials' ? '' : 'hidden'}>
+        <div class="adminDirectoryHead"><div><h2 id="adminSocialsTitle">Canales oficiales</h2><p>Configura los enlaces que aparecen en Contáctanos y el acceso flotante a la comunidad de WhatsApp.</p></div></div>
+        <form class="adminSocialForm" data-admin-social-form>
+          <label for="adminLinkedinUrl">LinkedIn</label><input id="adminLinkedinUrl" name="linkedinUrl" type="url" inputmode="url" maxlength="500" placeholder="https://www.linkedin.com/..." value="${h(state.adminSocialSettings.linkedin_url || '')}">
+          <label for="adminFacebookUrl">Facebook</label><input id="adminFacebookUrl" name="facebookUrl" type="url" inputmode="url" maxlength="500" placeholder="https://www.facebook.com/..." value="${h(state.adminSocialSettings.facebook_url || '')}">
+          <label for="adminTiktokUrl">TikTok</label><input id="adminTiktokUrl" name="tiktokUrl" type="url" inputmode="url" maxlength="500" placeholder="https://www.tiktok.com/@..." value="${h(state.adminSocialSettings.tiktok_url || '')}">
+          <label for="adminYoutubeUrl">YouTube</label><input id="adminYoutubeUrl" name="youtubeUrl" type="url" inputmode="url" maxlength="500" placeholder="https://www.youtube.com/@..." value="${h(state.adminSocialSettings.youtube_url || '')}">
+          <label for="adminWhatsappUrl">WhatsApp o comunidad</label><input id="adminWhatsappUrl" name="whatsappUrl" type="text" inputmode="url" maxlength="500" placeholder="+57... o https://chat.whatsapp.com/..." value="${h(state.adminSocialSettings.whatsapp_url || '')}">
+          <p class="small">Deja un campo vacío para ocultar ese canal. El acceso de WhatsApp aparecerá en todo el sitio únicamente cuando esté configurado.</p>
+          <button class="btn" type="submit" ${state.adminSocialSaving ? 'disabled' : ''}>${state.adminSocialSaving ? 'Guardando...' : 'Guardar canales oficiales'}</button>
+        </form>
       </section>
     </div>`;
   }
@@ -3850,7 +4039,7 @@
             <h3>Política de privacidad</h3>
             <p>QAvance utiliza inicio de sesión con Google mediante Supabase Auth para acceder a los cursos. Al ingresar se procesan el identificador de cuenta, nombre y correo proporcionados por Google para mantener la sesión y asociar tus matrículas. QAvance no recibe tu contraseña de Google.</p>
             <p>Las matrículas, fechas de inicio, avance por capítulo, tiempo activo de estudio, respuestas acumuladas y resultados de simulacros o exámenes finales se guardan en Supabase para recuperar el aprendizaje entre dispositivos y generar métricas de uso. El navegador conserva una copia local para dar continuidad a la experiencia.</p>
-            <p>Los mensajes enviados mediante el formulario de contacto se almacenan para gestionarlos y responder al correo indicado. Las calificaciones de cursos se asocian a la cuenta inscrita; solo el nombre abreviado, las estrellas y el comentario aparecen públicamente después de moderación administrativa.</p>
+            <p>Los mensajes enviados con una sesión activa se almacenan para gestionarlos y responderlos dentro de Mi cuenta. Las calificaciones de cursos se asocian a la cuenta inscrita; solo el nombre abreviado, las estrellas y el comentario aparecen públicamente después de moderación administrativa.</p>
             <p>Cancelar un curso detiene su estado activo, pero conserva el historial para que puedas reactivarlo. Después de cancelarlo, puedes usar <b>Quitar de mi cuenta</b> para ocultarlo sin perder matrícula, avance, tiempo ni intentos. Para solicitar la eliminación completa de datos personales usa el formulario de contacto.</p>
             <p>QAvance utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
             <p>Wompi procesa los pagos de certificados y aportes. QAvance conserva la referencia, el estado y el valor de la transacción, pero no recibe ni almacena números de tarjeta ni credenciales bancarias.</p>
@@ -3873,9 +4062,57 @@
 
   function brandIcon(name) {
     const icons = {
-      linkedin: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.45 20.45h-3.56v-5.58c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.44-2.14 2.94v5.68H9.34V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.32 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12Zm1.78 13.02H3.54V9H7.1v11.45ZM22.23 0H1.76C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.76 24h20.47c.97 0 1.77-.77 1.77-1.72V1.72C24 .77 23.2 0 22.23 0Z"/></svg>'
+      linkedin: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.45 20.45h-3.56v-5.58c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.44-2.14 2.94v5.68H9.34V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.32 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12Zm1.78 13.02H3.54V9H7.1v11.45ZM22.23 0H1.76C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.76 24h20.47c.97 0 1.77-.77 1.77-1.72V1.72C24 .77 23.2 0 22.23 0Z"/></svg>',
+      facebook: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 8h3V4h-3c-3.3 0-5 2-5 5v2H6v4h3v9h4v-9h3.2l.8-4h-4V9c0-.7.3-1 1-1Z"/></svg>',
+      tiktok: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 3c.5 2.7 2 4.3 5 4.5v4c-1.9-.1-3.5-.7-5-1.8V16a6 6 0 1 1-6-6c.4 0 .7 0 1 .1v4.1a2 2 0 1 0 1 1.8V3h4Z"/></svg>',
+      youtube: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.5 12 4.5 12 4.5s-7 0-8.9.6A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12c0 1.6.1 3.2.5 4.8a3 3 0 0 0 2.1 2.1c1.9.6 8.9.6 8.9.6s7 0 8.9-.6a3 3 0 0 0 2.1-2.1c.4-1.6.5-3.2.5-4.8s-.1-3.2-.5-4.8ZM9.7 15.2V8.8L15.5 12l-5.8 3.2Z"/></svg>',
+      whatsapp: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20Zm4.4-6c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1l-.7.9c-.1.2-.3.2-.5.1a6.6 6.6 0 0 1-3.2-2.8c-.2-.3.2-.4.6-1 .1-.2.1-.4 0-.5l-.7-1.7c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.1 0 1.3.9 2.5 1 2.7.1.2 1.8 2.8 4.5 3.9 1.7.7 2.4.8 3.3.7 1-.2 1.4-.9 1.6-1.7.2-.8.2-1.4.1-1.5-.2-.2-.4-.3-.6-.4Z"/></svg>'
     };
     return `<span class="brandSocialIcon">${icons[name] || ''}</span>`;
+  }
+
+  async function saveAdminSocialSettings(form) {
+    if (state.adminSocialSaving || !form.reportValidity()) return;
+    const data = new FormData(form);
+    const whatsappUrl = normalizeWhatsappUrl(data.get('whatsappUrl'));
+    if (String(data.get('whatsappUrl') || '').trim() && !whatsappUrl) {
+      notify('Ingresa un número internacional o una URL válida de WhatsApp.', 'warning');
+      return;
+    }
+    state.adminSocialSaving = true;
+    render();
+    try {
+      const value = await Cloud.updateAdminSocialSettings({
+        linkedinUrl: data.get('linkedinUrl'),
+        facebookUrl: data.get('facebookUrl'),
+        tiktokUrl: data.get('tiktokUrl'),
+        youtubeUrl: data.get('youtubeUrl'),
+        whatsappUrl
+      });
+      state.adminSocialSettings = normalizedSocialSettings(value);
+      socialSettings = { ...socialSettings, ...state.adminSocialSettings };
+      syncFloatingWhatsapp();
+      notify('Canales oficiales actualizados.', 'success');
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible guardar los canales oficiales.', 'error');
+    } finally {
+      state.adminSocialSaving = false;
+      if (state.view === 'admin') render();
+    }
+  }
+
+  function renderSocialLinks() {
+    const channels = [
+      ['linkedin', 'LinkedIn', safeHttpsUrl(socialSettings.linkedin_url)],
+      ['facebook', 'Facebook', safeHttpsUrl(socialSettings.facebook_url)],
+      ['tiktok', 'TikTok', safeHttpsUrl(socialSettings.tiktok_url)],
+      ['youtube', 'YouTube', safeHttpsUrl(socialSettings.youtube_url)],
+      ['whatsapp', 'WhatsApp', normalizeWhatsappUrl(socialSettings.whatsapp_url)]
+    ].filter(([, , url]) => Boolean(url));
+    return channels.length
+      ? `<div class="socialLogoLinks">${channels.map(([key, label, url]) => `<a class="socialLogoLink ${key}" href="${h(url)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir ${h(label)} de QAvance">${brandIcon(key)}<span>${h(label)}</span></a>`).join('')}</div>`
+      : '<p class="contactSocialEmpty">Los canales estarán disponibles próximamente.</p>';
   }
 
   async function submitContactForm(form) {
@@ -3900,7 +4137,9 @@
         website: data.get('website'),
         sourcePath: `${global.location.pathname}${global.location.search}${global.location.hash}`
       });
-      state.contactResult = 'Mensaje enviado. Lo revisaremos desde el panel administrativo y responderemos a tu correo.';
+      state.contactResult = Auth?.isAuthenticated?.()
+        ? 'Mensaje enviado. Consulta el estado y la respuesta desde Mi cuenta.'
+        : 'Mensaje enviado. Para futuras solicitudes, inicia sesión primero si deseas consultar la respuesta en Mi cuenta.';
       notify('Mensaje enviado correctamente.', 'success');
       form.reset();
       openMessageModal();
@@ -3926,7 +4165,7 @@
   }
 
   function reviewStatusLabel(status) {
-    return status === 'approved' ? 'Publicada' : status === 'rejected' ? 'No publicada' : 'Pendiente de revisión';
+    return status === 'approved' ? 'Publicada' : status === 'rejected' ? 'No publicada' : status === 'archived' ? 'Archivada' : 'Pendiente de revisión';
   }
 
   function renderReviewCards(reviews, { showCourse = false } = {}) {
@@ -4140,10 +4379,10 @@
       <div class="progressbar accountCourseProgress" aria-label="Avance del curso"><div style="width:${details.progressPercent}%"></div></div>
       <div class="okbox"><b>Ruta recomendada:</b> 1) estudia cada capítulo → 2) practica por LO → 3) refuerza errores → 4) realiza simulacros → 5) presenta el examen final.</div>
       ${last ? `<p><b>Último intento:</b> ${number(last.correct)}/${number(last.total)} (${number(last.scorePct)}%) · ${h(formatDate(last.date))}</p>` : ''}
-      <div class="grid2">
-        <div><h3>Distribución del simulacro</h3>${renderBlueprintTable()}</div>
-        <div><h3>Temas débiles</h3>${weak.length ? `<ul>${weak.map(([lo, item]) => `<li><b>${h(lo)}</b> · errores: ${number(item.bad)} · ${h(item.objective)}</li>`).join('')}</ul>` : '<p class="small">Aún no hay errores registrados.</p>'}</div>
-      </div>
+      <section class="weakTopicsPanel" aria-labelledby="weakTopicsTitle">
+        <div class="weakTopicsHead"><div><span class="sectionKicker">Refuerzo personalizado</span><h3 id="weakTopicsTitle">Temas para fortalecer</h3></div><a class="btn" href="${h(coursePath(activeCourseKey, 'practice'))}" data-view="practice">Ir a practicar</a></div>
+        ${weak.length ? `<div class="weakTopicsGrid">${weak.map(([lo, item], index) => `<article><span>${String(index + 1).padStart(2, '0')}</span><div><b>${h(lo)} · ${h(item.objective)}</b><small>${number(item.bad)} respuesta${number(item.bad) === 1 ? '' : 's'} por reforzar</small></div></article>`).join('')}</div>` : '<div class="weakTopicsEmpty"><b>Sin temas débiles registrados</b><p>Cuando practiques, aquí verás recomendaciones directas según tus respuestas verificadas.</p></div>'}
+      </section>
       <div class="btnrow">
         <a class="btn" href="${h(coursePath(activeCourseKey, 'study'))}" data-view="study">Empezar a estudiar</a>
         <a class="btn secondary" href="${h(coursePath(activeCourseKey, 'practice'))}" data-view="practice">Practicar por tema</a>
@@ -5543,6 +5782,7 @@
     try {
       await Auth?.whenReady?.();
       await loadCourses();
+      await refreshSocialSettings();
       if (Auth?.isAuthenticated?.()) await refreshLearningSnapshot();
       const initialRoute = routeFromLocation();
       const requestedKey = initialRoute.course || Storage.getActiveCourse();

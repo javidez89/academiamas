@@ -1,5 +1,5 @@
 export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], contactMessages = [], courseReviews = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance }) => {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance, mockedSocialSettings }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -22,6 +22,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       adminCertificates: structuredClone(mockedAdminCertificates || []),
       contactMessages: structuredClone(mockedContactMessages || []),
       courseReviews: structuredClone(mockedCourseReviews || []),
+      socialSettings: structuredClone(mockedSocialSettings || { linkedin_url: 'https://www.linkedin.com/in/javierchilatra89/', facebook_url: '', tiktok_url: '', youtube_url: '', whatsapp_url: '' }),
       accessStatus: structuredClone(mockedAccessStatus || { blocked: false, admin_role: mockedAdmin ? 'admin' : null, certificate_entitlements: [] }),
       adminGovernance: structuredClone(mockedAdminGovernance || []),
       audioFailure: Boolean(mockedAudioFailure),
@@ -484,7 +485,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             if (name === 'admin_list_contact_messages') {
               if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
               const search = String(args?.p_search || '').toLowerCase();
-              const matches = state.contactMessages.filter((item) => !item.deleted_at && (!search || [item.full_name, item.email, item.subject].some((value) => String(value || '').toLowerCase().includes(search))));
+              const status = String(args?.p_status || '');
+              const matches = state.contactMessages.filter((item) => (
+                status === 'archived' ? Boolean(item.deleted_at) : !item.deleted_at && (!status || item.status === status)
+              ) && (!search || [item.full_name, item.email, item.subject].some((value) => String(value || '').toLowerCase().includes(search))));
               return { data: { total: matches.length, messages: structuredClone(matches) }, error: null };
             }
             if (name === 'admin_update_contact_message') {
@@ -497,8 +501,23 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             if (name === 'admin_list_course_reviews') {
               if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
               const search = String(args?.p_search || '').toLowerCase();
-              const matches = state.courseReviews.filter((item) => !item.deleted_at && (!search || [item.full_name, item.email, item.course_key].some((value) => String(value || '').toLowerCase().includes(search))));
+              const status = String(args?.p_status || '');
+              const matches = state.courseReviews.filter((item) => (
+                status === 'archived' ? Boolean(item.deleted_at) : !item.deleted_at && (!status || item.status === status)
+              ) && (!search || [item.full_name, item.email, item.course_key].some((value) => String(value || '').toLowerCase().includes(search))));
               return { data: { total: matches.length, reviews: structuredClone(matches) }, error: null };
+            }
+            if (name === 'get_public_social_settings') {
+              return { data: structuredClone(state.socialSettings), error: null };
+            }
+            if (name === 'admin_update_social_settings') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              state.socialSettings = {
+                linkedin_url: args.p_linkedin_url || '', facebook_url: args.p_facebook_url || '',
+                tiktok_url: args.p_tiktok_url || '', youtube_url: args.p_youtube_url || '',
+                whatsapp_url: args.p_whatsapp_url || ''
+              };
+              return { data: structuredClone(state.socialSettings), error: null };
             }
             if (name === 'admin_moderate_course_review') {
               if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
@@ -839,7 +858,8 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedVerifiedCourses: options.verifiedCourses || [],
     mockedLegacyProgress: options.legacyProgress || [],
     mockedAccessStatus: options.accessStatus || { blocked: false, admin_role: options.admin ? 'admin' : null, certificate_entitlements: [] },
-    mockedAdminGovernance: options.adminGovernance || []
+    mockedAdminGovernance: options.adminGovernance || [],
+    mockedSocialSettings: options.socialSettings || { linkedin_url: 'https://www.linkedin.com/in/javierchilatra89/', facebook_url: '', tiktok_url: '', youtube_url: '', whatsapp_url: '' }
   });
 }
 

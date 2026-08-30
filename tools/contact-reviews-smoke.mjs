@@ -25,6 +25,12 @@ const contactMessage = {
   email: 'ana@example.com', subject: 'Consulta del curso', message: 'Quiero conocer el alcance del simulacro.',
   status: 'new', admin_reply: null, created_at: now, updated_at: now
 };
+const archivedReview = {
+  ...pendingReview,
+  id: '6731ca4f-06c9-4cf4-8fe3-1f24eb44fa97',
+  comment: 'Comentario archivado para auditoría.',
+  deleted_at: now
+};
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -36,7 +42,7 @@ try {
   await anonymous.getByLabel('Asunto').fill('Ayuda con mi cuenta');
   await anonymous.getByRole('textbox', { name: 'Mensaje', exact: true }).fill('Necesito orientación para recuperar el avance de un curso.');
   await anonymous.getByRole('button', { name: 'Enviar mensaje' }).click();
-  await anonymous.getByText(/Mensaje enviado\. Lo revisaremos/i).waitFor();
+  await anonymous.getByText(/Mensaje enviado\. Para futuras solicitudes/i).waitFor();
   const savedContact = await anonymous.evaluate(() => window.__supabaseMock.contactMessages[0]);
   assert.equal(savedContact.email, 'maria@example.com');
   assert.equal(savedContact.status, 'new');
@@ -51,6 +57,9 @@ try {
   await useMockedSupabase(student, MOCK_SESSION, [enrollment], { courseReviews: [approvedReview, pendingReview] });
   await student.goto(`${baseUrl}/curso/ctfl/?feedback=${Date.now()}`, { waitUntil: 'domcontentloaded' });
   await student.getByRole('heading', { name: 'Califica este curso' }).waitFor();
+  await student.getByRole('heading', { name: 'Temas para fortalecer' }).waitFor();
+  assert.equal(await student.getByRole('heading', { name: 'Distribución del simulacro' }).count(), 0);
+  await student.getByRole('link', { name: 'Ir a practicar' }).waitFor();
   await student.locator('[data-auth-avatar]').waitFor({ state: 'visible' });
   assert.match(await student.locator('[data-auth-avatar]').getAttribute('src'), /^https:\/\/lh3\.googleusercontent\.com\/avatar-javier\.png/);
   await student.locator('label[for="courseRating5"]').click();
@@ -71,25 +80,59 @@ try {
   assert.equal(await home.getByText(pendingReview.comment).count(), 0, 'Una reseña pendiente nunca debe mostrarse públicamente.');
   await home.close();
 
+  const account = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await useMockedSupabase(account, MOCK_SESSION, [enrollment], {
+    contactMessages: [{ ...contactMessage, user_id: MOCK_SESSION.user.id, status: 'responded', admin_reply: 'Tu solicitud fue resuelta dentro de QAvance.', replied_at: now }]
+  });
+  await account.goto(`${baseUrl}/mi-cuenta/?feedback=${Date.now()}`, { waitUntil: 'domcontentloaded' });
+  await account.getByRole('heading', { name: 'Mis mensajes' }).waitFor();
+  await account.getByText('Tu solicitud fue resuelta dentro de QAvance.').waitFor();
+  await account.getByRole('link', { name: 'Enviar mensaje a soporte' }).waitFor();
+  await account.reload({ waitUntil: 'domcontentloaded' });
+  assert.match(account.url(), /\/mi-cuenta\//, 'F5 debe conservar la ruta de Mi cuenta.');
+  await account.getByRole('heading', { name: 'Mis mensajes' }).waitFor();
+  await account.close();
+
   const admin = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await useMockedSupabase(admin, MOCK_SESSION, [], {
-    admin: true, adminSummary: {}, contactMessages: [contactMessage], courseReviews: [pendingReview]
+    admin: true, adminSummary: {}, contactMessages: [contactMessage], courseReviews: [pendingReview, archivedReview],
+    socialSettings: { linkedin_url: 'https://www.linkedin.com/company/qavance/', facebook_url: '', tiktok_url: '', youtube_url: '', whatsapp_url: '' }
   });
   await admin.goto(`${baseUrl}/admin/?feedback=${Date.now()}`, { waitUntil: 'domcontentloaded' });
   await admin.getByRole('button', { name: /Mensajes/ }).click();
   await admin.getByText(contactMessage.subject).waitFor();
   await admin.getByRole('button', { name: 'Marcar en gestión' }).click();
-  await admin.getByText('En gestión', { exact: true }).waitFor();
+  await admin.locator('.adminInboxCard .reviewStatus', { hasText: 'En gestión' }).waitFor();
+  await admin.getByLabel('Respuesta dentro de QAvance').fill('Respuesta interna lista para el usuario.');
+  await admin.getByRole('button', { name: 'Responder en QAvance' }).click();
+  await admin.locator('.adminInboxCard .reviewStatus', { hasText: 'Completado' }).waitFor();
+  assert.equal(await admin.locator('.adminInbox [href^="mailto:"]').count(), 0, 'La bandeja no debe abrir correo externo.');
   await admin.getByRole('button', { name: /Calificaciones/ }).click();
   await admin.getByText(pendingReview.comment).waitFor();
   await admin.getByRole('button', { name: 'Aprobar' }).click();
-  await admin.getByText('Publicada', { exact: true }).waitFor();
+  await admin.locator('.adminReviewCard .reviewStatus', { hasText: 'Publicada' }).waitFor();
+  await admin.getByRole('button', { name: /Archivadas/ }).click();
+  await admin.getByText(archivedReview.comment).waitFor();
+  await admin.getByRole('button', { name: /Redes sociales/ }).click();
+  await admin.getByLabel('WhatsApp o comunidad').fill('+573001112233');
+  await admin.getByRole('button', { name: 'Guardar canales oficiales' }).click();
+  await admin.locator('#whatsappCommunityLink').waitFor({ state: 'visible' });
+  assert.equal(await admin.locator('#whatsappCommunityLink').getAttribute('href'), 'https://wa.me/573001112233');
   const moderation = await admin.evaluate(() => window.__supabaseMock.courseReviews[0].status);
   assert.equal(moderation, 'approved');
+  await admin.reload({ waitUntil: 'domcontentloaded' });
+  assert.match(admin.url(), /\/admin\//, 'F5 debe conservar la ruta administrativa.');
+  await admin.getByRole('heading', { name: 'Resumen gerencial de usuarios' }).waitFor();
+  await admin.getByRole('heading', { name: 'Canales oficiales' }).waitFor();
+  await admin.setViewportSize({ width: 390, height: 844 });
+  assert.ok(
+    (await admin.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 1,
+    'El panel administrativo no debe desbordarse horizontalmente en móvil.'
+  );
   if (process.env.FEEDBACK_SCREENSHOTS === '1') await admin.screenshot({ path: `${process.env.TEMP}/qavance-admin-reviews.png`, fullPage: true });
   await admin.close();
 
-  console.log('Contact and reviews smoke OK: contacto, avatar, reseñas públicas y moderación.');
+  console.log('Contact and reviews smoke OK: soporte interno, estados, archivo, redes y recarga segura.');
 } finally {
   await browser.close();
 }

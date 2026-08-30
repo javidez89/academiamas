@@ -3424,3 +3424,45 @@ body.modalOpen{
 @media(max-width:680px){.courseReviewForm>label,.courseReviewForm textarea,.courseReviewActions{grid-column:1;grid-row:auto}}
 .adminCardHead{display:flex;justify-content:space-between;gap:12px;align-items:start}.adminCardHead time{color:#64748b;font-size:.78rem;white-space:nowrap}
 @media(max-width:680px){.adminCardHead{display:grid}.adminCardHead time{white-space:normal}}
+
+.accountMessagesHead{display:flex;align-items:end;justify-content:space-between;gap:18px}
+.accountMessagesHead>div{min-width:0}
+.adminStateFilters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px}
+.adminStateFilters button{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;border:1px solid #cbd9eb;border-radius:8px;background:#fff;color:#173459;padding:9px 12px;font:inherit;font-weight:800;cursor:pointer}
+.adminStateFilters button strong{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;background:#eaf1fb;color:#284c78;font-size:.8rem}
+.adminStateFilters button.active{border-color:#1467c5;background:#eaf3ff;box-shadow:inset 0 0 0 1px #1467c5;color:#0c4d98}
+.adminInboxCard.archived,.adminReviewCard.archived{border-style:dashed;background:#f7f9fc}
+.adminRecordedReply{border-left:4px solid #198754;background:#effaf4;padding:12px;color:#173c2a}
+.adminRecordedReply p{margin:6px 0 0;white-space:pre-wrap}
+.adminSocials{display:grid;gap:16px}
+.adminSocialForm{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr);align-items:center;gap:12px 18px;border:1px solid #cbd9eb;border-radius:8px;background:#fff;padding:22px}
+.adminSocialForm label{font-weight:850;color:#173459}
+.adminSocialForm input{width:100%;min-width:0;border:1px solid #bfcde0;border-radius:8px;background:#fff;color:#10233f;padding:11px 12px;font:inherit}
+.adminSocialForm input:focus{outline:3px solid #b9ddff;outline-offset:1px;border-color:#1467c5}
+.adminSocialForm .small,.adminSocialForm .btn{grid-column:2}
+.weakTopicsPanel{display:grid;gap:16px;margin-top:22px;border:1px solid #cbd9eb;border-radius:8px;background:#f8fbff;padding:20px}
+.weakTopicsHead{display:flex;align-items:end;justify-content:space-between;gap:16px}
+.weakTopicsHead h3{margin:4px 0 0;color:#10233f}
+.weakTopicsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.weakTopicsGrid article{display:grid;grid-template-columns:42px minmax(0,1fr);gap:11px;align-items:center;border-left:4px solid #f0a000;background:#fff;padding:12px}
+.weakTopicsGrid article>span{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#fff2cc;color:#6d4900;font-weight:900}
+.weakTopicsGrid article div{display:grid;gap:4px;min-width:0}
+.weakTopicsGrid b{color:#10233f;overflow-wrap:anywhere}
+.weakTopicsGrid small{color:#5b6c83}
+.weakTopicsEmpty{border-left:4px solid #198754;background:#effaf4;padding:14px;color:#173c2a}
+.weakTopicsEmpty p{margin:5px 0 0}
+.socialLogoLink.facebook{color:#1877f2}.socialLogoLink.tiktok{color:#111827}.socialLogoLink.youtube{color:#c00}.socialLogoLink.whatsapp{color:#087f4b}
+.whatsappCommunityLink{position:fixed;left:18px;bottom:18px;z-index:75;display:flex;align-items:center;gap:8px;min-height:48px;border:1px solid #087f4b;border-radius:8px;background:#0b8f55;color:#fff;padding:10px 14px;text-decoration:none;font-weight:900;box-shadow:0 12px 30px rgba(8,74,45,.24)}
+.whatsappCommunityLink:hover{background:#087746}.whatsappCommunityLink:focus-visible{outline:3px solid #ffb020;outline-offset:3px}.whatsappCommunityLink[hidden]{display:none!important}
+.whatsappCommunityLink .brandSocialIcon{width:22px;height:22px}.whatsappCommunityLink svg{fill:currentColor}
+
+@media(max-width:760px){
+  .accountMessagesHead,.weakTopicsHead{display:grid;align-items:start}
+  .accountMessagesHead .btn,.weakTopicsHead .btn{width:100%}
+  .adminStateFilters{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .adminSocialForm{grid-template-columns:1fr;padding:16px}
+  .adminSocialForm .small,.adminSocialForm .btn{grid-column:1}
+  .weakTopicsGrid{grid-template-columns:1fr}
+  .whatsappCommunityLink{left:12px;bottom:12px;padding:10px 12px}
+  .whatsappCommunityLink span:last-child{display:none}
+}
