@@ -245,7 +245,7 @@ async function validateBrowserRoutes(catalog, courseDataByKey) {
 
     await page.locator('[data-view="exam"]').first().click();
     await page.waitForURL(`**/curso/${key}/simulacro/`);
-    await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).waitFor();
+    await page.getByRole('button', { name: /^Iniciar simulacro$/i }).waitFor();
     assert.equal(new URL(page.url()).pathname, `/curso/${key}/simulacro/`, 'La ruta limpia del simulacro cambió inesperadamente.');
 
     await page.goto(`${LOCAL_BASE}/curso/${key}/capitulo/${encodeURIComponent(chapter.id)}/`, { waitUntil: 'domcontentloaded' });
@@ -258,7 +258,7 @@ async function validateBrowserRoutes(catalog, courseDataByKey) {
     assert.equal(new URL(page.url()).hash, `#curso/${key}/panel`, 'El hash antiguo del curso dejó de preservarse.');
 
     await page.goto(`${LOCAL_BASE}/#curso/${key}/simulacro`, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).waitFor();
+    await page.getByRole('button', { name: /^Iniciar simulacro$/i }).waitFor();
     assert.equal(new URL(page.url()).hash, `#curso/${key}/simulacro`, 'El hash antiguo del simulacro dejó de preservarse.');
 
     assert.deepEqual(errors, [], `Errores de navegador:\n${errors.join('\n')}`);

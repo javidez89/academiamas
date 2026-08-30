@@ -1,5 +1,5 @@
 export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], contactMessages = [], courseReviews = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress }) => {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
@@ -22,6 +22,8 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       adminCertificates: structuredClone(mockedAdminCertificates || []),
       contactMessages: structuredClone(mockedContactMessages || []),
       courseReviews: structuredClone(mockedCourseReviews || []),
+      accessStatus: structuredClone(mockedAccessStatus || { blocked: false, admin_role: mockedAdmin ? 'admin' : null, certificate_entitlements: [] }),
+      adminGovernance: structuredClone(mockedAdminGovernance || []),
       audioFailure: Boolean(mockedAudioFailure),
       publicActivitySummary: structuredClone(mockedPublicActivitySummary || {}),
       learningActivity: null,
@@ -408,6 +410,11 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             if (name === 'is_platform_admin') {
               return { data: state.admin, error: null };
             }
+            if (name === 'get_my_access_status') {
+              return user
+                ? { data: structuredClone(state.accessStatus), error: null }
+                : { data: null, error: { code: '42501', message: 'Authentication required' } };
+            }
             if (name === 'admin_dashboard_summary') {
               return state.admin
                 ? { data: structuredClone(state.adminSummary), error: null }
@@ -441,9 +448,12 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               state.contactMessages.unshift(message);
               return { data: { id: message.id, status: 'received', created_at: message.created_at }, error: null };
             }
+            if (name === 'list_my_contact_messages') {
+              return { data: structuredClone(state.contactMessages.filter((item) => item.user_id === user?.id && !item.deleted_at)), error: null };
+            }
             if (name === 'list_approved_course_reviews') {
               const courseKey = String(args?.p_course_key || '');
-              const approved = state.courseReviews.filter((item) => item.status === 'approved' && (!courseKey || item.course_key === courseKey));
+              const approved = state.courseReviews.filter((item) => !item.deleted_at && item.status === 'approved' && (!courseKey || item.course_key === courseKey));
               const limit = Number(args?.p_limit || 8);
               return { data: {
                 average_rating: approved.length ? Math.round((approved.reduce((sum, item) => sum + Number(item.rating || 0), 0) / approved.length) * 10) / 10 : 0,
@@ -474,7 +484,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             if (name === 'admin_list_contact_messages') {
               if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
               const search = String(args?.p_search || '').toLowerCase();
-              const matches = state.contactMessages.filter((item) => !search || [item.full_name, item.email, item.subject].some((value) => String(value || '').toLowerCase().includes(search)));
+              const matches = state.contactMessages.filter((item) => !item.deleted_at && (!search || [item.full_name, item.email, item.subject].some((value) => String(value || '').toLowerCase().includes(search))));
               return { data: { total: matches.length, messages: structuredClone(matches) }, error: null };
             }
             if (name === 'admin_update_contact_message') {
@@ -487,7 +497,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             if (name === 'admin_list_course_reviews') {
               if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
               const search = String(args?.p_search || '').toLowerCase();
-              const matches = state.courseReviews.filter((item) => !search || [item.full_name, item.email, item.course_key].some((value) => String(value || '').toLowerCase().includes(search)));
+              const matches = state.courseReviews.filter((item) => !item.deleted_at && (!search || [item.full_name, item.email, item.course_key].some((value) => String(value || '').toLowerCase().includes(search))));
               return { data: { total: matches.length, reviews: structuredClone(matches) }, error: null };
             }
             if (name === 'admin_moderate_course_review') {
@@ -496,6 +506,57 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               if (!review) return { data: null, error: { code: 'P0002', message: 'Calificación no encontrada' } };
               Object.assign(review, { status: args.p_status, updated_at: new Date().toISOString() });
               return { data: structuredClone(review), error: null };
+            }
+            if (name === 'admin_list_user_governance') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const ids = new Set(args.p_user_ids || []);
+              return { data: structuredClone(state.adminGovernance.filter((item) => ids.has(item.user_id))), error: null };
+            }
+            if (name === 'admin_set_user_blocked') {
+              if (!state.admin || state.accessStatus.admin_role !== 'superadmin') return { data: null, error: { code: '42501', message: 'Superadministrator access required' } };
+              const item = state.adminGovernance.find((entry) => entry.user_id === args.p_user_id) || { user_id: args.p_user_id, certificate_entitlements: [] };
+              if (!state.adminGovernance.includes(item)) state.adminGovernance.push(item);
+              Object.assign(item, { blocked: args.p_blocked, block_reason: args.p_blocked ? args.p_reason : null });
+              return { data: structuredClone(item), error: null };
+            }
+            if (name === 'admin_set_user_role') {
+              if (!state.admin || state.accessStatus.admin_role !== 'superadmin') return { data: null, error: { code: '42501', message: 'Superadministrator access required' } };
+              const item = state.adminGovernance.find((entry) => entry.user_id === args.p_user_id) || { user_id: args.p_user_id, certificate_entitlements: [] };
+              if (!state.adminGovernance.includes(item)) state.adminGovernance.push(item);
+              item.admin_role = args.p_role === 'none' ? null : args.p_role;
+              return { data: structuredClone(item), error: null };
+            }
+            if (name === 'admin_set_certificate_eligibility') {
+              if (!state.admin || state.accessStatus.admin_role !== 'superadmin') return { data: null, error: { code: '42501', message: 'Superadministrator access required' } };
+              const item = state.adminGovernance.find((entry) => entry.user_id === args.p_user_id) || { user_id: args.p_user_id, certificate_entitlements: [] };
+              if (!state.adminGovernance.includes(item)) state.adminGovernance.push(item);
+              item.certificate_entitlements ||= [];
+              const existing = item.certificate_entitlements.find((entry) => entry.course_key === args.p_course_key);
+              if (existing) Object.assign(existing, { enabled: args.p_enabled, reason: args.p_reason });
+              else item.certificate_entitlements.push({ course_key: args.p_course_key, enabled: args.p_enabled, reason: args.p_reason });
+              return { data: structuredClone(item), error: null };
+            }
+            if (name === 'admin_soft_delete_contact_message') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const item = state.contactMessages.find((entry) => entry.id === args.p_message_id);
+              if (item) item.deleted_at = new Date().toISOString();
+              return { data: Boolean(item), error: null };
+            }
+            if (name === 'admin_soft_delete_course_review') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const item = state.courseReviews.find((entry) => entry.id === args.p_review_id);
+              if (item) Object.assign(item, { deleted_at: new Date().toISOString(), status: 'rejected' });
+              return { data: Boolean(item), error: null };
+            }
+            if (name === 'admin_update_certificate_status') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const item = state.adminCertificates.find((entry) => entry.id === args.p_certificate_id);
+              if (!item) return { data: null, error: { code: 'P0002', message: 'Certificado no encontrado' } };
+              if (args.p_action === 'revoke') item.status = 'REVOKED';
+              if (args.p_action === 'restore') item.status = 'VALID';
+              if (args.p_action === 'archive') item.archived_at = new Date().toISOString();
+              if (args.p_action === 'unarchive') item.archived_at = null;
+              return { data: structuredClone(item), error: null };
             }
             if (name === 'enroll_in_course') {
               return { data: [structuredClone(ensureEnrollment(args.p_course_key, args.p_estimated_hours))], error: null };
@@ -508,14 +569,12 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               }
               return { data: item ? [structuredClone(item)] : [], error: null };
             }
-            if (name === 'delete_cancelled_course') {
+            if (name === 'archive_cancelled_course') {
               const item = enrollment(args.p_course_key);
               if (!item || item.status !== 'cancelled') {
                 return { data: null, error: { code: '55000', message: 'Cancelled enrollment required' } };
               }
-              state.enrollments = state.enrollments.filter((entry) => entry.course_key !== args.p_course_key);
-              progressByCourse.delete(args.p_course_key);
-              state.finalExamAttempts = state.finalExamAttempts.filter((attempt) => attempt.p_course_key !== args.p_course_key);
+              item.hidden_at = new Date().toISOString();
               return { data: true, error: null };
             }
             if (name === 'sync_course_activity') {
@@ -778,7 +837,9 @@ export async function useMockedSupabase(page, session, enrollments = [], options
       measured_at: '2026-08-25T13:00:00.000Z'
     },
     mockedVerifiedCourses: options.verifiedCourses || [],
-    mockedLegacyProgress: options.legacyProgress || []
+    mockedLegacyProgress: options.legacyProgress || [],
+    mockedAccessStatus: options.accessStatus || { blocked: false, admin_role: options.admin ? 'admin' : null, certificate_entitlements: [] },
+    mockedAdminGovernance: options.adminGovernance || []
   });
 }
 

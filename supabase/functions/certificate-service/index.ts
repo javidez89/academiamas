@@ -151,7 +151,8 @@ async function completedEnrollment(
   user: ReturnType<typeof projectClients>['user'],
   admin: ReturnType<typeof projectClients>['admin'],
   userId: string,
-  courseKey: string
+  courseKey: string,
+  allowAdministrativeEntitlement = false
 ): Promise<CompletedEnrollmentRecord> {
   const { data, error } = await admin
     .from('course_enrollments')
@@ -165,6 +166,16 @@ async function completedEnrollment(
   if (dashboardResult.error) throw dashboardResult.error;
   const verifiedCourse = (Array.isArray(dashboardResult.data?.courses) ? dashboardResult.data.courses : [])
     .find((item: JsonObject) => item.course_key === courseKey);
+  if (allowAdministrativeEntitlement && enrollment) {
+    const administrativeDate = String(enrollment.completed_at || enrollment.final_exam_passed_at || new Date().toISOString());
+    return {
+      ...enrollment,
+      status: 'completed',
+      final_exam_passed: true,
+      final_exam_passed_at: administrativeDate,
+      completed_at: administrativeDate
+    } as CompletedEnrollmentRecord;
+  }
   if (
     !enrollment
     || verifiedCourse?.verified !== true
@@ -181,6 +192,19 @@ async function completedEnrollment(
     final_exam_passed_at: String(verifiedCourse.completed_at),
     completed_at: String(verifiedCourse.completed_at)
   } as CompletedEnrollmentRecord;
+}
+
+async function hasCertificateEntitlement(
+  admin: ReturnType<typeof projectClients>['admin'],
+  userId: string,
+  courseKey: string
+): Promise<boolean> {
+  const result = await admin.rpc('get_certificate_entitlement', {
+    p_user_id: userId,
+    p_course_key: courseKey
+  });
+  if (result.error) throw result.error;
+  return result.data === true;
 }
 
 async function certificateModules(
@@ -219,7 +243,8 @@ async function createCheckout(request: Request, body: JsonObject) {
   const { user, admin, currentUser } = await authenticatedContext(request);
   const course = certificateCourse(body.courseKey);
   if (!course) throw Object.assign(new Error('Curso no válido.'), { status: 400 });
-  await completedEnrollment(user, admin, currentUser.id, course.key);
+  const entitlement = await hasCertificateEntitlement(admin, currentUser.id, course.key);
+  await completedEnrollment(user, admin, currentUser.id, course.key, entitlement);
 
   const existingCertificate = await admin
     .from('certificates')
@@ -366,7 +391,8 @@ async function issueCertificate(request: Request, body: JsonObject) {
 
   const course = certificateCourse(order.course_key);
   if (!course) throw Object.assign(new Error('Curso no válido.'), { status: 400 });
-  const enrollment = await completedEnrollment(user, admin, currentUser.id, course.key);
+  const entitlement = await hasCertificateEntitlement(admin, currentUser.id, course.key);
+  const enrollment = await completedEnrollment(user, admin, currentUser.id, course.key, entitlement);
 
   const existing = await admin
     .from('certificates')

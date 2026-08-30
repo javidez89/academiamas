@@ -34,7 +34,7 @@ try {
   await anonymous.getByLabel('Nombre completo').fill('María Gómez');
   await anonymous.getByLabel('Correo electrónico').fill('maria@example.com');
   await anonymous.getByLabel('Asunto').fill('Ayuda con mi cuenta');
-  await anonymous.getByLabel('Mensaje').fill('Necesito orientación para recuperar el avance de un curso.');
+  await anonymous.getByRole('textbox', { name: 'Mensaje', exact: true }).fill('Necesito orientación para recuperar el avance de un curso.');
   await anonymous.getByRole('button', { name: 'Enviar mensaje' }).click();
   await anonymous.getByText(/Mensaje enviado\. Lo revisaremos/i).waitFor();
   const savedContact = await anonymous.evaluate(() => window.__supabaseMock.contactMessages[0]);

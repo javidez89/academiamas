@@ -87,7 +87,7 @@ try {
   )), 1, 'La cobertura oficial debe crecer solo por preguntas verificadas y únicas.');
 
   await page.locator('[data-view="exam"]').first().click();
-  await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).click();
+  await page.getByRole('button', { name: /^Iniciar simulacro$/i }).click();
   await page.locator('.questionBox').waitFor();
   await page.waitForFunction(() => (
     window.__supabaseMock?.learningActivity?.activity_type === 'simulator'
@@ -118,15 +118,11 @@ try {
   assert.equal(await lockedFinalExam.isDisabled(), true, 'El examen final debe permanecer bloqueado antes del 95%.');
   await completeCourseStudy(page, 'ctfl');
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => (
-    document.querySelector('.navbtn[data-view="finalExam"] small')?.textContent.trim() === '0% / 95% verificable'
-  ));
+  await page.waitForFunction(() => document.querySelector('.navbtn[data-view="finalExam"]')?.disabled === true);
   assert.equal(await page.locator('[data-view="finalExam"]').first().isDisabled(), true,
     'Manipular el avance local no debe habilitar el examen final.');
   await seedVerifiedCourseStudy(page, 'ctfl');
-  await page.waitForFunction(() => (
-    document.querySelector('.navbtn[data-view="finalExam"] small')?.textContent.trim() === 'habilitado'
-  ));
+  await page.waitForFunction(() => !document.querySelector('.navbtn[data-view="finalExam"]')?.disabled);
   await page.locator('[data-view="study"]').first().click();
   await page.getByRole('heading', { name: /Estudiar syllabus por cap/i }).waitFor();
   const firstChapterCardText = await page.locator('.chapterCard').first().innerText();
@@ -260,12 +256,12 @@ try {
   await page.getByText('USD 25', { exact: true }).waitFor();
   await page.getByText(/No equivale a una certificación oficial/i).waitFor();
   await page.getByRole('button', { name: 'Ahora no' }).click();
-  assert.equal(await courseCard.getByRole('button', { name: 'Eliminar curso' }).count(), 0, 'La eliminacion no debe aparecer mientras el curso este activo o completado.');
+  assert.equal(await courseCard.getByRole('button', { name: 'Quitar de mi cuenta' }).count(), 0, 'La opción de ocultar no debe aparecer mientras el curso esté activo o completado.');
 
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Cancelar curso' }).click();
   await page.getByText('Cancelado', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Eliminar curso' }).waitFor();
+  await page.getByRole('button', { name: 'Quitar de mi cuenta' }).waitFor();
   assert.equal(await page.evaluate(() => (
     window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl')?.status
   )), 'cancelled');
@@ -290,25 +286,26 @@ try {
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Cancelar curso' }).click();
   await page.getByText('Cancelado', { exact: true }).waitFor();
-  assert.notEqual(await page.evaluate(() => localStorage.getItem('istqb_ctfl_v2_progress')), null, 'Debe existir progreso local antes de eliminar el curso.');
+  assert.notEqual(await page.evaluate(() => localStorage.getItem('istqb_ctfl_v2_progress')), null, 'Debe existir progreso local antes de ocultar el curso.');
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Eliminar curso' }).click();
+  await page.getByRole('button', { name: 'Quitar de mi cuenta' }).click();
   await page.getByRole('link', { name: 'Explorar cursos' }).waitFor();
-  assert.equal(await page.locator('.accountCourseCard').count(), 0, 'El curso eliminado debe desaparecer de Mi cuenta.');
-  const deletedState = await page.evaluate(() => ({
+  assert.equal(await page.locator('.accountCourseCard').count(), 0, 'El curso ocultado debe desaparecer de Mi cuenta.');
+  const archivedState = await page.evaluate(() => ({
     enrollment: window.__supabaseMock.enrollments.find((item) => item.course_key === 'ctfl') || null,
     progress: window.__supabaseMock.progressByCourse.has('ctfl'),
-    attempts: window.__supabaseMock.finalExamAttempts.filter((item) => item.p_course_key === 'ctfl').length,
+    attempts: window.__supabaseMock.verifiedAssessmentHistory.filter((item) => item.course_key === 'ctfl' && item.activity_type === 'final_exam').length,
     localProgress: localStorage.getItem('istqb_ctfl_v2_progress'),
     activeCourse: localStorage.getItem('academy_active_course'),
-    rpcArgs: window.__supabaseMock.calls.delete_cancelled_course
+    rpcArgs: window.__supabaseMock.calls.archive_cancelled_course
   }));
-  assert.equal(deletedState.enrollment, null, 'La matricula cancelada debe eliminarse de la nube.');
-  assert.equal(deletedState.progress, false, 'El progreso cloud del curso debe eliminarse.');
-  assert.equal(deletedState.attempts, 0, 'Los intentos finales del curso deben eliminarse.');
-  assert.equal(deletedState.localProgress, null, 'El progreso local del curso debe eliminarse.');
-  assert.equal(deletedState.activeCourse, '', 'El curso eliminado no debe conservarse como curso activo local.');
-  assert.deepEqual(deletedState.rpcArgs, { p_course_key: 'ctfl' }, 'La eliminacion debe usar la RPC autenticada del curso seleccionado.');
+  assert.equal(archivedState.enrollment?.status, 'cancelled', 'La matrícula cancelada debe conservarse en la nube.');
+  assert.ok(archivedState.enrollment?.hidden_at, 'La matrícula debe quedar oculta de forma reversible.');
+  assert.equal(archivedState.progress, true, 'El progreso cloud del curso debe conservarse.');
+  assert.ok(archivedState.attempts > 0, 'Los intentos finales del curso deben conservarse.');
+  assert.notEqual(archivedState.localProgress, null, 'El progreso local debe conservarse como caché, no borrarse.');
+  assert.equal(archivedState.activeCourse, '', 'El curso ocultado no debe conservarse como curso activo local.');
+  assert.deepEqual(archivedState.rpcArgs, { p_course_key: 'ctfl' }, 'El ocultamiento debe usar la RPC autenticada del curso seleccionado.');
 
   assert.deepEqual(errors, [], `Errores de navegador:\n${errors.join('\n')}`);
   console.log('Cloud account smoke OK: matrícula, tiempo, capítulos, simulacro, examen final, cuenta y progreso por inscripción.');

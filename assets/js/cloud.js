@@ -117,7 +117,7 @@
     const { client } = requireUser();
     const { data, error } = await client
       .from('course_enrollments')
-      .select('course_key,status,started_at,cancelled_at,last_activity_at,estimated_hours,study_seconds,verified_study_seconds,study_verification_started_at,simulator_attempts,practice_answers,best_simulator_score,final_exam_attempts,best_final_exam_score,final_exam_passed,final_exam_passed_at,completed_at,created_at,updated_at')
+      .select('course_key,status,started_at,cancelled_at,hidden_at,last_activity_at,estimated_hours,study_seconds,verified_study_seconds,study_verification_started_at,simulator_attempts,practice_answers,best_simulator_score,final_exam_attempts,best_final_exam_score,final_exam_passed,final_exam_passed_at,completed_at,created_at,updated_at')
       .order('started_at', { ascending: false });
     if (error) throw error;
     return Array.isArray(data) ? data : [];
@@ -228,11 +228,11 @@
     const pending = pendingSyncs.get(key);
     if (pending?.timer) global.clearTimeout(pending.timer);
     pendingSyncs.delete(key);
-    const { data, error } = await client.rpc('delete_cancelled_course', {
+    const { data, error } = await client.rpc('archive_cancelled_course', {
       p_course_key: key
     });
     if (error) throw error;
-    if (data !== true) throw new Error('El curso no estaba cancelado o ya fue eliminado.');
+    if (data !== true) throw new Error('El curso no estaba cancelado o ya fue ocultado.');
     return true;
   }
 
@@ -437,6 +437,15 @@
     return data === true;
   }
 
+  async function getMyAccessStatus() {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('get_my_access_status');
+    if (error) throw error;
+    return data && typeof data === 'object'
+      ? data
+      : { blocked: false, blocked_at: null, reason: null, admin_role: null };
+  }
+
   async function getPublicLearningActivity() {
     const client = requireClient();
     const { data, error } = await client.rpc('public_learning_activity_summary');
@@ -492,6 +501,13 @@
     });
     if (error) throw error;
     return data && typeof data === 'object' ? data : null;
+  }
+
+  async function listMyContactMessages() {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('list_my_contact_messages');
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
   }
 
   async function listApprovedCourseReviews(courseKey = '', limit = 8) {
@@ -569,6 +585,82 @@
     return data && typeof data === 'object' ? data : null;
   }
 
+  async function listAdminUserGovernance(userIds = []) {
+    const { client } = requireUser();
+    const ids = [...new Set((Array.isArray(userIds) ? userIds : [])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean))];
+    if (!ids.length) return [];
+    const { data, error } = await client.rpc('admin_list_user_governance', { p_user_ids: ids });
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function setAdminUserBlocked(userId, blocked, reason = '') {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_set_user_blocked', {
+      p_user_id: String(userId || '').trim(),
+      p_blocked: Boolean(blocked),
+      p_reason: String(reason || '').trim().slice(0, 500) || null
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
+  async function setAdminUserRole(userId, role = '') {
+    const { client } = requireUser();
+    const normalizedRole = ['admin', 'superadmin'].includes(String(role || '').trim().toLowerCase())
+      ? String(role).trim().toLowerCase()
+      : 'none';
+    const { data, error } = await client.rpc('admin_set_user_role', {
+      p_user_id: String(userId || '').trim(),
+      p_role: normalizedRole
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
+  async function setAdminCertificateEligibility(userId, courseKey, enabled, reason = '') {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_set_certificate_eligibility', {
+      p_user_id: String(userId || '').trim(),
+      p_course_key: normalizeCourseKey(courseKey),
+      p_enabled: Boolean(enabled),
+      p_reason: String(reason || '').trim().slice(0, 500) || null
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
+  async function softDeleteAdminContactMessage(messageId) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_soft_delete_contact_message', {
+      p_message_id: String(messageId || '').trim()
+    });
+    if (error) throw error;
+    return data === true;
+  }
+
+  async function softDeleteAdminCourseReview(reviewId) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_soft_delete_course_review', {
+      p_review_id: String(reviewId || '').trim()
+    });
+    if (error) throw error;
+    return data === true;
+  }
+
+  async function updateAdminCertificateStatus(certificateId, action, reason = '') {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_update_certificate_status', {
+      p_certificate_id: String(certificateId || '').trim(),
+      p_action: String(action || '').trim().toLowerCase(),
+      p_reason: String(reason || '').trim().slice(0, 500) || null
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
   global.AcademyCloud = Object.freeze({
     getProfile,
     listEnrollments,
@@ -597,10 +689,12 @@
     getVerifiedLearningDashboard,
     getPublicLearningActivity,
     isAdmin,
+    getMyAccessStatus,
     getAdminDashboardSummary,
     listAdminUsers,
     listAdminCertificates,
     submitContactMessage,
+    listMyContactMessages,
     listApprovedCourseReviews,
     getMyCourseReview,
     submitCourseReview,
@@ -608,6 +702,13 @@
     updateAdminContactMessage,
     listAdminCourseReviews,
     moderateAdminCourseReview,
+    listAdminUserGovernance,
+    setAdminUserBlocked,
+    setAdminUserRole,
+    setAdminCertificateEligibility,
+    softDeleteAdminContactMessage,
+    softDeleteAdminCourseReview,
+    updateAdminCertificateStatus,
     mergeProgress
   });
 }(window));

@@ -25,11 +25,12 @@
   const COMMUNITY_ACTIVITY_REFRESH_MS = 15_000;
   const LEARNING_ACTIVITY_HEARTBEAT_MS = 30_000;
   const DEFAULT_PRACTICE_FILTER = Object.freeze({
-    chapter: 'all',
-    k: 'all',
-    lo: 'all',
-    count: 40,
-    mode: 'study'
+    chapter: '',
+    k: '',
+    lo: '',
+    count: 20,
+    mode: 'study',
+    configured: false
   });
   const LEARNING_ROUTES = Object.freeze([
     Object.freeze({
@@ -297,6 +298,8 @@
       accountLoading: false,
       accountError: '',
       accountProfile: null,
+      accountMessages: [],
+      accountAccess: { blocked: false, admin_role: null },
       enrollments: [],
       certificates: [],
       certificateOrders: [],
@@ -333,6 +336,7 @@
       adminSearch: '',
       adminFilter: 'all',
       adminCoursesByKey: new Map(),
+      adminGovernanceByUser: new Map(),
       practiceFilter: { ...DEFAULT_PRACTICE_FILTER }
     };
   }
@@ -457,6 +461,7 @@
     dom.coffeeCopHint = $('coffeeCopHint');
     dom.certificateModal = $('certificateModal');
     dom.certificateModalBody = $('certificateModalBody');
+    dom.messageModal = $('messageModal');
     dom.mainLayout = $('mainLayout');
     dom.heroTitle = $('heroTitle');
     dom.heroSubtitle = $('heroSubtitle');
@@ -501,7 +506,7 @@
       }
     }, COMMUNITY_ACTIVITY_REFRESH_MS);
 
-    dom.resetProgress.addEventListener('click', async () => {
+    dom.resetProgress?.addEventListener('click', async () => {
       if (!course) return;
       if (!global.confirm('¿Limpiar la caché local, los intentos de práctica y las preguntas marcadas en este dispositivo? El avance verificado de tu cuenta no se borrará.')) return;
       const ok = Storage.removeProgress(progressStorageKey);
@@ -612,6 +617,7 @@
     if (event.key === 'Escape') {
       closeCoffeeModal();
       closeCertificateModal();
+      closeMessageModal();
       closeSiteMenu();
       return;
     }
@@ -641,6 +647,11 @@
       return;
     }
 
+    if (event.target === dom.messageModal) {
+      closeMessageModal();
+      return;
+    }
+
     const homeAnchor = event.target.closest('[data-home-anchor]');
     if (homeAnchor) {
       event.preventDefault();
@@ -658,6 +669,7 @@
     const viewButton = event.target.closest('[data-view]');
     if (viewButton) {
       event.preventDefault();
+      closeMessageModal();
       closeSiteMenu();
       const anchor = viewButton.dataset.viewAnchor;
       await showView(viewButton.dataset.view);
@@ -672,7 +684,9 @@
     const action = actionTarget.dataset.action;
     switch (action) {
       case 'select-course':
-        await setCourse(actionTarget.dataset.course);
+        await setCourse(actionTarget.dataset.course, actionTarget.dataset.chapter
+          ? { view: 'study', chapter: Number(actionTarget.dataset.chapter) }
+          : {});
         break;
       case 'sign-in-google':
         await Auth?.signInWithGoogle?.();
@@ -694,6 +708,24 @@
         break;
       case 'admin-review-status':
         await moderateAdminReview(actionTarget);
+        break;
+      case 'admin-user-block':
+        await updateAdminUserBlock(actionTarget);
+        break;
+      case 'admin-user-role':
+        await updateAdminUserRole(actionTarget);
+        break;
+      case 'admin-certificate-eligibility':
+        await updateAdminCertificateEligibility(actionTarget);
+        break;
+      case 'admin-message-delete':
+        await softDeleteAdminMessage(actionTarget);
+        break;
+      case 'admin-review-delete':
+        await softDeleteAdminReview(actionTarget);
+        break;
+      case 'admin-certificate-status':
+        await updateAdminCertificateStatus(actionTarget);
         break;
       case 'admin-refresh':
         await refreshAdmin();
@@ -770,6 +802,9 @@
       case 'close-certificate-modal':
         closeCertificateModal();
         break;
+      case 'close-message-modal':
+        closeMessageModal();
+        break;
       case 'toggle-site-menu':
         toggleSiteMenu();
         break;
@@ -814,9 +849,6 @@
         break;
       case 'check-or-next':
         checkOrNext();
-        break;
-      case 'toggle-marked':
-        toggleMarked();
         break;
       case 'finish-session':
         finishSession();
@@ -1670,6 +1702,11 @@
       showCourseAuthGate(normalizedKey, options);
       return false;
     }
+    await Auth?.refreshAccessStatus?.();
+    if (Auth?.isBlocked?.()) {
+      showCourseAuthGate(normalizedKey, options, Auth?.getAccessStatus?.()?.reason || 'Esta cuenta está bloqueada. Contacta al equipo de QAvance.');
+      return false;
+    }
 
     persistStudyTime();
     stopStudyTimer();
@@ -2002,14 +2039,10 @@
     setTextIfChanged(dom.topExam, isPublicView
       ? `🎓 ${freeCourses} cursos gratis disponibles`
       : `⏱️ Simulacro ${blueprint.minutes} min / aprueba ${blueprint.passingScore}/${blueprint.totalPoints || blueprint.totalQuestions}`);
-    setTextIfChanged(dom.navCaps, `${course?.chapters?.length || 0} caps`);
-    setTextIfChanged(dom.navExamCount, String(blueprint.totalQuestions || 0));
     const isHomeView = state.view === 'home';
     dom.footerText.classList.toggle('homeFooter', isHomeView);
-    setTextIfChanged(dom.footerText, isPublicView
-      ? (isHomeView ? `QAvance · v${APP_VERSION}` : '')
-      : `Hecho para estudio personal · ${courseLabel()} · progreso independiente por certificación.`);
-    dom.footerText.hidden = isPublicView && !isHomeView;
+    setTextIfChanged(dom.footerText, isHomeView ? `QAvance · v${APP_VERSION}` : '');
+    dom.footerText.hidden = !isHomeView;
 
     const hasK3 = course ? questions.some((question) => question.k === 'K3') : false;
     const hasFlashcards = course ? Array.isArray(course.flashcards) && course.flashcards.length > 0 : false;
@@ -2478,7 +2511,6 @@
         </div>
       </article>
 
-      <p class="homeCourseAdvantagesLegal">La constancia acredita participación y aprobación en QAvance; no reemplaza una certificación oficial de ISTQB ni de otra entidad certificadora.</p>
     </section>`;
   }
 
@@ -2580,7 +2612,7 @@
         <span>${h(studyText)}</span>
       </div>
       <p>${h(lastText)}</p>
-      <button class="btn heroResume" type="button" data-action="select-course" data-course="${h(entry.key)}">${h(actionText)}</button>
+      <a class="btn heroResume" href="${h(resumePathForEntry(entry))}" data-action="select-course" data-course="${h(entry.key)}" data-chapter="${number(lastStudiedChapter(entry.details)) || ''}">${h(actionText)}</a>
     </aside>`;
   }
 
@@ -2592,6 +2624,31 @@
     const a = [...left].map(Number).sort((x, y) => x - y);
     const b = [...right].map(Number).sort((x, y) => x - y);
     return a.length === b.length && a.every((value, index) => value === b[index]);
+  }
+
+  function openMessageModal() {
+    if (!dom.messageModal) return;
+    dom.messageModal.hidden = false;
+    document.body.classList.add('modalOpen');
+    dom.messageModal.querySelector('[data-action="close-message-modal"]')?.focus();
+  }
+
+  function closeMessageModal() {
+    if (!dom.messageModal || dom.messageModal.hidden) return;
+    dom.messageModal.hidden = true;
+    if (dom.coffeeModal?.hidden && dom.certificateModal?.hidden) document.body.classList.remove('modalOpen');
+  }
+
+  function lastStudiedChapter(details = {}) {
+    const chapters = Array.isArray(details.chapters) ? details.chapters : [];
+    return chapters
+      .filter((chapter) => chapter.lastStudiedAt)
+      .sort((left, right) => String(right.lastStudiedAt).localeCompare(String(left.lastStudiedAt)))[0]?.chapterId || null;
+  }
+
+  function resumePathForEntry(entry = {}) {
+    const chapterId = lastStudiedChapter(entry.details);
+    return chapterId ? chapterPath(entry.key, chapterId) : coursePath(entry.key);
   }
 
   function randomInt(max) {
@@ -3107,15 +3164,19 @@
     state.accountError = '';
     render();
     try {
-      const [, certificates, certificateOrders] = await Promise.all([
+      const [, certificates, certificateOrders, messages, access] = await Promise.all([
         refreshLearningSnapshot({ includeProfile: true }),
         Cloud.listCertificates(),
-        Cloud.listCertificateOrders()
+        Cloud.listCertificateOrders(),
+        Cloud.listMyContactMessages(),
+        Cloud.getMyAccessStatus()
       ]);
       state.accountProfile = learningSnapshot.profile;
-      state.enrollments = learningSnapshot.enrollments;
+      state.enrollments = learningSnapshot.enrollments.filter((item) => !item.hidden_at);
       state.certificates = certificates;
       state.certificateOrders = certificateOrders;
+      state.accountMessages = messages;
+      state.accountAccess = access;
     } catch (error) {
       console.error(error);
       state.accountError = 'No fue posible consultar tu información en la nube.';
@@ -3148,26 +3209,19 @@
       return;
     }
     const courseName = entry.meta?.name || courseKey;
-    const confirmed = global.confirm(`\u00bfEliminar ${courseName} de tu cuenta? Se borrar\u00e1n permanentemente tu matr\u00edcula, avance, tiempo de estudio e intentos. Esta acci\u00f3n no se puede deshacer.`);
+    const confirmed = global.confirm(`¿Quitar ${courseName} de tu cuenta? El curso dejará de aparecer, pero QAvance conservará tu avance, tiempo e intentos para que no se pierdan.`);
     if (!confirmed) return;
 
     try {
       await Cloud.deleteEnrollment(courseKey);
-      const storageKey = entry.meta?.storageKey || `academy_${courseKey}_progress`;
-      const localProgressRemoved = Storage.removeProgress(storageKey);
-      learningSnapshot.progressByCourse.delete(courseKey);
-      learningSnapshot.coursesByKey.delete(courseKey);
-      learningSnapshot.legacyByCourse.delete(courseKey);
       learningSnapshot.enrollments = learningSnapshot.enrollments.filter((item) => item.course_key !== courseKey);
       state.enrollments = state.enrollments.filter((item) => item.course_key !== courseKey);
       if (Storage.getActiveCourse() === courseKey) Storage.setActiveCourse('');
-      notify(localProgressRemoved
-        ? 'El curso y todos sus datos fueron eliminados de tu cuenta.'
-        : 'El curso se elimin\u00f3 de la nube, pero no fue posible limpiar el progreso de este dispositivo.', localProgressRemoved ? 'success' : 'warning');
+      notify('El curso se quitó de tu cuenta. Tu historial de aprendizaje permanece protegido.', 'success');
       await refreshAccount();
     } catch (error) {
       console.error(error);
-      notify('No fue posible eliminar el curso. Verifica que est\u00e9 cancelado e intenta nuevamente.', 'error');
+      notify('No fue posible quitar el curso. Verifica que esté cancelado e intenta nuevamente.', 'error');
     }
   }
 
@@ -3183,11 +3237,20 @@
       </div>`;
     }
 
+    if (Auth?.isBlocked?.()) {
+      const access = Auth?.getAccessStatus?.() || {};
+      return `<div class="publicHome publicPage accountPage" id="mi-cuenta"><section class="accountSignIn" aria-labelledby="accountTitle"><span class="sectionKicker">Acceso restringido</span><h1 id="accountTitle">Tu cuenta está bloqueada</h1><p>${h(access.reason || 'Contacta al equipo de QAvance para revisar el estado de tu cuenta.')}</p><a class="btn secondary" href="/contactanos/" data-view="contact">Contactar soporte</a></section></div>`;
+    }
+
     const user = Auth.getUser();
     const profile = state.accountProfile || {};
     const enrollments = Array.isArray(state.enrollments) ? state.enrollments : [];
     const certificates = Array.isArray(state.certificates) ? state.certificates : [];
     const certificateOrders = Array.isArray(state.certificateOrders) ? state.certificateOrders : [];
+    const accountMessages = Array.isArray(state.accountMessages) ? state.accountMessages : [];
+    const certificateEntitlements = Array.isArray(state.accountAccess?.certificate_entitlements)
+      ? state.accountAccess.certificate_entitlements
+      : [];
     const enrolled = enrollments.filter((item) => item.status !== 'cancelled');
     const active = enrolled.length;
     const simulatorTotal = enrolled.reduce((sum, item) => sum + number(item.simulator_attempts), 0);
@@ -3213,7 +3276,10 @@
       const courseData = learningSnapshot.coursesByKey.get(item.course_key) || Registry.get(item.course_key);
       const details = courseProgressDetails(item.course_key, courseData || catalogCourseSummary(entry));
       const isCompleted = details.finalExamPassed && details.progressPercent === 100;
-      const certificateAvailable = isCompleted;
+      const administrativeEntitlement = certificateEntitlements.some((entitlement) => (
+        entitlement.course_key === item.course_key && entitlement.enabled === true
+      ));
+      const certificateAvailable = isCompleted || administrativeEntitlement;
       const issuedCertificate = certificates.find((certificate) => certificate.course_key === item.course_key);
       const currentCertificateOrder = certificateOrders.find((order) => (
         order.course_key === item.course_key
@@ -3257,7 +3323,8 @@
         </dl>
         <div class="${isCompleted ? 'okbox' : 'note'} accountFinalStatus"><b>Examen final:</b> ${isCompleted
           ? `Aprobado · ${number(item.best_final_exam_score)}% · curso al 100%`
-          : details.finalExamEligible ? 'Habilitado · ya alcanzaste el 95% verificable' : `Bloqueado hasta el 95% verificable · avance oficial ${verifiedProgressPercent(details)}%${details.hasUnverifiedHistory ? ` · histórico conservado ${details.progressPercent}%` : ''}`}</div>
+           : details.finalExamEligible ? 'Habilitado · ya alcanzaste el 95% verificable' : `Bloqueado hasta el 95% verificable · avance oficial ${verifiedProgressPercent(details)}%${details.hasUnverifiedHistory ? ` · histórico conservado ${details.progressPercent}%` : ''}`}</div>
+        ${administrativeEntitlement && !isCompleted ? '<div class="okbox"><b>Constancia habilitada por administración.</b> Este permiso permite solicitarla sin modificar tu avance ni tus métricas académicas.</div>' : ''}
         <details class="accountChapterDetails">
           <summary>Avance por capítulo</summary>
           ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Aún no hay capítulos con actividad registrada.</p>'}
@@ -3272,7 +3339,7 @@
             ? `<a class="btn" href="${h(coursePath(item.course_key))}" data-action="select-course" data-course="${h(item.course_key)}">Continuar curso</a>
                <button class="btn secondary dangerAction" type="button" data-action="cancel-enrollment" data-course="${h(item.course_key)}">Cancelar curso</button>`
             : `<button class="btn" type="button" data-action="reactivate-enrollment" data-course="${h(item.course_key)}">Reactivar curso</button>
-               <button class="btn bad" type="button" data-action="delete-enrollment" data-course="${h(item.course_key)}">Eliminar curso</button>`}
+               <button class="btn bad" type="button" data-action="delete-enrollment" data-course="${h(item.course_key)}">Quitar de mi cuenta</button>`}
         </div>
       </article>`;
     }).join('');
@@ -3286,6 +3353,12 @@
         <div class="accountCertificateMeta"><span>Emitido ${h(formatDate(certificate.issued_at))}</span><strong>${h(certificate.certificate_code)}</strong></div>
       </div>
       <div class="accountCertificateActions"><button class="btn good" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Descargar PDF</button><button class="btn linkedinButton" type="button" data-action="share-certificate-linkedin" data-code="${h(certificate.certificate_code)}">LinkedIn</button><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Ver</button><button class="btn secondary" type="button" data-action="copy-certificate-url" data-code="${h(certificate.certificate_code)}">Copiar URL</button></div>
+    </article>`).join('');
+
+    const accountMessageCards = accountMessages.map((message) => `<article class="accountMessageCard">
+      <header><div><span class="reviewStatus ${h(message.status)}">${h(accountMessageStatusLabel(message.status))}</span><h3>${h(message.subject)}</h3></div><time datetime="${h(message.created_at)}">${h(formatDate(message.created_at))}</time></header>
+      <p>${h(message.message)}</p>
+      ${message.admin_reply ? `<div class="accountMessageReply"><b>Respuesta de QAvance</b><p>${h(message.admin_reply)}</p><small>${h(formatDate(message.replied_at || message.updated_at))}</small></div>` : '<small>Te avisaremos aquí cuando el equipo registre una respuesta.</small>'}
     </article>`).join('');
 
     return `<div class="publicHome publicPage accountPage" id="mi-cuenta">
@@ -3315,6 +3388,10 @@
         </div>
         ${enrollmentCards || (!state.accountLoading ? '<div class="card"><p>Aún no te has inscrito en un curso.</p><a class="btn" href="/cursos/" data-view="courses">Explorar cursos</a></div>' : '')}
       </section>
+      <section class="accountMessages" aria-labelledby="accountMessagesTitle">
+        <div class="sectionIntro"><span class="sectionKicker">Soporte</span><h2 id="accountMessagesTitle">Mis mensajes</h2><p>Consulta tus solicitudes, su estado y las respuestas del equipo.</p></div>
+        <div class="accountMessageGrid">${accountMessageCards || (!state.accountLoading ? '<div class="card"><p>Aún no tienes mensajes vinculados a esta cuenta.</p><a class="btn secondary" href="/contactanos/" data-view="contact">Enviar un mensaje</a></div>' : '')}</div>
+      </section>
     </div>`;
   }
 
@@ -3332,6 +3409,7 @@
         Cloud.listAdminCourseReviews({ search: state.adminSearch, limit: 100, offset: 0 })
       ]);
       const users = Array.isArray(result?.users) ? result.users : [];
+      const governance = await Cloud.listAdminUserGovernance(users.map((user) => user.id));
       const courseKeys = [...new Set(users.flatMap((user) => (
         Array.isArray(user.enrollments) ? user.enrollments.map((item) => item.course_key) : []
       )).filter(Boolean))];
@@ -3347,6 +3425,7 @@
       }));
       state.adminSummary = summary || {};
       state.adminUsers = users;
+      state.adminGovernanceByUser = new Map(governance.map((item) => [item.user_id, item]));
       state.adminTotal = number(result?.total);
       state.adminCertificates = Array.isArray(certificateResult?.certificates) ? certificateResult.certificates : [];
       state.adminCertificateTotal = number(certificateResult?.total);
@@ -3364,13 +3443,15 @@
     }
   }
 
-  function adminEnrollmentView(item) {
+  function adminEnrollmentView(item, userId, governance, canManageEligibility) {
     const entry = catalogEntry(item.course_key) || {};
     const courseData = state.adminCoursesByKey.get(item.course_key)
       || Registry.get(item.course_key)
       || catalogCourseSummary(entry);
     const details = courseProgressDetailsFrom(item.course_key, courseData, {}, item);
     const statusLabel = item.status === 'active' ? 'Activo' : item.status === 'completed' ? 'Completado' : 'Cancelado';
+    const entitlement = (Array.isArray(governance?.certificate_entitlements) ? governance.certificate_entitlements : [])
+      .find((entry) => entry.course_key === item.course_key);
     const chapterRows = details.chapters.map((chapter) => `<li>
       <span><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><small>${chapter.touched}/${chapter.objectiveCount} LO · ${chapter.studyMinutes} min</small></span>
       <span><b>${chapter.coverage}% avance</b><small>${chapter.domain}% dominio</small></span>
@@ -3397,6 +3478,7 @@
         <summary>Avance por capítulo</summary>
         ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Sin actividad registrada por capítulo.</p>'}
       </details>
+      ${canManageEligibility ? `<div class="adminGovernanceActions"><button class="btn secondary" type="button" data-action="admin-certificate-eligibility" data-user-id="${h(userId)}" data-course="${h(item.course_key)}" data-enabled="${entitlement?.enabled ? 'false' : 'true'}">${entitlement?.enabled ? 'Retirar habilitación de constancia' : 'Habilitar constancia'}</button>${entitlement?.reason ? `<small>Motivo: ${h(entitlement.reason)}</small>` : ''}</div>` : ''}
     </div>`;
   }
 
@@ -3469,6 +3551,10 @@
     return ({ new: 'Nuevo', in_progress: 'En gestión', responded: 'Respondido', closed: 'Cerrado' })[status] || 'Nuevo';
   }
 
+  function accountMessageStatusLabel(status) {
+    return ({ new: 'Enviado', in_progress: 'En gestión', responded: 'Completado', closed: 'Completado' })[status] || 'Enviado';
+  }
+
   async function updateAdminMessage(target) {
     const messageId = String(target.dataset.messageId || '');
     const status = String(target.dataset.status || 'in_progress');
@@ -3496,6 +3582,89 @@
     } catch (error) {
       console.error(error);
       notify(error?.message || 'No fue posible moderar la calificación.', 'error');
+    }
+  }
+
+  async function updateAdminUserBlock(target) {
+    const blocked = target.dataset.blocked === 'true';
+    const reason = blocked ? (global.prompt('Motivo del bloqueo (quedará en la auditoría):', '') || '').trim() : '';
+    if (blocked && !reason) return;
+    if (!global.confirm(blocked ? '¿Bloquear esta cuenta y detener nuevas actividades?' : '¿Restaurar el acceso de esta cuenta?')) return;
+    try {
+      await Cloud.setAdminUserBlocked(target.dataset.userId, blocked, reason);
+      notify(blocked ? 'Cuenta bloqueada.' : 'Acceso restaurado.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible actualizar el acceso.', 'error');
+    }
+  }
+
+  async function updateAdminUserRole(target) {
+    const role = String(target.dataset.role || 'none');
+    const label = role === 'superadmin' ? 'superadministrador' : role === 'admin' ? 'administrador' : 'usuario';
+    if (!global.confirm(`¿Cambiar esta cuenta al rol ${label}?`)) return;
+    try {
+      await Cloud.setAdminUserRole(target.dataset.userId, role);
+      notify('Rol administrativo actualizado.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible actualizar el rol.', 'error');
+    }
+  }
+
+  async function updateAdminCertificateEligibility(target) {
+    const enabled = target.dataset.enabled === 'true';
+    const reason = enabled ? (global.prompt('Motivo de la habilitación excepcional:', '') || '').trim() : '';
+    if (enabled && !reason) return;
+    if (!global.confirm(enabled ? '¿Habilitar la solicitud de constancia para este curso?' : '¿Retirar la habilitación excepcional?')) return;
+    try {
+      await Cloud.setAdminCertificateEligibility(target.dataset.userId, target.dataset.course, enabled, reason);
+      notify(enabled ? 'Constancia habilitada para el usuario.' : 'Habilitación retirada.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible actualizar la habilitación.', 'error');
+    }
+  }
+
+  async function softDeleteAdminMessage(target) {
+    if (!global.confirm('¿Quitar este mensaje de la bandeja? El registro se conservará para auditoría.')) return;
+    try {
+      await Cloud.softDeleteAdminContactMessage(target.dataset.messageId);
+      notify('Mensaje archivado.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible archivar el mensaje.', 'error');
+    }
+  }
+
+  async function softDeleteAdminReview(target) {
+    if (!global.confirm('¿Quitar esta calificación? Dejará de publicarse y se conservará para auditoría.')) return;
+    try {
+      await Cloud.softDeleteAdminCourseReview(target.dataset.reviewId);
+      notify('Calificación archivada.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible archivar la calificación.', 'error');
+    }
+  }
+
+  async function updateAdminCertificateStatus(target) {
+    const action = String(target.dataset.statusAction || 'archive');
+    const reason = action === 'revoke' ? (global.prompt('Motivo de la revocación:', '') || '').trim() : '';
+    if (action === 'revoke' && !reason) return;
+    if (!global.confirm('¿Confirmas esta acción sobre la constancia?')) return;
+    try {
+      await Cloud.updateAdminCertificateStatus(target.dataset.certificateId, action, reason);
+      notify('Estado de la constancia actualizado.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible actualizar la constancia.', 'error');
     }
   }
 
@@ -3531,17 +3700,20 @@
       Date.now() - new Date(snapshot.lastSeenAt).getTime() <= 30 * 24 * 60 * 60 * 1000
     )).length;
     const enrolledCount = rows.filter(({ snapshot }) => snapshot.learningEnrollments.length > 0).length;
+    const currentAdminRole = Auth?.getAccessStatus?.()?.admin_role || 'admin';
+    const isSuperadmin = currentAdminRole === 'superadmin';
     const adminCertificates = Array.isArray(state.adminCertificates) ? state.adminCertificates : [];
     const userRows = visibleRows.map(({ user, snapshot }) => {
       const name = user.full_name || user.email?.split('@')[0] || 'Usuario';
+      const governance = state.adminGovernanceByUser.get(user.id) || {};
       return `<article class="adminManagerRow">
         <div class="adminManagerMain">
           <div class="adminManagerIdentity" data-label="Usuario">
             <span class="adminUserInitial" aria-hidden="true">${h(name.charAt(0).toUpperCase())}</span>
-            <span><strong>${h(name)}</strong><a href="mailto:${h(user.email || '')}">${h(user.email || 'Sin correo')}</a></span>
+            <span><strong>${h(name)}</strong><a href="mailto:${h(user.email || '')}">${h(user.email || 'Sin correo')}</a><small>${governance.admin_role ? `Rol: ${h(governance.admin_role === 'superadmin' ? 'Superadministrador' : 'Administrador')}` : 'Rol: Estudiante'}</small></span>
           </div>
           <div class="adminManagerCell" data-label="Estado">
-            <span class="adminPresence ${snapshot.online ? 'online' : 'offline'}"><i aria-hidden="true"></i>${snapshot.online ? 'En línea' : 'Desconectado'}</span>
+            <span class="adminPresence ${snapshot.online ? 'online' : 'offline'}"><i aria-hidden="true"></i>${governance.blocked ? 'Bloqueado' : snapshot.online ? 'En línea' : 'Desconectado'}</span>
           </div>
           <div class="adminManagerCell" data-label="Cursos"><strong>${snapshot.learningEnrollments.length}</strong><small>${snapshot.activeCourses} activos · ${snapshot.completedCourses} completados</small></div>
           <div class="adminManagerCell adminProgressCell" data-label="Avance"><strong>${snapshot.progressPercent}%</strong><small>${snapshot.hasUnverifiedHistory ? 'Incluye histórico no verificado' : `Dominio verificado ${snapshot.masteryPercent}%`}</small><span class="adminMiniProgress"><i style="width:${snapshot.progressPercent}%"></i></span></div>
@@ -3550,9 +3722,13 @@
         </div>
         <details class="adminUserDetails">
           <summary>Ver cursos y avance por capítulo</summary>
-          <div class="adminUserRegistration"><span>Registro: ${h(formatDate(user.created_at))}</span><span>Último inicio de sesión: ${h(formatDate(user.last_sign_in_at))}</span></div>
+          <div class="adminUserRegistration"><span>Registro: ${h(formatDate(user.created_at))}</span><span>Último inicio de sesión: ${h(formatDate(user.last_sign_in_at))}</span>${governance.block_reason ? `<span>Motivo de bloqueo: ${h(governance.block_reason)}</span>` : ''}</div>
+          <div class="adminGovernanceActions">
+            <button class="btn ${governance.blocked ? 'good' : 'bad'}" type="button" data-action="admin-user-block" data-user-id="${h(user.id)}" data-blocked="${governance.blocked ? 'false' : 'true'}">${governance.blocked ? 'Desbloquear cuenta' : 'Bloquear cuenta'}</button>
+            ${isSuperadmin ? `<button class="btn secondary" type="button" data-action="admin-user-role" data-user-id="${h(user.id)}" data-role="${governance.admin_role ? 'none' : 'admin'}">${governance.admin_role ? 'Retirar rol administrativo' : 'Convertir en administrador'}</button>${governance.admin_role === 'admin' ? `<button class="btn secondary" type="button" data-action="admin-user-role" data-user-id="${h(user.id)}" data-role="superadmin">Convertir en superadministrador</button>` : ''}` : ''}
+          </div>
           <div class="adminEnrollments">
-            ${snapshot.enrollments.map(adminEnrollmentView).join('') || '<p class="adminEmpty">Este usuario aún no tiene cursos inscritos.</p>'}
+            ${snapshot.enrollments.map((item) => adminEnrollmentView(item, user.id, governance, isSuperadmin)).join('') || '<p class="adminEmpty">Este usuario aún no tiene cursos inscritos.</p>'}
           </div>
         </details>
       </article>`;
@@ -3565,12 +3741,12 @@
       ['enrolled', 'Con cursos', enrolledCount],
       ['unenrolled', 'Sin cursos', Math.max(0, users.length - enrolledCount)]
     ];
-    const certificateRows = adminCertificates.map((certificate) => `<article class="adminCertificateRow">
-      <div><span class="accountStatus ${certificate.status === 'VALID' ? 'completed' : 'cancelled'}">${certificate.status === 'VALID' ? 'Válido' : 'Revocado'}</span><strong>${h(certificate.certificate_code)}</strong></div>
+    const certificateRows = adminCertificates.map((certificate) => `<article class="adminCertificateRow ${certificate.archived_at ? 'archived' : ''}">
+      <div><span class="accountStatus ${certificate.status === 'VALID' ? 'completed' : 'cancelled'}">${certificate.status === 'VALID' ? 'Válido' : 'Revocado'}</span>${certificate.archived_at ? '<span class="accountStatus historical">Archivado</span>' : ''}<strong>${h(certificate.certificate_code)}</strong></div>
       <div><strong>${h(certificate.full_name)}</strong><a href="mailto:${h(certificate.email || '')}">${h(certificate.email || 'Sin correo')}</a></div>
       <div><strong>${h(certificate.course_name)}</strong><small>${h(certificate.document)}</small></div>
       <div><strong>${h(formatDate(certificate.issued_at))}</strong><small>${number(certificate.estimated_hours)} h estimadas</small></div>
-      <div class="adminCertificateActions"><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Validar</button><button class="btn" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Ver PDF</button></div>
+      <div class="adminCertificateActions"><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Validar</button><button class="btn" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Ver PDF</button><button class="btn secondary" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.archived_at ? 'unarchive' : 'archive'}">${certificate.archived_at ? 'Restaurar' : 'Archivar'}</button><button class="btn ${certificate.status === 'VALID' ? 'bad' : 'good'}" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.status === 'VALID' ? 'revoke' : 'restore'}">${certificate.status === 'VALID' ? 'Revocar' : 'Restaurar validez'}</button></div>
     </article>`).join('');
     const messageRows = state.adminMessages.map((message) => `<article class="adminInboxCard">
       <div class="adminCardHead"><div><span class="reviewStatus ${h(message.status)}">${h(adminMessageStatusLabel(message.status))}</span><h3>${h(message.subject)}</h3></div><time datetime="${h(message.created_at)}">${h(formatDate(message.created_at))}</time></div>
@@ -3582,6 +3758,7 @@
         <button class="btn secondary" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="in_progress">Marcar en gestión</button>
         <button class="btn" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="responded" data-email="${h(message.email)}" data-subject="${h(message.subject)}">Guardar y responder por correo</button>
         <button class="btn secondary" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="closed">Cerrar</button>
+        <button class="btn bad" type="button" data-action="admin-message-delete" data-message-id="${h(message.id)}">Archivar</button>
       </div>
     </article>`).join('');
     const reviewRows = state.adminReviews.map((review) => {
@@ -3591,7 +3768,7 @@
         <h3>${h(entry.meta?.name || review.course_key)}</h3>
         <p>${h(review.comment || 'Calificación sin comentario.')}</p>
         <div class="adminInboxIdentity"><strong>${h(review.full_name || 'Usuario')}</strong><a href="mailto:${h(review.email || '')}">${h(review.email || 'Sin correo')}</a></div>
-        <div class="adminInboxActions"><button class="btn good" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="approved">Aprobar</button><button class="btn secondary" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="rejected">Declinar</button></div>
+        <div class="adminInboxActions"><button class="btn good" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="approved">Aprobar</button><button class="btn secondary" type="button" data-action="admin-review-status" data-review-id="${h(review.id)}" data-status="rejected">Declinar</button><button class="btn bad" type="button" data-action="admin-review-delete" data-review-id="${h(review.id)}">Archivar</button></div>
       </article>`;
     }).join('');
     const adminTabs = [
@@ -3667,7 +3844,7 @@
             <p>QAvance utiliza inicio de sesión con Google mediante Supabase Auth para acceder a los cursos. Al ingresar se procesan el identificador de cuenta, nombre y correo proporcionados por Google para mantener la sesión y asociar tus matrículas. QAvance no recibe tu contraseña de Google.</p>
             <p>Las matrículas, fechas de inicio, avance por capítulo, tiempo activo de estudio, respuestas acumuladas y resultados de simulacros o exámenes finales se guardan en Supabase para recuperar el aprendizaje entre dispositivos y generar métricas de uso. El navegador conserva una copia local para dar continuidad a la experiencia.</p>
             <p>Los mensajes enviados mediante el formulario de contacto se almacenan para gestionarlos y responder al correo indicado. Las calificaciones de cursos se asocian a la cuenta inscrita; solo el nombre abreviado, las estrellas y el comentario aparecen públicamente después de moderación administrativa.</p>
-            <p>Cancelar un curso detiene su estado activo, pero conserva el historial para que puedas reactivarlo. Después de cancelarlo, puedes usar <b>Eliminar curso</b> en Mi cuenta para borrar permanentemente su matrícula, avance, tiempo e intentos; para solicitar la eliminación completa de la cuenta o de otros datos personales usa el formulario de contacto.</p>
+            <p>Cancelar un curso detiene su estado activo, pero conserva el historial para que puedas reactivarlo. Después de cancelarlo, puedes usar <b>Quitar de mi cuenta</b> para ocultarlo sin perder matrícula, avance, tiempo ni intentos. Para solicitar la eliminación completa de datos personales usa el formulario de contacto.</p>
             <p>QAvance utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
             <p>Wompi procesa los pagos de certificados y aportes. QAvance conserva la referencia, el estado y el valor de la transacción, pero no recibe ni almacena números de tarjeta ni credenciales bancarias.</p>
             <p>Para emitir un certificado se solicita nombre completo, tipo y número de documento. El número completo aparece únicamente en el PDF privado; la validación pública muestra solo los últimos caracteres enmascarados. El usuario autoriza expresamente esa consulta pública antes de la emisión.</p>
@@ -3719,6 +3896,7 @@
       state.contactResult = 'Mensaje enviado. Lo revisaremos desde el panel administrativo y responderemos a tu correo.';
       notify('Mensaje enviado correctamente.', 'success');
       form.reset();
+      openMessageModal();
     } catch (error) {
       console.error(error);
       state.contactError = error?.message || 'No fue posible enviar el mensaje. Intenta nuevamente.';
@@ -3759,9 +3937,8 @@
     const reviews = Array.isArray(state.publicReviews) ? state.publicReviews : [];
     return `<section class="homeSection studentVoices" aria-labelledby="studentVoicesTitle">
       <div class="sectionIntro">
-        <span class="sectionKicker">Experiencias verificadas</span>
         <h2 id="studentVoicesTitle">Qué piensan nuestros estudiantes</h2>
-        <p>${state.publicReviewTotal ? `${state.publicReviewAverage} de 5 · ${state.publicReviewTotal} calificación${state.publicReviewTotal === 1 ? '' : 'es'} aprobada${state.publicReviewTotal === 1 ? '' : 's'}.` : 'Las experiencias aprobadas por el equipo se publicarán aquí.'}</p>
+        ${state.publicReviewTotal ? `<p>${state.publicReviewAverage} de 5 · ${state.publicReviewTotal} opinión${state.publicReviewTotal === 1 ? '' : 'es'} publicada${state.publicReviewTotal === 1 ? '' : 's'}.</p>` : ''}
       </div>
       ${state.publicReviewsLoading ? '<p class="reviewEmpty" role="status">Cargando experiencias...</p>' : reviews.length ? `<div class="studentReviewGrid">${renderReviewCards(reviews, { showCourse: true })}</div>` : '<p class="reviewEmpty">Todavía no hay comentarios publicados.</p>'}
     </section>`;
@@ -3831,7 +4008,7 @@
     const reviews = Array.isArray(state.courseReviews) ? state.courseReviews : [];
     return `<section class="courseReviewSection card" aria-labelledby="courseReviewTitle">
       <div class="courseReviewHeader">
-        <div><span class="sectionKicker">Tu experiencia</span><h2 id="courseReviewTitle">Califica este curso</h2><p>Tu comentario es opcional. Cada publicación pasa por moderación antes de aparecer en la plataforma.</p></div>
+        <div><span class="sectionKicker">Tu experiencia</span><h2 id="courseReviewTitle">Califica este curso</h2></div>
         ${state.courseReviewTotal ? `<div class="courseReviewSummary"><strong>${state.courseReviewAverage}</strong><span aria-label="${state.courseReviewAverage} de 5 estrellas">${starText(Math.round(state.courseReviewAverage))}</span><small>${state.courseReviewTotal} publicada${state.courseReviewTotal === 1 ? '' : 's'}</small></div>` : ''}
       </div>
       <form class="courseReviewForm" data-course-review-form>
@@ -4067,7 +4244,7 @@
           <div><span>Avance</span><div class="progressbar" aria-label="Avance del capítulo: ${chapterProgress.coverage}%"><div style="width:${chapterProgress.coverage}%"></div></div></div>
           <div><span>Dominio del capítulo</span><div class="progressbar masteryProgress" aria-label="Dominio del capítulo: ${chapterProgress.domain}%"><div style="width:${chapterProgress.domain}%"></div></div></div>
         </div>
-        <p>${h(chapter.summary)}</p>
+        <p>${h(chapter.summary)}</p><span class="chapterOpenAction">Abrir capítulo</span>
       </a>`;
     }).join('');
 
@@ -4086,7 +4263,7 @@
           <span class="finalExamMilestoneAction">Bloqueado hasta ${FINAL_EXAM_UNLOCK_PROGRESS}%</span>
         </div>`;
 
-    return `<div class="card"><h2>Estudiar syllabus por capítulo</h2><p>Selecciona un capítulo. Cada bloque incluye teoría resumida y el texto evaluable cargado para ese capítulo.</p>
+    return `<div class="card"><h2>Estudiar syllabus por capítulo</h2><p>Cada capítulo abre en su propia ruta e integra lectura, audio, objetivos y práctica.</p>
       <div class="studyMasterySummary">
         <div><span>Dominio real del curso</span><strong>${courseDetails.masteryPercent}%</strong><small>Todos los capítulos ${courseDetails.chapterDomainAverage}% · mejor examen final ${courseDetails.finalExamScore}%</small></div>
         <div class="progressbar masteryProgress" aria-label="Dominio real del curso: ${courseDetails.masteryPercent}%"><div style="width:${courseDetails.masteryPercent}%"></div></div>
@@ -4785,6 +4962,7 @@
     }
 
     host.innerHTML = `<div class="card chapterReading" style="--reading-scale:${readingScale}">
+      <a class="chapterBackLink" href="${h(coursePath(activeCourseKey, 'study'))}" data-view="study">Volver al listado de capítulos</a>
       <div class="chapterHeadingRow"><h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2>${readingSizeControls()}</div>${narrationControls(`chapter-${number(id)}`, `el capítulo ${number(id)}`)}<p class="chapterLead">${h(chapter.summary)}</p>
       <div class="grid3 chapterProgressGrid">
         <div class="metric"><span>Avance</span><strong>${progress.coverage}%</strong><small>${progress.touched}/${progress.objectiveCount} LO recorridos</small></div>
@@ -4822,7 +5000,7 @@
       <td data-label="Acción"><button class="btn secondary" type="button" data-action="practice" data-lo="${h(objective.lo)}" data-count="10" data-mode="study">Practicar</button></td>
     </tr>`).join('');
 
-    return `<div class="card"><h2>Mapa completo de objetivos de aprendizaje</h2><p>Esta vista combina teoría, narración y práctica por objetivo.</p><table class="table responsiveTable objectivesTable"><tr><th>LO</th><th>Cap.</th><th>K</th><th>Teoría del objetivo</th><th>Preguntas</th><th></th></tr>${rows}</table></div>`;
+    return `<div class="card objectivesMap"><h2>Mapa completo de objetivos de aprendizaje</h2><p>Consulta cada objetivo con su capítulo, nivel cognitivo, contenido y acceso directo a práctica.</p><table class="table responsiveTable objectivesTable"><colgroup><col class="loColumn"><col class="chapterColumn"><col class="kColumn"><col class="theoryColumn"><col class="questionColumn"><col class="actionColumn"></colgroup><tr><th>LO</th><th>Cap.</th><th>K</th><th>Teoría del objetivo</th><th>Preguntas</th><th>Acción</th></tr>${rows}</table></div>`;
   }
 
   function selectedAttr(value, current) {
@@ -4835,11 +5013,12 @@
     const count = Math.max(1, Math.trunc(number(input.count, DEFAULT_PRACTICE_FILTER.count)));
 
     return {
-      chapter: objective ? String(objective.chapter) : String(input.chapter || 'all'),
-      k: String(input.k || 'all'),
-      lo: objective ? objective.lo : String(input.lo || 'all'),
+      chapter: objective ? String(objective.chapter) : String(input.chapter ?? ''),
+      k: String(input.k ?? ''),
+      lo: objective ? objective.lo : String(input.lo ?? ''),
       count,
-      mode: input.mode || 'study'
+      mode: 'study',
+      configured: input.configured === true
     };
   }
 
@@ -4865,15 +5044,19 @@
     const countSelectOptions = countOptions.map((count) => `<option value="${number(count)}"${selectedAttr(count, filter.count)}>${number(count)}</option>`).join('');
     const objectiveOptions = course.objectives.map((objective) => `<option value="${h(objective.lo)}"${selectedAttr(objective.lo, filter.lo)}>${h(objective.lo)} · ${h(objective.k)} · ${h(objective.text)}</option>`).join('');
 
+    const emptyState = !filter.configured ? `<div class="practiceEmptyState">
+      <picture><source srcset="/assets/img/home/advantages/simulator-640.webp" media="(max-width:720px)"><img src="/assets/img/home/advantages/simulator-1136.webp" width="1136" height="514" alt="Vista del simulador interactivo de QAvance" loading="lazy" decoding="async"></picture>
+      <div><span class="sectionKicker">Configura tu sesión</span><h3>Elige qué quieres reforzar</h3><p>Selecciona un capítulo, nivel K u objetivo de aprendizaje. La explicación de cada respuesta permanecerá visible hasta que decidas continuar.</p></div>
+    </div>` : practiceFilterSummary(filter, available);
     return `<div class="card"><h2>Práctica personalizada</h2>
-      ${practiceFilterSummary(filter, available)}
+      ${emptyState}
       <div class="grid3 practiceFormGrid">
-        <div><label for="fChapter">Capítulo</label><select id="fChapter"><option value="all"${selectedAttr('all', filter.chapter)}>Todos</option>${chapterOptions}</select></div>
-        <div><label for="fK">Nivel K</label><select id="fK"><option value="all"${selectedAttr('all', filter.k)}>Todos</option>${kOptions}</select></div>
+        <div><label for="fChapter">Capítulo</label><select id="fChapter"><option value=""${selectedAttr('', filter.chapter)}>Selecciona una opción</option><option value="all"${selectedAttr('all', filter.chapter)}>Todos los capítulos</option>${chapterOptions}</select></div>
+        <div><label for="fK">Nivel K</label><select id="fK"><option value=""${selectedAttr('', filter.k)}>Cualquier nivel</option><option value="all"${selectedAttr('all', filter.k)}>Todos los niveles</option>${kOptions}</select></div>
         <div><label for="fCount">Cantidad</label><select id="fCount">${countSelectOptions}</select></div>
       </div>
-      <div class="practiceLoControl"><label for="fLo">Objetivo de aprendizaje</label><select id="fLo"><option value="all"${selectedAttr('all', filter.lo)}>Todos los LO</option>${objectiveOptions}</select></div>
-      <div class="btnrow practiceActionRow"><button class="btn" type="button" data-action="practice-filters" data-mode="study">Modo estudio</button><button class="btn secondary" type="button" data-action="practice-filters" data-mode="exam">Modo quiz al final</button></div>
+      <div class="practiceLoControl"><label for="fLo">Objetivo de aprendizaje</label><select id="fLo"><option value=""${selectedAttr('', filter.lo)}>Cualquier objetivo</option><option value="all"${selectedAttr('all', filter.lo)}>Todos los objetivos</option>${objectiveOptions}</select></div>
+      <div class="btnrow practiceActionRow"><button class="btn" type="button" data-action="practice-filters" data-mode="study">Comenzar práctica con retroalimentación</button></div>
     </div><div id="sessionHost"></div>`;
   }
 
@@ -4896,7 +5079,7 @@
   }
 
   function startPractice(config) {
-    const filter = normalizePracticeFilter(config);
+    const filter = normalizePracticeFilter({ ...config, configured: true });
     const pool = filterQuestions(filter);
     if (!pool.length) {
       notify('No hay preguntas con esos filtros.', 'warning');
@@ -4938,7 +5121,6 @@
       state.orders[question.id] = shuffle(question.options.map((text, originalIndex) => ({ text, originalIndex })));
     }
 
-    const marked = getProgress().marked.includes(question.id);
     const options = state.orders[question.id].map((option, displayIndex) => `<div class="opt ${answered.includes(option.originalIndex) ? 'selected' : ''}" role="button" tabindex="0" data-action="select-option" data-option-index="${option.originalIndex}"><b>${String.fromCharCode(65 + displayIndex)}.</b><span>${h(option.text)}</span></div>`).join('');
     const sessionCardClass = `card sessionCard${state.examFocus ? ' examQuestionCard' : ''}`;
 
@@ -4952,8 +5134,7 @@
       </div>
       <div class="btnrow sessionActionRow">
         <button class="btn secondary" type="button" data-action="previous-question">Anterior</button>
-        <button class="btn" type="button" data-action="check-or-next">${state.mode === 'study' ? 'Comprobar / siguiente' : 'Guardar / siguiente'}</button>
-        <button class="btn secondary" type="button" data-action="toggle-marked">${marked ? 'Quitar repaso' : 'Marcar repaso'}</button>
+        <button class="btn" type="button" data-action="check-or-next">${state.mode === 'study' ? 'Comprobar respuesta' : 'Guardar / siguiente'}</button>
         <button class="btn warn" type="button" data-action="finish-session">Finalizar</button>
       </div>
     </div>`;
@@ -4999,7 +5180,12 @@
   }
 
   function checkOrNext() {
-    if (state.questionLocked || !state.session.length) return;
+    if (!state.session.length) return;
+    if (state.questionLocked) {
+      advanceOrFinish();
+      return;
+    }
+
     const question = state.session[state.current];
     const answer = state.answers[question.id] || [];
     if (!answer.length) {
@@ -5018,9 +5204,10 @@
       });
       const feedback = $('feedback');
       feedback.innerHTML = `<div class="${isCorrect ? 'okbox' : 'badbox'}"><b>${isCorrect ? 'Correcto' : 'Incorrecto'}</b><br>${h(question.explanation)}</div>`;
+      const continueButton = document.querySelector('[data-action="check-or-next"]');
+      if (continueButton) continueButton.textContent = state.current < state.session.length - 1 ? 'Siguiente pregunta' : 'Ver resultado';
       recordAnswer(question, isCorrect);
       queueVerifiedAnswer(question, answer).catch((error) => console.error(error));
-      state.pendingAdvance = global.setTimeout(() => advanceOrFinish(), isCorrect ? 900 : 1_800);
       return;
     }
 
@@ -5118,20 +5305,20 @@
       : (scorePct >= 65 ? 'Bien' : 'Refuerzo');
 
     const rows = detail.map((item, index) => `<tr>
-      <td>${index + 1}</td>
-      <td><b>${h(item.question.lo)}</b><br><span class="small">${h(item.question.topic)}</span><br><span class="sourceTag">${number(item.question.points, 1)} punto(s)</span></td>
-      <td>${item.isCorrect ? '✅' : '❌'}</td>
-      <td>${item.question.correct.map((correctIndex) => {
+      <td data-label="#">${index + 1}</td>
+      <td data-label="Objetivo"><b>${h(item.question.lo)}</b><br><span class="small">${h(item.question.topic)}</span><br><span class="sourceTag">${number(item.question.points, 1)} punto(s)</span></td>
+      <td data-label="Resultado"><span class="answerResult ${item.isCorrect ? 'correct' : 'incorrect'}">${item.isCorrect ? 'Correcta' : 'Incorrecta'}</span></td>
+      <td data-label="Respuesta correcta">${item.question.correct.map((correctIndex) => {
         const order = state.orders[item.question.id] || [];
         const displayIndex = order.findIndex((option) => option.originalIndex === correctIndex);
         return `${String.fromCharCode(65 + Math.max(0, displayIndex))}. ${h(item.question.options[correctIndex])}`;
       }).join('<br>')}</td>
-      <td>${h(item.question.explanation)}</td>
+      <td data-label="Explicación">${h(item.question.explanation)}</td>
     </tr>`).join('');
 
     const review = state.mode === 'final-exam'
       ? `<div class="${passed ? 'okbox' : 'badbox'}"><b>${passed ? 'Curso aprobado' : 'Aún no alcanzas la aprobación'}</b><br>${passed ? 'El resultado quedó registrado en tu cuenta.' : 'Revisa las estadísticas por capítulo, refuerza tus temas débiles y vuelve a intentarlo.'}</div>`
-      : `<h3>Revisión</h3><table class="table"><tr><th>#</th><th>LO</th><th>Resultado</th><th>Respuesta correcta</th><th>Explicación</th></tr>${rows}</table>`;
+      : `<h3>Revisión de respuestas</h3><table class="table responsiveTable resultReviewTable"><tr><th>#</th><th>Objetivo</th><th>Resultado</th><th>Respuesta correcta</th><th>Explicación</th></tr>${rows}</table>`;
     const resultActions = state.mode === 'final-exam'
       ? `<a class="btn" href="${h(publicPath('account'))}" data-view="account">Ver mi cuenta</a><button class="btn secondary" type="button" data-view="analytics">Revisar estadísticas</button><button class="btn warn" type="button" data-view="finalExam">Volver al examen final</button>`
       : '<button class="btn" type="button" data-view="practice">Nueva práctica</button><button class="btn secondary" type="button" data-view="analytics">Ver estadísticas</button>';
@@ -5146,17 +5333,15 @@
 
   function renderExam() {
     const blueprint = course.blueprint;
-    const kText = Object.entries(blueprint.kDistribution || {}).filter(([, value]) => number(value) > 0).map(([key, value]) => `${key}=${value}`).join(', ');
     if (state.examFocus && state.session.length) {
       return `<div class="examFocusShell" role="region" aria-label="Simulacro en curso"><div id="sessionHost"></div></div>`;
     }
 
-    return `<div class="card"><h2>Simulacro ${h(courseLabel())}</h2>
-      <p>Genera ${number(blueprint.totalQuestions)} preguntas aleatorias desde las preguntas activas, respetando la matriz por capítulo y nivel K cuando hay suficientes preguntas.</p>
-      ${renderBlueprintTable()}
-      <div class="grid3 examMetricsGrid"><div class="metric"><span>Preguntas disponibles</span><strong>${questions.length}</strong></div><div class="metric"><span>Preguntas</span><strong>${number(blueprint.totalQuestions)}</strong></div><div class="metric"><span>Selección</span><strong>Aleatoria</strong></div></div>
-      <div class="note"><b>Preguntas activas:</b> ${questions.length}. <b>Regla:</b> se seleccionan ${number(blueprint.totalQuestions)} aleatorias (${h(kText)}). La aprobación usa puntos: ${number(blueprint.passingScore)}/${number(blueprint.totalPoints || blueprint.totalQuestions)}.</div>
-      <div class="btnrow examActionRow"><button class="btn good" type="button" data-action="start-official-exam">Iniciar simulacro aleatorio</button><button class="btn secondary" type="button" data-action="practice" data-count="${number(blueprint.totalQuestions)}" data-mode="exam">Simulacro aleatorio libre</button></div>
+    return `<div class="card examIntro"><span class="sectionKicker">Entrenamiento cronometrado</span><h2>Simulacro ${h(courseLabel())}</h2>
+      <p>Responde ${number(blueprint.totalQuestions)} preguntas en ${number(blueprint.minutes)} minutos. Cada intento genera una selección aleatoria alineada con la estructura del curso.</p>
+      <ol class="examInstructions"><li>Busca un lugar sin interrupciones.</li><li>Lee cada opción antes de continuar.</li><li>Al finalizar, revisa tus fortalezas y temas por reforzar.</li></ol>
+      <div class="examStartSummary"><span><b>${number(blueprint.totalQuestions)}</b> preguntas</span><span><b>${number(blueprint.minutes)}</b> minutos</span><span><b>${number(blueprint.passingScore)}/${number(blueprint.totalPoints || blueprint.totalQuestions)}</b> para aprobar</span></div>
+      <div class="btnrow examActionRow"><button class="btn good" type="button" data-action="start-official-exam">Iniciar simulacro</button></div>
     </div><div id="sessionHost"></div>`;
   }
 
@@ -5298,7 +5483,7 @@
     const flashcard = list[state.flashIndex];
     const chapterOptions = course.chapters.map((chapter) => `<option value="${number(chapter.id)}" ${String(state.flashFilter) === String(chapter.id) ? 'selected' : ''}>C${number(chapter.id)} · ${h(chapter.title)}</option>`).join('');
 
-    return `<div class="card"><h2>Flashcards de glosario, fórmulas y trampas</h2><p>Tarjetas: ${course.flashcards.length}. Filtra por capítulo o repasa de forma aleatoria.</p>
+    return `<div class="card"><h2>Flashcards de glosario, fórmulas y trampas</h2>
       <div class="grid3"><div><label for="flashFilter">Filtrar capítulo</label><select id="flashFilter"><option value="all" ${state.flashFilter === 'all' ? 'selected' : ''}>Todos</option>${chapterOptions}</select></div><div class="metric"><span>Tarjetas visibles</span><strong>${list.length}</strong></div><div class="metric"><span>Actual</span><strong>${state.flashIndex + 1}/${list.length}</strong></div></div>
       <div class="flash" role="button" tabindex="0" data-action="flash-toggle"><div class="front">${h(flashcard.front)}</div><div>${flashcard.kind ? `<span class="pill">${h(flashcard.kind)}</span>` : ''}<span class="pill">C${number(flashcard.chapter)}</span>${flashcard.lo ? `<span class="pill">${h(flashcard.lo)}</span>` : ''}</div>
         ${state.flashShow ? `<div class="back"><b>Significado / explicación:</b><br>${h(flashcard.meaning || flashcard.back)}${flashcard.back && flashcard.meaning && flashcard.back !== flashcard.meaning ? `<br><br>${h(flashcard.back)}` : ''}${flashcard.hint ? `<br><br><b>Pista:</b> ${h(flashcard.hint)}` : ''}</div>` : '<p class="small">Clic para ver significado y explicación</p>'}

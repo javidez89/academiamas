@@ -1,6 +1,6 @@
 {
   "name": "qavance",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -30,6 +30,7 @@
     "test:certificates": "node tools/certificate-smoke.mjs",
     "test:home-advantages": "node tools/home-advantages-smoke.mjs",
     "test:feedback": "node tools/contact-reviews-security-unit.mjs && node tools/contact-reviews-smoke.mjs",
+    "test:governance": "node tools/governance-migration-unit.mjs && node tools/governance-smoke.mjs",
     "test:certificate-pdf": "npx --yes deno@2.9.6 run --frozen --node-modules-dir=auto --allow-read --allow-write tools/certificate-pdf-preview.ts",
     "test:e2e": "node tools/smoke.mjs",
     "test:visual": "node tools/chapter-visual-smoke.mjs"

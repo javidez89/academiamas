@@ -39,11 +39,13 @@ try {
   await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
 
   await page.getByRole('button', { name: /Practicar/i }).first().click();
-  await page.getByRole('button', { name: /Modo estudio/i }).click();
+  assert.equal(await page.locator('.questionBox').count(), 0, 'La práctica no debe iniciar antes de elegir su configuración.');
+  await page.getByRole('button', { name: /Comenzar práctica con retroalimentación/i }).click();
   await page.locator('.questionBox').waitFor();
 
   await page.getByRole('button', { name: /Simulacro/i }).first().click();
-  await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).click();
+  assert.equal(await page.getByText(/Simulacro aleatorio libre/i).count(), 0, 'No debe existir un segundo modo de simulacro.');
+  await page.getByRole('button', { name: /^Iniciar simulacro$/i }).click();
   await page.locator('.questionBox').waitFor();
 
   const optionLabels = await page.locator('.questionBox .opt b').allTextContents();
@@ -74,7 +76,7 @@ try {
   assert.ok(finalExamOverflow <= 1, `El examen final móvil tiene ${finalExamOverflow}px de desbordamiento horizontal.`);
 
   await page.goto(`${baseUrl.replace(/\/$/, '')}/curso/ctfl/simulacro/?v=${encodeURIComponent(version)}&smoke=${Date.now()}`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).click();
+  await page.getByRole('button', { name: /^Iniciar simulacro$/i }).click();
   await page.locator('.questionBox').waitFor();
   const secondExamIds = await page.evaluate(() => {
     const progress = JSON.parse(localStorage.getItem('istqb_ctfl_v2_progress') || '{}');

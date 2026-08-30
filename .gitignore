@@ -3,6 +3,7 @@ playwright-report/
 test-results/
 *.log
 supabase/.temp/
+supabase/.branches/
 output/pdf/*.pdf
 output/audio/*
 tmp/

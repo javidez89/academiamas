@@ -175,6 +175,16 @@ jobs:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:admin
 
+      - name: Validar contacto, reseñas y bandeja
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:feedback
+
+      - name: Validar gobernanza y preservación de historial
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:governance
+
       - name: Validar certificados, cuenta y administración
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/

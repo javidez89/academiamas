@@ -9,7 +9,7 @@ window.ACADEMY_CATALOG = Object.freeze([
       code: 'CTFL',
       name: 'ISTQB® Certified Tester Foundation Level 4.0 (CTFL)',
       shortName: 'CTFL',
-      subtitle: 'Programa offline para estudiar teoría del syllabus, practicar por objetivo de aprendizaje, entrenar técnicas K3 y hacer simulacros aleatorios alineados a la estructura oficial.',
+      subtitle: 'Programa para estudiar teoría del syllabus, practicar por objetivo de aprendizaje, entrenar técnicas K3 y hacer simulacros aleatorios alineados a la estructura oficial.',
       storageKey: 'istqb_ctfl_v2_progress'
     }),
     counts: Object.freeze({ chapters: 6, objectives: 64, questions: 400 }),
@@ -27,7 +27,7 @@ window.ACADEMY_CATALOG = Object.freeze([
       code: 'CT-AI',
       name: 'ISTQB® Certificado en Pruebas de IA v2.0 (CT-AI)',
       shortName: 'Certificado en Pruebas de IA v2.0 (CT-AI)',
-      subtitle: 'Programa offline en español con teoría ampliada por todos los capítulos del syllabus CT-AI v2.0, objetivos de aprendizaje, flashcards con significado, práctica K2/K3 y simulacro aleatorio alineado a la estructura oficial.',
+      subtitle: 'Programa en español con teoría ampliada por todos los capítulos del syllabus CT-AI v2.0, objetivos de aprendizaje, flashcards con significado, práctica K2/K3 y simulacro aleatorio alineado a la estructura oficial.',
       storageKey: 'istqb_ctai_v2_progress'
     }),
     counts: Object.freeze({ chapters: 7, objectives: 43, questions: 133 }),

@@ -9,6 +9,7 @@
   let session = null;
   let initialized = false;
   let admin = false;
+  let accessStatus = { blocked: false, blocked_at: null, reason: null, admin_role: null };
   let adminAccessRequest = null;
   let activityRequest = null;
   let activityTimer = null;
@@ -153,6 +154,25 @@
     }
   }
 
+  async function refreshAccessStatus(user) {
+    if (!client || !user) {
+      accessStatus = { blocked: false, blocked_at: null, reason: null, admin_role: null };
+      return accessStatus;
+    }
+    try {
+      const { data, error } = await client.rpc('get_my_access_status');
+      if (error) throw error;
+      accessStatus = data && typeof data === 'object'
+        ? data
+        : { blocked: false, blocked_at: null, reason: null, admin_role: null };
+    } catch (error) {
+      console.error('No fue posible verificar el estado de acceso.', error);
+      accessStatus = { blocked: false, blocked_at: null, reason: null, admin_role: null };
+    }
+    global.dispatchEvent(new CustomEvent('academiaqa:access-change', { detail: accessStatus }));
+    return accessStatus;
+  }
+
   async function touchActivity() {
     if (!client || !session?.user) return null;
     if (activityRequest) return activityRequest;
@@ -291,14 +311,17 @@
     const { data, error } = await client.auth.getSession();
     if (error) console.error('No fue posible restaurar la sesión.', error);
     render(data?.session || null);
-    await startActivityHeartbeat();
+    await refreshAccessStatus(data?.session?.user || null);
+    if (!accessStatus.blocked) await startActivityHeartbeat();
     await refreshAdminAccess(data?.session?.user || null);
     markReady();
 
     client.auth.onAuthStateChange((_event, nextSession) => {
       global.setTimeout(async () => {
         render(nextSession);
-        await startActivityHeartbeat();
+        await refreshAccessStatus(nextSession?.user || null);
+        if (!accessStatus.blocked) await startActivityHeartbeat();
+        else stopActivityHeartbeat();
         await refreshAdminAccess(nextSession?.user || null);
       }, 0);
     });
@@ -314,6 +337,9 @@
     getSession: () => session,
     getUser: () => session?.user || null,
     isAuthenticated: () => Boolean(session?.user),
+    isBlocked: () => Boolean(accessStatus.blocked),
+    getAccessStatus: () => ({ ...accessStatus }),
+    refreshAccessStatus: () => refreshAccessStatus(session?.user || null),
     isAdmin: () => admin,
     refreshAdminAccess: () => refreshAdminAccess(session?.user || null)
   });

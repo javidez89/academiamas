@@ -109,6 +109,7 @@ try {
     adminSummary: { issued_certificates: 1 }
   });
   await adminPage.goto(`${BASE_URL}/admin/?certificate-smoke=${Date.now()}`, { waitUntil: 'domcontentloaded' });
+  await adminPage.getByRole('button', { name: /Certificados/ }).click();
   await adminPage.getByRole('heading', { name: 'Certificados obtenidos' }).waitFor();
   await adminPage.getByText(certificate.certificate_code, { exact: true }).waitFor();
   await adminPage.locator('.adminCertificateTable').getByText('javier@example.com', { exact: true }).waitFor();

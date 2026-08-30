@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.22.0] - 2026-08-30
+
+### Added
+- Bandeja de mensajes en Mi cuenta con estado, respuesta administrativa y confirmación accesible después de enviar el formulario.
+- Gobernanza administrativa para bloquear cuentas, asignar roles, habilitar constancias excepcionales y archivar mensajes, calificaciones o constancias con trazabilidad.
+- Pruebas de regresión que impiden borrar matrículas, progreso, tiempo, intentos o históricos al quitar un curso de la cuenta.
+
+### Changed
+- Los capítulos se abren en rutas independientes, el mapa de objetivos se adapta a móvil y las prácticas comienzan sin filtros ni preguntas activas.
+- La práctica exige revisar la retroalimentación antes de avanzar y el simulacro presenta una única acción de inicio.
+- Cancelar y quitar un curso ahora usa ocultamiento reversible; la matrícula y todo el historial académico permanecen intactos.
+- El acceso administrativo se revoca automáticamente mientras una cuenta esté bloqueada.
+
+### Security
+- Las migraciones son aditivas y no reescriben progreso, sesiones verificadas, respuestas, intentos ni histórico no verificado.
+- La elegibilidad excepcional de constancias requiere superadministración y no modifica métricas académicas.
+- Mi cuenta, administración y el servicio de constancias continúan usando agregados verificados del servidor.
+
 ## [v0.21.0] - 2026-08-29
 
 ### Added

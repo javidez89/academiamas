@@ -1351,7 +1351,8 @@ body.modalOpen{
 .coffeeModal[hidden]{
   display:none!important;
 }
-.certificateModal{
+.certificateModal,
+.messageModal{
   position:fixed;
   inset:0;
   z-index:110;
@@ -1362,7 +1363,8 @@ body.modalOpen{
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
 }
-.certificateModal[hidden]{
+.certificateModal[hidden],
+.messageModal[hidden]{
   display:none!important;
 }
 .certificateDialog{
@@ -2182,6 +2184,36 @@ body.modalOpen{
   color:#5d6b82;
   font-size:.9rem;
 }
+.messageDialog{
+  position:relative;
+  width:min(100%,520px);
+  padding:32px;
+  border-radius:12px;
+  background:#fff;
+  color:var(--text);
+  box-shadow:0 24px 70px rgba(7,17,31,.38);
+}
+.messageDialog h2{margin:8px 42px 8px 0;color:var(--primary2)}
+.messageDialog>p{margin:0 0 20px;color:#51647f;line-height:1.65}
+.messageDialogMark{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;margin-bottom:16px;background:#e4f8ec;color:#08733f;font-size:1.7rem;font-weight:900}
+.accountMessages{display:grid;gap:16px}.accountMessageGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.accountMessageCard{display:grid;align-content:start;gap:12px;padding:20px;border:1px solid #cbd9eb;border-radius:8px;background:#fff}.accountMessageCard header{display:flex;align-items:start;justify-content:space-between;gap:16px}.accountMessageCard h3{margin:7px 0 0;color:#10233f}.accountMessageCard time,.accountMessageCard>small{color:#60728b;font-size:.82rem}.accountMessageCard>p{margin:0;color:#334d6d;white-space:pre-wrap}.accountMessageReply{padding:14px;border-left:4px solid #198754;background:#effaf4;color:#173c2a}.accountMessageReply p{margin:6px 0;white-space:pre-wrap}.accountMessageReply small{color:#4c6c5c}@media(max-width:760px){.accountMessageGrid{grid-template-columns:1fr}.accountMessageCard header{display:grid}.messageDialog{padding:24px 20px}}
+.adminGovernanceActions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid #d8e2ef;background:#f5f8fc}.adminGovernanceActions small{color:#51647f}.adminCertificateRow.archived{opacity:.72;background:#f3f5f8}.adminCertificateActions{display:flex;flex-wrap:wrap;gap:6px}.adminCertificateActions .btn{min-height:36px;padding:7px 10px;font-size:.8rem}
+.practiceEmptyState{
+  display:grid;
+  grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr);
+  align-items:center;
+  gap:22px;
+  overflow:hidden;
+  margin-bottom:18px;
+  border:1px solid #c9def1;
+  border-radius:8px;
+  background:#f7fbff;
+}
+.practiceEmptyState picture,.practiceEmptyState img{display:block;width:100%;height:100%}
+.practiceEmptyState img{min-height:190px;object-fit:cover;object-position:center}
+.practiceEmptyState>div{padding:22px 22px 22px 0}
+.practiceEmptyState h3{margin:6px 0 8px;color:#10233f}
+.practiceEmptyState p{margin:0;color:#52647b;line-height:1.6}
 .practiceFormGrid>div,
 .practiceLoControl{
   min-width:0;
@@ -2198,6 +2230,17 @@ body.modalOpen{
 .examMetricsGrid .metric{
   min-width:0;
 }
+.objectivesTable{width:100%;table-layout:fixed}
+.objectivesTable .loColumn{width:10%}.objectivesTable .chapterColumn{width:8%}.objectivesTable .kColumn{width:7%}.objectivesTable .theoryColumn{width:54%}.objectivesTable .questionColumn{width:9%}.objectivesTable .actionColumn{width:12%}
+.objectivesTable td{vertical-align:top;overflow-wrap:anywhere}
+.objectivesTable td[data-label="Teoría"]{line-height:1.55}
+.chapterBackLink,.chapterOpenAction{display:inline-flex;width:max-content;color:#075985;font-weight:850;text-decoration:none}
+.chapterBackLink{margin-bottom:14px}.chapterOpenAction{margin-top:auto;padding-top:10px}
+.examIntro{display:grid;gap:16px}.examIntro h2,.examIntro p{margin:0}.examInstructions{display:grid;gap:10px;margin:0;padding-left:24px;color:#334a64;line-height:1.55}
+.examStartSummary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.examStartSummary span{display:grid;gap:3px;border:1px solid #cfdae8;border-radius:8px;background:#f7fafc;padding:14px;color:#53677f}.examStartSummary b{color:#10233f;font-size:1.2rem}
+.resultReviewTable td{vertical-align:top;overflow-wrap:anywhere}.answerResult{display:inline-flex;border-radius:999px;padding:5px 9px;font-size:.78rem;font-weight:900}.answerResult.correct{background:#eaf8f0;color:#08733f}.answerResult.incorrect{background:#fff1ef;color:#a32d20}
+@media(max-width:760px){.practiceEmptyState{grid-template-columns:1fr}.practiceEmptyState>div{padding:0 18px 20px}.practiceEmptyState img{min-height:150px;max-height:220px}.examStartSummary{grid-template-columns:1fr}.resultReviewTable td[data-label="Explicación"],.resultReviewTable td[data-label="Respuesta correcta"]{grid-template-columns:1fr}.resultReviewTable td[data-label="Explicación"]::before,.resultReviewTable td[data-label="Respuesta correcta"]::before{margin-bottom:2px}}
 .examFocusMode{
   background:#07111f;
 }

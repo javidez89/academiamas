@@ -513,24 +513,32 @@ function shell({ page, content, catalog }, version) {
       </div>
     </div>
   </div>
+  <div class="messageModal" id="messageModal" role="dialog" aria-modal="true" aria-labelledby="messageModalTitle" hidden>
+    <div class="messageDialog" role="document">
+      <button class="modalClose" type="button" data-action="close-message-modal" aria-label="Cerrar mensaje">×</button>
+      <div class="messageDialogMark" aria-hidden="true">✓</div>
+      <span class="sectionKicker">Solicitud recibida</span>
+      <h2 id="messageModalTitle">Tu mensaje quedó registrado</h2>
+      <p>Podrás consultar su estado y la respuesta del equipo desde Mi cuenta.</p>
+      <div class="btnrow"><a class="btn" href="/mi-cuenta/" data-view="account">Ver mis mensajes</a><button class="btn secondary" type="button" data-action="close-message-modal">Cerrar</button></div>
+    </div>
+  </div>
 
   <main class="wrap">
     <div class="layout${isPublicPage ? ' homeLayout' : ''}" id="mainLayout">
       <aside class="sidebar" id="studySidebar" aria-label="Menú del curso">
-        <button class="navbtn" type="button" data-view="home">🏠 Todos los cursos <small>inicio</small></button>
+        <button class="navbtn" type="button" data-view="home">🏠 Todos los cursos</button>
         <div class="sideDivider"></div>
         <div class="sideSectionTitle">Menú del curso</div>
-        <button class="navbtn active" type="button" data-view="dashboard">📌 Panel del curso <small>avance</small></button>
-        <button class="navbtn" type="button" data-view="study">📚 Estudiar syllabus <small id="navCaps">caps</small></button>
-        <button class="navbtn" type="button" data-view="objectives">🎯 Objetivos LO <small>mapa</small></button>
-        <button class="navbtn" type="button" data-view="practice">📝 Practicar <small>filtros</small></button>
-        <button class="navbtn" type="button" data-view="exam">⏱️ Simulacro <small id="navExamCount">40</small></button>
-        <button class="navbtn" type="button" data-view="finalExam">🎓 Examen final <small>requiere 95%</small></button>
-        <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3 <small>técnicas</small></button>
-        <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards <small>glosario</small></button>
-        <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas <small>errores</small></button>
-        <div class="note small"><b>Nota:</b> cada certificación conserva progreso independiente. Las preguntas de práctica están alineadas al temario y no duplican literalmente el examen oficial.</div>
-        <div class="btnrow"><button class="btn secondary" type="button" id="resetProgress">Limpiar datos locales</button></div>
+        <button class="navbtn active" type="button" data-view="dashboard">📌 Panel del curso</button>
+        <button class="navbtn" type="button" data-view="study">📚 Estudiar syllabus</button>
+        <button class="navbtn" type="button" data-view="objectives">🎯 Objetivos LO</button>
+        <button class="navbtn" type="button" data-view="practice">📝 Practicar</button>
+        <button class="navbtn" type="button" data-view="exam">⏱️ Simulacro</button>
+        <button class="navbtn" type="button" data-view="finalExam">🎓 Examen final</button>
+        <button class="navbtn" type="button" data-view="k3lab">🧪 Laboratorio K3</button>
+        <button class="navbtn" type="button" data-view="flashcards">🃏 Flashcards</button>
+        <button class="navbtn" type="button" data-view="analytics">📈 Estadísticas</button>
       </aside>
 
       <section id="app" aria-label="Contenido del curso">

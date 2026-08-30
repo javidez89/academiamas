@@ -48,7 +48,7 @@ try {
     assert.equal(loaded.questions, entry.counts.questions, `Preguntas inconsistentes en ${entry.key}.`);
 
     await page.goto(`${BASE_URL}/curso/${key}/simulacro/`, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('button', { name: /Iniciar simulacro aleatorio/i }).waitFor();
+    await page.getByRole('button', { name: /^Iniciar simulacro$/i }).waitFor();
 
     await page.goto(`${BASE_URL}/curso/${key}/examen-final/`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: /Completa primero el 95% del curso/i }).waitFor();
