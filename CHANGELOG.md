@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.24.0] - 2026-08-30
+
+### Added
+- Resumen público de calificaciones con promedio, distribución de una a cinco estrellas y total de opiniones.
+- Carrusel accesible en el inicio con hasta diez opiniones aprobadas, navegación, indicadores y pausa o reanudación.
+
+### Changed
+- Las opiniones muestran nombre abreviado, foto pública de Google y fecha, sin publicar el correo del estudiante.
+- Las calificaciones sin comentario conservan sus estrellas y trazabilidad sin presentar texto artificial.
+
+### Security
+- La consulta pública solo incluye calificaciones aprobadas y no archivadas; no altera matrículas, progreso, sesiones, respuestas ni históricos académicos.
+
 ## [v0.23.0] - 2026-08-30
 
 ### Added

@@ -459,9 +459,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               return { data: {
                 average_rating: approved.length ? Math.round((approved.reduce((sum, item) => sum + Number(item.rating || 0), 0) / approved.length) * 10) / 10 : 0,
                 total: approved.length,
+                rating_distribution: Object.fromEntries([1, 2, 3, 4, 5].map((rating) => [rating, approved.filter((item) => Number(item.rating) === rating).length])),
                 reviews: structuredClone(approved.slice(0, limit).map((item) => ({
                   id: item.id, course_key: item.course_key, rating: item.rating, comment: item.comment,
-                  display_name: item.display_name || item.full_name || 'Estudiante', created_at: item.created_at
+                  display_name: item.display_name || item.full_name || 'Estudiante', avatar_url: item.avatar_url || null, created_at: item.created_at
                 })))
               }, error: null };
             }

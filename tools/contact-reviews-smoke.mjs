@@ -13,8 +13,22 @@ const enrollment = {
 const approvedReview = {
   id: '2f07bb1c-b686-4f14-9015-61f02ecb2471', user_id: 'another-user', course_key: 'ctfl',
   rating: 5, comment: 'La práctica por objetivos fue muy útil.', status: 'approved',
-  display_name: 'Laura M.', full_name: 'Laura Méndez', email: 'laura@example.com', created_at: now
+  display_name: 'Laura M.', full_name: 'Laura Méndez', email: 'laura@example.com',
+  avatar_url: 'https://lh3.googleusercontent.com/avatar-laura.png', created_at: now
 };
+const ratingOnlyReview = {
+  id: 'f5d2e706-0d06-433c-8af8-cff63fa64e42', user_id: 'rating-only-user', course_key: 'ctfl',
+  rating: 4, comment: '', status: 'approved', display_name: 'Carlos R.',
+  avatar_url: null, created_at: now
+};
+const homeReviewFixtures = [approvedReview, ratingOnlyReview, ...Array.from({ length: 10 }, (_, index) => ({
+  ...approvedReview,
+  id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+  user_id: `home-review-user-${index + 1}`,
+  display_name: `Estudiante ${index + 1}`,
+  comment: `Opinión publicada número ${index + 1}.`,
+  avatar_url: null
+}))];
 const pendingReview = {
   id: 'de70e810-10df-487f-8aab-02e004c78e47', user_id: 'pending-user', course_key: 'ctfl',
   rating: 2, comment: 'Este comentario todavía no está aprobado.', status: 'pending',
@@ -54,9 +68,19 @@ try {
   await student.route('https://lh3.googleusercontent.com/avatar-javier.png', (route) => route.fulfill({
     status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#12a89d"/></svg>'
   }));
-  await useMockedSupabase(student, MOCK_SESSION, [enrollment], { courseReviews: [approvedReview, pendingReview] });
+  await student.route('https://lh3.googleusercontent.com/avatar-laura.png', (route) => route.fulfill({
+    status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><rect width="44" height="44" fill="#f4b400"/></svg>'
+  }));
+  await useMockedSupabase(student, MOCK_SESSION, [enrollment], { courseReviews: [approvedReview, ratingOnlyReview, pendingReview] });
   await student.goto(`${baseUrl}/curso/ctfl/?feedback=${Date.now()}`, { waitUntil: 'domcontentloaded' });
   await student.getByRole('heading', { name: 'Califica este curso' }).waitFor();
+  await student.getByRole('heading', { name: 'Resumen de opiniones' }).waitFor();
+  await student.getByLabel('5 estrellas: 1 opinión, 50%').waitFor();
+  await student.getByLabel('4 estrellas: 1 opinión, 50%').waitFor();
+  await student.getByLabel('4 de 5 estrellas').waitFor();
+  assert.equal(await student.getByText('Calificación sin comentario.', { exact: true }).count(), 0);
+  assert.equal(await student.locator('.studentReviewAvatar img').getAttribute('src'), approvedReview.avatar_url);
+  assert.equal(await student.locator('.studentReviewAuthor time').first().getAttribute('datetime'), now);
   await student.getByRole('heading', { name: 'Temas para fortalecer' }).waitFor();
   assert.equal(await student.getByRole('heading', { name: 'Distribución del simulacro' }).count(), 0);
   await student.getByRole('link', { name: 'Ir a practicar' }).waitFor();
@@ -70,14 +94,45 @@ try {
   assert.equal(savedReview.rating, 5);
   assert.equal(savedReview.status, 'pending');
   if (process.env.FEEDBACK_SCREENSHOTS === '1') await student.screenshot({ path: `${process.env.TEMP}/qavance-course-review.png`, fullPage: true });
+  await student.setViewportSize({ width: 390, height: 844 });
+  const mobileOverflow = await student.evaluate(() => ({
+    delta: document.documentElement.scrollWidth - window.innerWidth,
+    offenders: [...document.querySelectorAll('*')]
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.right > window.innerWidth + 1 || rect.left < -1)
+      .slice(0, 8)
+      .map(({ element, rect }) => `${element.tagName.toLowerCase()}.${element.className || ''} [${Math.round(rect.left)}, ${Math.round(rect.right)}]`)
+  }));
+  assert.ok(mobileOverflow.delta <= 1, `Las opiniones no deben desbordar en móvil: ${JSON.stringify(mobileOverflow)}`);
+  if (process.env.FEEDBACK_SCREENSHOTS === '1') await student.screenshot({ path: `${process.env.TEMP}/qavance-course-review-mobile.png`, fullPage: true });
   await student.close();
 
   const home = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  await useMockedSupabase(home, null, [], { courseReviews: [approvedReview, pendingReview] });
+  await home.route('https://lh3.googleusercontent.com/avatar-laura.png', (route) => route.fulfill({
+    status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><rect width="44" height="44" fill="#f4b400"/></svg>'
+  }));
+  await useMockedSupabase(home, null, [], { courseReviews: [...homeReviewFixtures, pendingReview] });
   await home.goto(`${baseUrl}/?feedback=${Date.now()}`, { waitUntil: 'domcontentloaded' });
   await home.getByRole('heading', { name: 'Qué piensan nuestros estudiantes' }).waitFor();
   await home.getByText(approvedReview.comment).waitFor();
+  await home.locator('.reviewSummaryPanel').waitFor();
+  assert.equal(await home.locator('.reviewSummaryPanel').getAttribute('aria-label'), 'Resumen de opiniones: 4.9 de 5, 12 opiniones');
+  await home.getByText('Laura M.', { exact: true }).waitFor();
+  assert.equal(await home.locator('.studentReviewAvatar img').getAttribute('src'), approvedReview.avatar_url);
+  assert.equal(await home.locator('.studentReviewDots button').count(), 10, 'El carrusel público debe limitarse a 10 opiniones.');
+  assert.equal(await home.locator('.studentReviewCard').count(), 1, 'El carrusel debe presentar una opinión por diapositiva.');
+  await home.getByRole('button', { name: 'Opinión siguiente' }).click();
+  await home.getByText('Carlos R.', { exact: true }).waitFor();
+  assert.equal(await home.getByText('Calificación sin comentario.', { exact: true }).count(), 0);
+  assert.equal(await home.getByText('Experiencias publicadas después de moderación.', { exact: true }).count(), 0);
+  await home.getByRole('button', { name: 'Pausar carrusel de opiniones' }).click();
+  await home.getByRole('button', { name: 'Reanudar carrusel de opiniones' }).waitFor();
   assert.equal(await home.getByText(pendingReview.comment).count(), 0, 'Una reseña pendiente nunca debe mostrarse públicamente.');
+  assert.ok((await home.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 1);
+  if (process.env.FEEDBACK_SCREENSHOTS === '1') await home.screenshot({ path: `${process.env.TEMP}/qavance-home-review-carousel.png`, fullPage: true });
+  await home.setViewportSize({ width: 390, height: 844 });
+  assert.ok((await home.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 1, 'El carrusel de opiniones no debe desbordar en móvil.');
+  if (process.env.FEEDBACK_SCREENSHOTS === '1') await home.screenshot({ path: `${process.env.TEMP}/qavance-home-review-carousel-mobile.png`, fullPage: true });
   await home.close();
 
   const account = await browser.newPage({ viewport: { width: 390, height: 844 } });

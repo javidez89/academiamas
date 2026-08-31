@@ -517,7 +517,7 @@
       p_limit: Math.max(1, Math.min(24, Math.trunc(Number(limit) || 8)))
     });
     if (error) throw error;
-    return data && typeof data === 'object' ? data : { average_rating: 0, total: 0, reviews: [] };
+    return data && typeof data === 'object' ? data : { average_rating: 0, total: 0, rating_distribution: {}, reviews: [] };
   }
 
   async function getMyCourseReview(courseKey) {

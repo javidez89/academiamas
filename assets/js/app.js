@@ -320,6 +320,8 @@
       catalogFilter: 'all',
       homePanel: 'overview',
       homeSlide: 0,
+      homeReviewSlide: 0,
+      homeReviewPaused: false,
       studyChapter: null,
       accountLoading: false,
       accountError: '',
@@ -341,12 +343,14 @@
       publicReviews: [],
       publicReviewAverage: 0,
       publicReviewTotal: 0,
+      publicReviewDistribution: {},
       courseReviewLoading: false,
       courseReviewSubmitting: false,
       courseReview: null,
       courseReviews: [],
       courseReviewAverage: 0,
       courseReviewTotal: 0,
+      courseReviewDistribution: {},
       adminLoading: false,
       adminError: '',
       adminSection: view === 'admin' ? loadAdminSection() : 'users',
@@ -890,6 +894,19 @@
         break;
       case 'home-slide-go':
         setHomeSlide(actionTarget.dataset.slide);
+        break;
+      case 'home-review-prev':
+        shiftHomeReviewSlide(-1);
+        break;
+      case 'home-review-next':
+        shiftHomeReviewSlide(1);
+        break;
+      case 'home-review-go':
+        setHomeReviewSlide(actionTarget.dataset.slide);
+        break;
+      case 'home-review-toggle':
+        state.homeReviewPaused = !state.homeReviewPaused;
+        render();
         break;
       case 'select-coffee-tier':
         selectCoffeeTier(actionTarget);
@@ -2519,6 +2536,24 @@
     render();
   }
 
+  function homeReviewSlides() {
+    return (Array.isArray(state.publicReviews) ? state.publicReviews : []).slice(0, 10);
+  }
+
+  function setHomeReviewSlide(value) {
+    const reviews = homeReviewSlides();
+    if (!reviews.length) return;
+    state.homeReviewSlide = Math.max(0, Math.min(reviews.length - 1, Math.trunc(number(value, 0))));
+    render();
+  }
+
+  function shiftHomeReviewSlide(delta) {
+    const reviews = homeReviewSlides();
+    if (!reviews.length) return;
+    state.homeReviewSlide = (state.homeReviewSlide + number(delta, 0) + reviews.length) % reviews.length;
+    render();
+  }
+
   function clearHomeSlider() {
     if (!homeSliderTimer) return;
     global.clearInterval(homeSliderTimer);
@@ -2647,14 +2682,18 @@
 
   function startHomeSlider() {
     const slides = latestCourseEntries(3);
+    const reviewSlides = homeReviewSlides();
     clearHomeSlider();
-    if (slides.length < 2) return;
+    if (slides.length < 2 && (reviewSlides.length < 2 || state.homeReviewPaused)) return;
     homeSliderTimer = global.setInterval(() => {
       if (state.view !== 'home') {
         clearHomeSlider();
         return;
       }
-      state.homeSlide = (state.homeSlide + 1) % slides.length;
+      if (slides.length > 1) state.homeSlide = (state.homeSlide + 1) % slides.length;
+      if (reviewSlides.length > 1 && !state.homeReviewPaused) {
+        state.homeReviewSlide = (state.homeReviewSlide + 1) % reviewSlides.length;
+      }
       render();
     }, 7_000);
   }
@@ -4168,35 +4207,92 @@
     return status === 'approved' ? 'Publicada' : status === 'rejected' ? 'No publicada' : status === 'archived' ? 'Archivada' : 'Pendiente de revisión';
   }
 
+  function normalizedReviewDistribution(value = {}, reviews = []) {
+    const result = {};
+    for (let rating = 1; rating <= 5; rating += 1) {
+      const reported = Math.max(0, Math.trunc(number(value?.[rating] ?? value?.[String(rating)])));
+      result[rating] = reported || (Array.isArray(reviews) ? reviews.filter((review) => number(review.rating) === rating).length : 0);
+    }
+    return result;
+  }
+
+  function renderReviewSummary(average, total, distribution, reviews = []) {
+    const safeTotal = Math.max(0, Math.trunc(number(total)));
+    const safeAverage = Math.max(0, Math.min(5, number(average)));
+    const counts = normalizedReviewDistribution(distribution, reviews);
+    return `<div class="reviewSummaryPanel" aria-label="Resumen de opiniones: ${safeAverage.toFixed(1)} de 5, ${safeTotal} ${safeTotal === 1 ? 'opinión' : 'opiniones'}">
+      <div class="reviewDistribution" aria-label="Distribución por calificación">
+        ${[5, 4, 3, 2, 1].map((rating) => {
+          const count = counts[rating];
+          const percentage = safeTotal ? Math.round((count * 100) / safeTotal) : 0;
+          return `<div class="reviewDistributionRow">
+            <span aria-hidden="true">${rating}</span>
+            <progress max="${Math.max(1, safeTotal)}" value="${count}" aria-label="${rating} estrellas: ${count} ${count === 1 ? 'opinión' : 'opiniones'}, ${percentage}%"></progress>
+            <small aria-hidden="true">${percentage}%</small>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="reviewAverage">
+        <strong>${safeAverage.toFixed(1)}</strong>
+        <span class="reviewAverageStars" style="--rating:${safeAverage}" aria-hidden="true">★★★★★</span>
+        <small>${safeTotal} ${safeTotal === 1 ? 'opinión' : 'opiniones'}</small>
+      </div>
+    </div>`;
+  }
+
+  function reviewInitial(value) {
+    return String(value || 'E').trim().charAt(0).toUpperCase() || 'E';
+  }
+
+  function formatReviewDate(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Fecha no disponible' : date.toLocaleDateString('es-CO', {
+      day: 'numeric', month: 'long', year: 'numeric'
+    });
+  }
+
   function renderReviewCards(reviews, { showCourse = false } = {}) {
     return (Array.isArray(reviews) ? reviews : []).map((review) => {
       const entry = catalogEntry(review.course_key) || {};
+      const displayName = review.display_name || 'Estudiante';
+      const avatarUrl = safeHttpsUrl(review.avatar_url);
       return `<article class="studentReviewCard">
+        <header class="studentReviewAuthor">
+          <span class="studentReviewAvatar" aria-hidden="true"><b>${h(reviewInitial(displayName))}</b>${avatarUrl ? `<img src="${h(avatarUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span>
+          <div><strong>${h(displayName)}</strong><time datetime="${h(review.created_at)}">${h(formatReviewDate(review.created_at))}</time></div>
+        </header>
         <div class="studentReviewStars" aria-label="${number(review.rating)} de 5 estrellas">${starText(review.rating)}</div>
-        ${review.comment ? `<blockquote>${h(review.comment)}</blockquote>` : '<p class="small">Calificación sin comentario.</p>'}
-        <footer><strong>${h(review.display_name || 'Estudiante')}</strong>${showCourse ? `<span>${h(entry.meta?.name || review.course_key)}</span>` : ''}</footer>
+        ${review.comment ? `<blockquote>${h(review.comment)}</blockquote>` : ''}
+        ${showCourse ? `<footer><span>${h(entry.meta?.name || review.course_key)}</span></footer>` : ''}
       </article>`;
     }).join('');
   }
 
   function renderStudentTestimonials() {
-    const reviews = Array.isArray(state.publicReviews) ? state.publicReviews : [];
+    const reviews = homeReviewSlides();
+    if (reviews.length) state.homeReviewSlide = ((state.homeReviewSlide % reviews.length) + reviews.length) % reviews.length;
+    const activeReview = reviews[state.homeReviewSlide];
     return `<section class="homeSection studentVoices" aria-labelledby="studentVoicesTitle">
-      <div class="sectionIntro">
+      <div class="studentVoicesHead">
         <h2 id="studentVoicesTitle">Qué piensan nuestros estudiantes</h2>
-        ${state.publicReviewTotal ? `<p>${state.publicReviewAverage} de 5 · ${state.publicReviewTotal} opinión${state.publicReviewTotal === 1 ? '' : 'es'} publicada${state.publicReviewTotal === 1 ? '' : 's'}.</p>` : ''}
+        ${reviews.length > 1 ? `<div class="studentReviewControls" aria-label="Cambiar opinión">
+          <button type="button" data-action="home-review-prev" aria-label="Opinión anterior" title="Opinión anterior">‹</button>
+          <button type="button" data-action="home-review-toggle" aria-label="${state.homeReviewPaused ? 'Reanudar carrusel de opiniones' : 'Pausar carrusel de opiniones'}" title="${state.homeReviewPaused ? 'Reanudar' : 'Pausar'}">${state.homeReviewPaused ? '▶' : 'Ⅱ'}</button>
+          <button type="button" data-action="home-review-next" aria-label="Opinión siguiente" title="Opinión siguiente">›</button>
+        </div>` : ''}
       </div>
-      ${state.publicReviewsLoading ? '<p class="reviewEmpty" role="status">Cargando experiencias...</p>' : reviews.length ? `<div class="studentReviewGrid">${renderReviewCards(reviews, { showCourse: true })}</div>` : '<p class="reviewEmpty">Todavía no hay comentarios publicados.</p>'}
+      ${state.publicReviewsLoading ? '<p class="reviewEmpty" role="status">Cargando experiencias...</p>' : state.publicReviewTotal ? `${renderReviewSummary(state.publicReviewAverage, state.publicReviewTotal, state.publicReviewDistribution, reviews)}${activeReview ? `<div class="studentReviewCarousel" role="region" aria-roledescription="carrusel" aria-label="Opiniones de estudiantes"><div id="studentReviewSlide" class="studentReviewGrid" aria-live="polite">${renderReviewCards([activeReview], { showCourse: true })}</div>${reviews.length > 1 ? `<div class="studentReviewDots" role="tablist" aria-label="Opiniones disponibles">${reviews.map((review, index) => `<button type="button" role="tab" data-action="home-review-go" data-slide="${index}" aria-label="Mostrar opinión ${index + 1} de ${reviews.length}" aria-controls="studentReviewSlide" aria-selected="${index === state.homeReviewSlide}"${index === state.homeReviewSlide ? ' class="active" aria-current="true"' : ''}></button>`).join('')}</div>` : ''}</div>` : ''}` : '<p class="reviewEmpty">Todavía no hay comentarios publicados.</p>'}
     </section>`;
   }
 
   async function refreshPublicReviews({ silent = false } = {}) {
     if (!silent) state.publicReviewsLoading = true;
     try {
-      const result = await Cloud.listApprovedCourseReviews('', 6);
+      const result = await Cloud.listApprovedCourseReviews('', 10);
       state.publicReviews = Array.isArray(result?.reviews) ? result.reviews : [];
       state.publicReviewAverage = number(result?.average_rating);
       state.publicReviewTotal = number(result?.total);
+      state.publicReviewDistribution = normalizedReviewDistribution(result?.rating_distribution, state.publicReviews);
     } catch (error) {
       console.warn('No fue posible cargar las calificaciones públicas.', error);
     } finally {
@@ -4206,17 +4302,18 @@
   }
 
   async function refreshCourseReviews({ silent = false } = {}) {
-    if (!activeCourseKey || !Auth?.isAuthenticated?.()) return;
+    if (!activeCourseKey) return;
     if (!silent) state.courseReviewLoading = true;
     try {
       const [mine, result] = await Promise.all([
-        Cloud.getMyCourseReview(activeCourseKey),
-        Cloud.listApprovedCourseReviews(activeCourseKey, 6)
+        Auth?.isAuthenticated?.() ? Cloud.getMyCourseReview(activeCourseKey) : Promise.resolve(null),
+        Cloud.listApprovedCourseReviews(activeCourseKey, 12)
       ]);
       state.courseReview = mine;
       state.courseReviews = Array.isArray(result?.reviews) ? result.reviews : [];
       state.courseReviewAverage = number(result?.average_rating);
       state.courseReviewTotal = number(result?.total);
+      state.courseReviewDistribution = normalizedReviewDistribution(result?.rating_distribution, state.courseReviews);
     } catch (error) {
       console.warn('No fue posible cargar las calificaciones del curso.', error);
     } finally {
@@ -4255,7 +4352,6 @@
     return `<section class="courseReviewSection card" aria-labelledby="courseReviewTitle">
       <div class="courseReviewHeader">
         <div><span class="sectionKicker">Tu experiencia</span><h2 id="courseReviewTitle">Califica este curso</h2></div>
-        ${state.courseReviewTotal ? `<div class="courseReviewSummary"><strong>${state.courseReviewAverage}</strong><span aria-label="${state.courseReviewAverage} de 5 estrellas">${starText(Math.round(state.courseReviewAverage))}</span><small>${state.courseReviewTotal} publicada${state.courseReviewTotal === 1 ? '' : 's'}</small></div>` : ''}
       </div>
       <form class="courseReviewForm" data-course-review-form>
         <fieldset><legend>Calificación</legend><div class="starRating">
@@ -4265,7 +4361,7 @@
         <textarea id="courseReviewComment" name="comment" maxlength="1000" placeholder="¿Qué te ayudó más de este curso?">${h(mine.comment || '')}</textarea>
         <div class="courseReviewActions"><button class="btn" type="submit" ${state.courseReviewSubmitting ? 'disabled' : ''}>${state.courseReviewSubmitting ? 'Enviando...' : rating ? 'Actualizar calificación' : 'Enviar calificación'}</button>${mine.status ? `<span class="reviewStatus ${h(mine.status)}">${h(reviewStatusLabel(mine.status))}</span>` : ''}</div>
       </form>
-      <div class="coursePublishedReviews"><h3>Opiniones publicadas</h3>${state.courseReviewLoading ? '<p class="reviewEmpty">Cargando...</p>' : reviews.length ? `<div class="studentReviewGrid">${renderReviewCards(reviews)}</div>` : '<p class="reviewEmpty">Este curso todavía no tiene comentarios publicados.</p>'}</div>
+      <div class="coursePublishedReviews"><h3>Resumen de opiniones</h3>${state.courseReviewLoading ? '<p class="reviewEmpty">Cargando...</p>' : state.courseReviewTotal ? `${renderReviewSummary(state.courseReviewAverage, state.courseReviewTotal, state.courseReviewDistribution, reviews)}<div class="studentReviewGrid">${renderReviewCards(reviews)}</div>` : '<p class="reviewEmpty">Este curso todavía no tiene comentarios publicados.</p>'}</div>
     </section>`;
   }
 
