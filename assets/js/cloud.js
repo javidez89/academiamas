@@ -467,6 +467,27 @@
     return data && typeof data === 'object' ? data : {};
   }
 
+  async function getAdminLearningAnalytics({ from, to, courseKey = '' } = {}) {
+    const { client } = requireUser();
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    if (!Number.isFinite(fromDate.getTime()) || !Number.isFinite(toDate.getTime()) || fromDate >= toDate) {
+      throw new Error('El periodo de métricas no es válido.');
+    }
+    const normalizedCourseKey = String(courseKey || '').trim()
+      ? normalizeCourseKey(courseKey)
+      : null;
+    const { data, error } = await client.rpc('admin_verified_learning_analytics', {
+      p_from: fromDate.toISOString(),
+      p_to: toDate.toISOString(),
+      p_course_key: normalizedCourseKey
+    });
+    if (error) throw error;
+    return data && typeof data === 'object'
+      ? data
+      : { verified: false, summary: {}, courses: [], daily: [] };
+  }
+
   async function listAdminUsers({ search = '', limit = 50, offset = 0 } = {}) {
     const { client } = requireUser();
     const { data, error } = await client.rpc('admin_list_users', {
@@ -711,6 +732,7 @@
     isAdmin,
     getMyAccessStatus,
     getAdminDashboardSummary,
+    getAdminLearningAnalytics,
     listAdminUsers,
     listAdminCertificates,
     submitContactMessage,

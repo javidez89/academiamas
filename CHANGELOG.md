@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.25.0] - 2026-09-02
+
+### Added
+- Panel administrativo de métricas verificadas con periodos de 7, 30 y 90 días y filtro por curso.
+- Indicadores agregados de estudiantes activos, tiempo de estudio, prácticas, simulacros, exámenes finales, aprobaciones, constancias e ingresos.
+- Serie diaria y comparativo por curso calculados directamente en Supabase.
+- Pruebas de permisos, exactitud de agregados y ausencia de alteraciones sobre las inscripciones existentes.
+
+### Changed
+- El histórico no verificado queda excluido de las métricas oficiales y se identifica expresamente en el panel.
+- El pipeline valida la migración, los permisos administrativos y los asesores de seguridad y rendimiento de Supabase.
+
+### Security
+- La función agregada exige un administrador registrado en servidor y no expone identidades ni datos personales.
+- La actualización no modifica ni elimina matrículas, progreso, sesiones, respuestas, intentos, certificados o históricos académicos.
+
 ## [v0.24.1] - 2026-08-31
 
 ### Changed

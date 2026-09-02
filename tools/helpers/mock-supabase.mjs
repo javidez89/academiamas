@@ -1,5 +1,5 @@
-export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, certificates = [], certificateOrders = [], adminCertificates = [], contactMessages = [], courseReviews = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance, mockedSocialSettings }) => {
+export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, adminAnalytics = {}, certificates = [], certificateOrders = [], adminCertificates = [], contactMessages = [], courseReviews = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedAdminAnalytics, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance, mockedSocialSettings }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const persistedEnrollments = JSON.parse(sessionStorage.getItem('__mock_enrollments') || 'null');
@@ -18,6 +18,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       admin: Boolean(mockedAdmin),
       adminUsers: structuredClone(mockedAdminUsers || []),
       adminSummary: structuredClone(mockedAdminSummary || {}),
+      adminAnalytics: structuredClone(mockedAdminAnalytics || {}),
       certificates: structuredClone(mockedCertificates || []),
       certificateOrders: structuredClone(mockedCertificateOrders || []),
       adminCertificates: structuredClone(mockedAdminCertificates || []),
@@ -425,6 +426,11 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             if (name === 'admin_dashboard_summary') {
               return state.admin
                 ? { data: structuredClone(state.adminSummary), error: null }
+                : { data: null, error: { code: '42501', message: 'Administrator access required' } };
+            }
+            if (name === 'admin_verified_learning_analytics') {
+              return state.admin
+                ? { data: structuredClone(state.adminAnalytics), error: null }
                 : { data: null, error: { code: '42501', message: 'Administrator access required' } };
             }
             if (name === 'admin_list_users') {
@@ -851,6 +857,7 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedAdmin: Boolean(options.admin),
     mockedAdminUsers: options.adminUsers || [],
     mockedAdminSummary: options.adminSummary || {},
+    mockedAdminAnalytics: options.adminAnalytics || {},
     mockedCertificates: options.certificates || [],
     mockedCertificateOrders: options.certificateOrders || [],
     mockedAdminCertificates: options.adminCertificates || [],

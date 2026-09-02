@@ -101,6 +101,33 @@ jobs:
           robots.txt sitemap.xml cursos ruta-aprendizaje contactanos legal validar-certificado mi-cuenta curso
           admin
 
+  database-gates:
+    name: Database security and analytics gates
+    needs: static-unit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Iniciar PostgreSQL local de Supabase
+        run: >-
+          npx --yes supabase@2.116.0 start
+          --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Validar permisos y exactitud de métricas
+        run: npm run test:admin-analytics:db
+
+      - name: Ejecutar asesores de seguridad y rendimiento
+        run: >-
+          npx --yes supabase@2.116.0 db advisors --local
+          --type all --level warn --fail-on error
+
   browser-gates:
     name: Browser integration gates
     needs: static-unit

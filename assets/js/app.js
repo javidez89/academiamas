@@ -287,7 +287,7 @@
   function loadAdminSection() {
     try {
       const value = global.sessionStorage?.getItem(ADMIN_SECTION_KEY) || '';
-      return ['users', 'messages', 'reviews', 'certificates', 'socials'].includes(value) ? value : 'users';
+      return ['metrics', 'users', 'messages', 'reviews', 'certificates', 'socials'].includes(value) ? value : 'users';
     } catch {
       return 'users';
     }
@@ -355,6 +355,11 @@
       adminError: '',
       adminSection: view === 'admin' ? loadAdminSection() : 'users',
       adminSummary: {},
+      adminAnalytics: {},
+      adminAnalyticsLoading: false,
+      adminAnalyticsError: '',
+      adminAnalyticsRange: 30,
+      adminAnalyticsCourse: 'all',
       adminUsers: [],
       adminTotal: 0,
       adminCertificates: [],
@@ -809,11 +814,20 @@
         render();
         break;
       case 'admin-section':
-        state.adminSection = ['users', 'messages', 'reviews', 'certificates', 'socials'].includes(actionTarget.dataset.section)
+        state.adminSection = ['metrics', 'users', 'messages', 'reviews', 'certificates', 'socials'].includes(actionTarget.dataset.section)
           ? actionTarget.dataset.section
           : 'users';
         saveAdminSection(state.adminSection);
         render();
+        break;
+      case 'admin-analytics-range':
+        state.adminAnalyticsRange = [7, 30, 90].includes(Number(actionTarget.dataset.days))
+          ? Number(actionTarget.dataset.days)
+          : 30;
+        await refreshAdminAnalytics();
+        break;
+      case 'admin-analytics-refresh':
+        await refreshAdminAnalytics();
         break;
       case 'admin-message-filter':
         state.adminMessageFilter = ['all', 'new', 'in_progress', 'responded', 'closed', 'archived'].includes(actionTarget.dataset.filter)
@@ -1582,6 +1596,11 @@
       state.flashIndex = 0;
       state.flashShow = false;
       render();
+      return;
+    }
+    if (event.target.id === 'adminAnalyticsCourse') {
+      state.adminAnalyticsCourse = catalogEntry(event.target.value)?.key || 'all';
+      await refreshAdminAnalytics();
     }
   }
 
@@ -3614,14 +3633,51 @@
     </div>`;
   }
 
+  function adminAnalyticsRequest() {
+    const days = [7, 30, 90].includes(number(state.adminAnalyticsRange))
+      ? number(state.adminAnalyticsRange)
+      : 30;
+    const now = new Date();
+    const bogotaDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now);
+    const from = new Date(`${bogotaDate}T05:00:00.000Z`);
+    from.setUTCDate(from.getUTCDate() - (days - 1));
+    return {
+      from: from.toISOString(),
+      to: now.toISOString(),
+      courseKey: state.adminAnalyticsCourse === 'all' ? '' : state.adminAnalyticsCourse
+    };
+  }
+
+  async function refreshAdminAnalytics() {
+    if (state.view !== 'admin' || !Auth?.isAuthenticated?.() || !Auth?.isAdmin?.()) return;
+    state.adminAnalyticsLoading = true;
+    state.adminAnalyticsError = '';
+    render();
+    try {
+      state.adminAnalytics = await Cloud.getAdminLearningAnalytics(adminAnalyticsRequest());
+    } catch (error) {
+      console.error(error);
+      state.adminAnalyticsError = 'No fue posible actualizar las métricas verificadas. Intenta nuevamente.';
+    } finally {
+      state.adminAnalyticsLoading = false;
+      if (state.view === 'admin') render();
+    }
+  }
+
   async function refreshAdmin({ silent = false } = {}) {
     if (state.view !== 'admin' || !Auth?.isAuthenticated?.() || !Auth?.isAdmin?.()) return;
     state.adminLoading = !silent;
     state.adminError = '';
     if (!silent) render();
     try {
-      const [summary, result, certificateResult, messageResult, archivedMessageResult, reviewResult, archivedReviewResult, adminSocialSettings] = await Promise.all([
+      const [summary, analytics, result, certificateResult, messageResult, archivedMessageResult, reviewResult, archivedReviewResult, adminSocialSettings] = await Promise.all([
         Cloud.getAdminDashboardSummary(),
+        Cloud.getAdminLearningAnalytics(adminAnalyticsRequest()),
         Cloud.listAdminUsers({ search: state.adminSearch, limit: 50, offset: 0 }),
         Cloud.listAdminCertificates({ search: state.adminSearch, limit: 100, offset: 0 }),
         Cloud.listAdminContactMessages({ search: state.adminSearch, limit: 100, offset: 0 }),
@@ -3646,6 +3702,7 @@
         }
       }));
       state.adminSummary = summary || {};
+      state.adminAnalytics = analytics || {};
       state.adminUsers = users;
       state.adminGovernanceByUser = new Map(governance.map((item) => [item.user_id, item]));
       state.adminTotal = number(result?.total);
@@ -3894,6 +3951,93 @@
     }
   }
 
+  function adminAnalyticsCourseName(courseKey) {
+    const entry = catalogEntry(courseKey) || {};
+    return entry.meta?.shortName || entry.meta?.name || String(courseKey || '').toUpperCase();
+  }
+
+  function formatAnalyticsDay(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return String(value || '');
+    return new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+      .format(new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`));
+  }
+
+  function renderAdminAnalytics() {
+    const analytics = state.adminAnalytics && typeof state.adminAnalytics === 'object'
+      ? state.adminAnalytics
+      : {};
+    const summary = analytics.summary && typeof analytics.summary === 'object' ? analytics.summary : {};
+    const courses = Array.isArray(analytics.courses) ? analytics.courses : [];
+    const daily = Array.isArray(analytics.daily) ? analytics.daily : [];
+    const chartDays = daily.slice(-30);
+    const maxStudySeconds = Math.max(1, ...chartDays.map((day) => number(day.study_seconds)));
+    const chartStep = Math.max(1, Math.ceil(chartDays.length / 6));
+    const chart = chartDays.map((day, index) => {
+      const seconds = number(day.study_seconds);
+      const height = seconds > 0 ? Math.max(8, Math.round((seconds / maxStudySeconds) * 100)) : 3;
+      const dateLabel = formatAnalyticsDay(day.date);
+      const accessibleLabel = `${dateLabel}: ${formatStudyDuration(seconds)}, ${number(day.active_learners)} estudiantes activos`;
+      return `<span class="adminTrendDay" aria-label="${h(accessibleLabel)}" title="${h(accessibleLabel)}"><i style="height:${height}%"></i><small>${index % chartStep === 0 || index === chartDays.length - 1 ? h(dateLabel) : ''}</small></span>`;
+    }).join('');
+    const courseRows = courses.map((course) => `<div class="adminAnalyticsCourseRow" role="row">
+      <div role="cell"><strong>${h(adminAnalyticsCourseName(course.course_key))}</strong><small>${h(course.course_key)}</small></div>
+      <div role="cell" data-label="Inscritos"><strong>${number(course.enrolled_users)}</strong><small>+${number(course.new_enrollments)} en el periodo</small></div>
+      <div role="cell" data-label="Estudiantes activos"><strong>${number(course.active_learners)}</strong><small>${number(course.learning_sessions)} sesiones</small></div>
+      <div role="cell" data-label="Tiempo verificado"><strong>${h(formatStudyDuration(course.study_seconds))}</strong><small>registrado por servidor</small></div>
+      <div role="cell" data-label="Evaluaciones"><strong>${number(course.simulator_attempts)} / ${number(course.final_exam_attempts)}</strong><small>simulacros / finales</small></div>
+      <div role="cell" data-label="Aprobación"><strong>${number(course.final_exam_pass_rate)}%</strong><small>nota media ${number(course.average_final_score)}%</small></div>
+      <div role="cell" data-label="Constancias"><strong>${number(course.certificates_issued)}</strong><small>${number(course.cancellations)} cancelaciones</small></div>
+    </div>`).join('');
+    const courseOptions = catalogEntries().map((entry) => `<option value="${h(entry.key)}" ${state.adminAnalyticsCourse === entry.key ? 'selected' : ''}>${h(adminAnalyticsCourseName(entry.key))}</option>`).join('');
+    const range = [7, 30, 90].includes(number(state.adminAnalyticsRange)) ? number(state.adminAnalyticsRange) : 30;
+
+    return `<section class="adminAnalytics" aria-labelledby="adminAnalyticsTitle" ${state.adminSection === 'metrics' ? '' : 'hidden'}>
+      <div class="adminDirectoryHead adminAnalyticsHead">
+        <div><span class="sectionKicker">Fuente oficial</span><h2 id="adminAnalyticsTitle">Métricas verificadas de aprendizaje</h2><p>Indicadores calculados en Supabase a partir de sesiones, respuestas y resultados confirmados por el servidor.</p></div>
+        <button class="btn secondary adminRefresh" type="button" data-action="admin-analytics-refresh" ${state.adminAnalyticsLoading ? 'disabled' : ''}>Actualizar métricas</button>
+      </div>
+      <div class="adminAnalyticsControls">
+        <div class="adminAnalyticsRanges" role="group" aria-label="Periodo de métricas">
+          ${[7, 30, 90].map((days) => `<button type="button" data-action="admin-analytics-range" data-days="${days}" aria-pressed="${range === days}" class="${range === days ? 'active' : ''}">${days} días</button>`).join('')}
+        </div>
+        <label for="adminAnalyticsCourse"><span>Curso</span><select id="adminAnalyticsCourse"><option value="all" ${state.adminAnalyticsCourse === 'all' ? 'selected' : ''}>Todos los cursos</option>${courseOptions}</select></label>
+      </div>
+      ${state.adminAnalyticsLoading ? '<div class="adminLoading" role="status">Calculando métricas verificadas...</div>' : ''}
+      ${state.adminAnalyticsError ? `<div class="badbox">${h(state.adminAnalyticsError)}</div>` : ''}
+      <p class="adminVerifiedMetricNote"><strong>${analytics.verified ? 'Datos verificados por servidor' : 'Esperando verificación'}</strong><span>Periodo de ${range} días · zona horaria de Bogotá. El histórico no verificado no se suma en estos indicadores.</span></p>
+      <div class="adminAnalyticsMetricGrid">
+        <div class="metric"><span>Estudiantes activos</span><strong>${number(summary.active_learners)}</strong><small>con actividad verificada</small></div>
+        <div class="metric"><span>Nuevas inscripciones</span><strong>${number(summary.new_enrollments)}</strong><small>${number(summary.cancellations)} canceladas</small></div>
+        <div class="metric"><span>Tiempo verificado</span><strong>${h(formatStudyDuration(summary.study_seconds))}</strong><small>${number(summary.learning_sessions)} sesiones</small></div>
+        <div class="metric"><span>Promedio por estudiante</span><strong>${number(summary.average_study_minutes)} min</strong><small>durante el periodo</small></div>
+        <div class="metric"><span>Prácticas / simulacros</span><strong>${number(summary.practice_attempts)} / ${number(summary.simulator_attempts)}</strong><small>intentos completados</small></div>
+        <div class="metric"><span>Exámenes finales</span><strong>${number(summary.final_exam_attempts)}</strong><small>${number(summary.final_exams_passed)} aprobados</small></div>
+        <div class="metric"><span>Tasa de aprobación</span><strong>${number(summary.final_exam_pass_rate)}%</strong><small>sobre finales completados</small></div>
+        <div class="metric"><span>Constancias emitidas</span><strong>${number(summary.certificates_issued)}</strong><small>${h(formatCopAmount(summary.certificate_revenue_cop))}</small></div>
+      </div>
+      <div class="adminAnalyticsPanels">
+        <article class="adminTrendPanel">
+          <div><h3>Tiempo de estudio diario</h3><p>${chartDays.length < daily.length ? 'Últimos 30 días del periodo seleccionado.' : 'Periodo seleccionado completo.'}</p></div>
+          <div class="adminTrendChart" role="img" aria-label="Tiempo verificado de estudio por día">${chart || '<p class="adminEmpty">Aún no hay actividad verificada en este periodo.</p>'}</div>
+        </article>
+        <article class="adminAssessmentPanel">
+          <div><h3>Actividad académica</h3><p>Solo intentos completados y evaluados en el servidor.</p></div>
+          <dl>
+            <div><dt>Prácticas</dt><dd>${number(summary.practice_attempts)}</dd></div>
+            <div><dt>Simulacros</dt><dd>${number(summary.simulator_attempts)}</dd></div>
+            <div><dt>Exámenes finales</dt><dd>${number(summary.final_exam_attempts)}</dd></div>
+            <div><dt>Finales aprobados</dt><dd>${number(summary.final_exams_passed)}</dd></div>
+          </dl>
+        </article>
+      </div>
+      <div class="adminAnalyticsCourseTable" role="table" aria-label="Métricas verificadas por curso">
+        <div class="adminAnalyticsCourseHeader" role="row"><span>Curso</span><span>Inscritos</span><span>Activos</span><span>Tiempo</span><span>Simulacros / finales</span><span>Aprobación</span><span>Constancias</span></div>
+        ${courseRows || (!state.adminAnalyticsLoading ? '<p class="adminEmpty">No hay métricas para este filtro.</p>' : '')}
+      </div>
+    </section>`;
+  }
+
   function renderAdminPage() {
     if (!Auth?.isAuthenticated?.()) {
       return `<div class="publicHome publicPage adminPage" id="admin">
@@ -4044,6 +4188,7 @@
       </article>`;
     }).join('');
     const adminTabs = [
+      ['metrics', 'Métricas', 'Ver'],
       ['users', 'Usuarios', state.adminTotal],
       ['messages', 'Mensajes', state.adminMessageTotal],
       ['reviews', 'Calificaciones', state.adminReviewTotal],
@@ -4054,8 +4199,8 @@
     return `<div class="publicHome publicPage adminPage" id="admin">
       <section class="adminHeader" aria-labelledby="adminTitle">
         <span class="sectionKicker">Administración</span>
-        <h1 id="adminTitle">Resumen gerencial de usuarios</h1>
-        <p>Actividad, matrículas y avance real sincronizados con la información guardada en Supabase.</p>
+        <h1 id="adminTitle">Resumen gerencial de QAvance</h1>
+        <p>Usuarios, matrículas y aprendizaje sincronizados con la información verificada en Supabase.</p>
         <div class="adminSummaryGrid">
           <div class="metric"><span>Usuarios registrados</span><strong>${number(summary.registered_users)}</strong></div>
           <div class="metric adminOnlineMetric"><span>Usuarios en línea</span><strong>${number(summary.online_users)}</strong></div>
@@ -4069,6 +4214,7 @@
         </div>
       </section>
       <nav class="adminSectionTabs" aria-label="Secciones de administración">${adminTabs.map(([key, label, count]) => `<button type="button" data-action="admin-section" data-section="${key}" aria-pressed="${state.adminSection === key}" class="${state.adminSection === key ? 'active' : ''}">${label}<span>${count}</span></button>`).join('')}</nav>
+      ${renderAdminAnalytics()}
       <section class="adminDirectory" aria-labelledby="adminUsersTitle" ${state.adminSection === 'users' ? '' : 'hidden'}>
         <div class="adminDirectoryHead">
           <div><h2 id="adminUsersTitle">Usuarios y correos activos</h2><p>${state.adminTotal} registro${state.adminTotal === 1 ? '' : 's'} en el directorio.</p></div>

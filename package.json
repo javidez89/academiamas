@@ -1,6 +1,6 @@
 {
   "name": "qavance",
-  "version": "0.24.1",
+  "version": "0.25.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,7 +19,7 @@
     "audio:cache-plan": "node tools/generate-course-audio-cache.mjs",
     "audio:cache-generate": "node tools/generate-course-audio-cache.mjs --generate",
     "translate:syllabus": "node tools/translate-syllabus-content.mjs",
-    "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs && node tools/audio-manifest-unit.mjs && npm run test:verified-time && npm run test:verified-assessment && npm run test:authoritative-progress",
+    "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs && node tools/audio-manifest-unit.mjs && node tools/admin-analytics-unit.mjs && npm run test:verified-time && npm run test:verified-assessment && npm run test:authoritative-progress",
     "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs && node tools/question-bank-sources-audit.mjs",
     "test:integration": "node tools/catalog-smoke.mjs",
     "test:seo": "node tools/seo-smoke.mjs",
@@ -28,6 +28,7 @@
     "test:cloud": "node tools/cloud-account-smoke.mjs",
     "test:audio": "node tools/audio-fallback-smoke.mjs",
     "test:admin": "node tools/admin-smoke.mjs",
+    "test:admin-analytics:db": "npx --yes supabase@2.116.0 test db --local supabase/tests/admin_verified_learning_analytics_test.sql",
     "test:certificates": "node tools/certificate-smoke.mjs",
     "test:home-advantages": "node tools/home-advantages-smoke.mjs",
     "test:feedback": "node tools/contact-reviews-security-unit.mjs && node tools/contact-reviews-smoke.mjs",
