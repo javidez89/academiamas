@@ -177,7 +177,7 @@ try {
   assert.equal(moderation, 'approved');
   await admin.reload({ waitUntil: 'domcontentloaded' });
   assert.match(admin.url(), /\/admin\//, 'F5 debe conservar la ruta administrativa.');
-  await admin.getByRole('heading', { name: 'Resumen gerencial de usuarios' }).waitFor();
+  await admin.getByRole('heading', { name: 'Resumen gerencial de QAvance' }).waitFor();
   await admin.getByRole('heading', { name: 'Canales oficiales' }).waitFor();
   await admin.setViewportSize({ width: 390, height: 844 });
   assert.ok(
