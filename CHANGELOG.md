@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.26.0] - 2026-09-02
+
+### Added
+- Logros verificables e inmutables por pregunta y por práctica completada al 100% en cada capítulo.
+- Cola local por usuario para recuperar respuestas verificadas después de una interrupción de red.
+- Mensajes directos del administrador al buzón de cada estudiante, con confirmación de lectura y trazabilidad de envíos.
+
+### Changed
+- El avance oficial asigna el 95% a las prácticas completas de todos los capítulos y el 5% restante al examen final aprobado.
+- Los borradores de respuesta y de mensajes administrativos sobreviven recargas y actualizaciones automáticas, pero se eliminan al cerrar sesión.
+- Los intentos recientes de distintas pestañas o dispositivos permanecen independientes para evitar respuestas perdidas.
+
+### Security
+- El servidor calcula logros, avance y examen final; los reintentos no duplican cobertura ni una respuesta incorrecta posterior borra un logro previo.
+- El porcentaje verificado anterior se captura como piso monotónico: esta actualización no elimina ni reduce matrículas, progreso, sesiones, respuestas, intentos o históricos académicos.
+- La mensajería directa aplica aislamiento por usuario y exige autorización administrativa validada en Supabase.
+
 ## [v0.25.1] - 2026-09-02
 
 ### Fixed

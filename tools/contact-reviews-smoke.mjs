@@ -39,6 +39,15 @@ const contactMessage = {
   email: 'ana@example.com', subject: 'Consulta del curso', message: 'Quiero conocer el alcance del simulacro.',
   status: 'new', admin_reply: null, created_at: now, updated_at: now
 };
+const directMessage = {
+  id: '91c8cb68-71b3-49d7-93c6-1bbda09cf5a4', recipient_user_id: MOCK_SESSION.user.id,
+  subject: 'Seguimiento de tu avance', message: 'Tu progreso verificado está disponible en Mi cuenta.',
+  created_at: now, read_at: null
+};
+const adminStudent = {
+  id: 'a152fd20-2d32-4df2-8540-acde731a9f42', email: 'ana@example.com', full_name: 'Ana Torres',
+  created_at: now, last_sign_in_at: now, last_seen_at: now, enrollments: [], verified_courses: []
+};
 const archivedReview = {
   ...pendingReview,
   id: '6731ca4f-06c9-4cf4-8fe3-1f24eb44fa97',
@@ -137,11 +146,15 @@ try {
 
   const account = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await useMockedSupabase(account, MOCK_SESSION, [enrollment], {
-    contactMessages: [{ ...contactMessage, user_id: MOCK_SESSION.user.id, status: 'responded', admin_reply: 'Tu solicitud fue resuelta dentro de QAvance.', replied_at: now }]
+    contactMessages: [{ ...contactMessage, user_id: MOCK_SESSION.user.id, status: 'responded', admin_reply: 'Tu solicitud fue resuelta dentro de QAvance.', replied_at: now }],
+    adminUserMessages: [directMessage]
   });
   await account.goto(`${baseUrl}/mi-cuenta/?feedback=${Date.now()}`, { waitUntil: 'domcontentloaded' });
   await account.getByRole('heading', { name: 'Mis mensajes' }).waitFor();
   await account.getByText('Tu solicitud fue resuelta dentro de QAvance.').waitFor();
+  await account.getByText(directMessage.message).waitFor();
+  await account.getByRole('button', { name: 'Marcar como leído' }).click();
+  assert.ok(await account.evaluate(() => window.__supabaseMock.adminUserMessages[0].read_at));
   await account.getByRole('link', { name: 'Enviar mensaje a soporte' }).waitFor();
   await account.reload({ waitUntil: 'domcontentloaded' });
   assert.match(account.url(), /\/mi-cuenta\//, 'F5 debe conservar la ruta de Mi cuenta.');
@@ -150,7 +163,7 @@ try {
 
   const admin = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await useMockedSupabase(admin, MOCK_SESSION, [], {
-    admin: true, adminSummary: {}, contactMessages: [contactMessage], courseReviews: [pendingReview, archivedReview],
+    admin: true, adminSummary: {}, adminUsers: [adminStudent], contactMessages: [contactMessage], courseReviews: [pendingReview, archivedReview],
     socialSettings: { linkedin_url: 'https://www.linkedin.com/company/qavance/', facebook_url: '', tiktok_url: '', youtube_url: '', whatsapp_url: '' }
   });
   await admin.goto(`${baseUrl}/admin/?feedback=${Date.now()}`, { waitUntil: 'domcontentloaded' });
@@ -159,9 +172,32 @@ try {
   await admin.getByRole('button', { name: 'Marcar en gestión' }).click();
   await admin.locator('.adminInboxCard .reviewStatus', { hasText: 'En gestión' }).waitFor();
   await admin.getByLabel('Respuesta dentro de QAvance').fill('Respuesta interna lista para el usuario.');
+  await admin.locator('[data-action="admin-refresh"]').evaluate((button) => button.click());
+  assert.equal(await admin.getByLabel('Respuesta dentro de QAvance').inputValue(), 'Respuesta interna lista para el usuario.', 'La actualización automática no debe borrar un borrador.');
   await admin.getByRole('button', { name: 'Responder en QAvance' }).click();
   await admin.locator('.adminInboxCard .reviewStatus', { hasText: 'Completado' }).waitFor();
   assert.equal(await admin.locator('.adminInbox [href^="mailto:"]').count(), 0, 'La bandeja no debe abrir correo externo.');
+  await admin.getByRole('button', { name: /Usuarios/ }).click();
+  await admin.locator('.adminUserList').getByText(adminStudent.full_name, { exact: true }).waitFor();
+  await admin.locator('.adminUserDetails summary').click();
+  await admin.getByRole('button', { name: 'Enviar mensaje', exact: true }).click();
+  await admin.getByLabel('Asunto').fill('Recomendación de estudio');
+  await admin.getByLabel('Mensaje', { exact: true }).fill('Continúa con la práctica del capítulo uno para consolidar tu avance.');
+  await admin.getByRole('button', { name: 'Actualizar información' }).click();
+  assert.equal(await admin.getByLabel('Asunto').inputValue(), 'Recomendación de estudio');
+  assert.match(await admin.getByLabel('Mensaje', { exact: true }).inputValue(), /capítulo uno/);
+  if (process.env.FEEDBACK_SCREENSHOTS === '1') await admin.screenshot({ path: `${process.env.TEMP}/qavance-admin-direct-message.png`, fullPage: true });
+  await admin.setViewportSize({ width: 390, height: 844 });
+  assert.ok(
+    (await admin.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 1,
+    'El formulario de mensaje directo no debe desbordarse en móvil.'
+  );
+  if (process.env.FEEDBACK_SCREENSHOTS === '1') await admin.screenshot({ path: `${process.env.TEMP}/qavance-admin-direct-message-mobile.png`, fullPage: true });
+  await admin.setViewportSize({ width: 1280, height: 900 });
+  await admin.getByRole('button', { name: 'Enviar al buzón' }).click();
+  await admin.getByRole('button', { name: /Mensajes/ }).click();
+  await admin.getByRole('heading', { name: 'Mensajes enviados a usuarios' }).waitFor();
+  await admin.getByText('Recomendación de estudio').waitFor();
   await admin.getByRole('button', { name: /Calificaciones/ }).click();
   await admin.getByText(pendingReview.comment).waitFor();
   await admin.getByRole('button', { name: 'Aprobar' }).click();

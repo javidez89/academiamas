@@ -36,6 +36,7 @@ try {
   await authenticatedPage.getByRole('link', { name: 'Ver mi cuenta' }).click();
   await authenticatedPage.getByRole('heading', { name: /Hola, Javier QAvance/i }).waitFor();
   assert.equal(new URL(authenticatedPage.url()).pathname, '/mi-cuenta/');
+  await authenticatedPage.evaluate(() => sessionStorage.setItem('qavance.admin.messageDrafts.v1', '{"replies":{"private":"draft"}}'));
   const signOutButton = authenticatedPage.locator('#authControl [data-auth-sign-out]');
   if (!(await signOutButton.isVisible())) {
     await authenticatedPage.locator('#authControl').getByRole('button', { name: /Javier/i }).click();
@@ -47,6 +48,8 @@ try {
   await authenticatedPage.getByText('Sesión cerrada correctamente.', { exact: true }).waitFor();
   assert.equal(new URL(authenticatedPage.url()).pathname, '/');
   assert.deepEqual(await authenticatedPage.evaluate(() => window.__authCalls.signOut), { scope: 'local' });
+  assert.equal(await authenticatedPage.evaluate(() => sessionStorage.getItem('qavance.admin.messageDrafts.v1')), null,
+    'Cerrar sesión debe retirar los borradores administrativos del navegador compartido.');
   await authenticatedPage.close();
 
   const signInPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });

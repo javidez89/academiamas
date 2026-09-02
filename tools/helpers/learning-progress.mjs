@@ -87,6 +87,8 @@ export async function seedVerifiedCourseStudy(page, courseKey) {
         practice_coverage: 100,
         coverage: 100,
         domain: 100,
+        practice_complete: true,
+        practice_achieved_at: '2026-08-11T11:00:00Z',
         visited_at: '2026-08-11T10:00:00Z',
         last_studied_at: '2026-08-11T11:00:00Z'
       };
@@ -104,6 +106,10 @@ export async function seedVerifiedCourseStudy(page, courseKey) {
       chapter_domain_average: 100,
       question_count: (course.questions || []).length,
       progress_percent: 95,
+      progress_floor_percent: 95,
+      calculated_progress_percent: 95,
+      completed_chapters: chapters.length,
+      progress_rule: 'practice_achievements_v2',
       mastery_percent: 95,
       final_exam_eligible: true,
       final_exam_passed: false,

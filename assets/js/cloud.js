@@ -4,6 +4,7 @@
   const Auth = global.AcademyAuth;
   const Storage = global.AcademyStorage;
   const pendingSyncs = new Map();
+  const PENDING_VERIFIED_ANSWERS_PREFIX = 'qavance_pending_verified_answers_v1_';
 
   function requireUser() {
     const client = Auth?.getClient?.();
@@ -43,6 +44,47 @@
 
   function unwrap(data) {
     return Array.isArray(data) ? data[0] || null : data || null;
+  }
+
+  function pendingVerifiedAnswersKey(userId) {
+    return `${PENDING_VERIFIED_ANSWERS_PREFIX}${String(userId || '').replace(/[^a-zA-Z0-9-]/g, '')}`;
+  }
+
+  function readPendingVerifiedAnswers(userId) {
+    try {
+      const value = JSON.parse(global.localStorage?.getItem(pendingVerifiedAnswersKey(userId)) || '[]');
+      return Array.isArray(value) ? value.filter((item) => item?.attemptId && item?.questionId) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writePendingVerifiedAnswers(userId, items) {
+    try {
+      const key = pendingVerifiedAnswersKey(userId);
+      if (items.length) global.localStorage?.setItem(key, JSON.stringify(items.slice(-500)));
+      else global.localStorage?.removeItem(key);
+    } catch {}
+  }
+
+  function rememberPendingVerifiedAnswer(userId, attemptId, questionId, selectedIndices) {
+    const items = readPendingVerifiedAnswers(userId);
+    const key = `${attemptId}|${questionId}`;
+    const next = items.filter((item) => `${item.attemptId}|${item.questionId}` !== key);
+    next.push({ attemptId, questionId, selectedIndices, queuedAt: new Date().toISOString() });
+    writePendingVerifiedAnswers(userId, next);
+  }
+
+  function forgetPendingVerifiedAnswer(userId, attemptId, questionId) {
+    const key = `${attemptId}|${questionId}`;
+    writePendingVerifiedAnswers(userId, readPendingVerifiedAnswers(userId)
+      .filter((item) => `${item.attemptId}|${item.questionId}` !== key));
+  }
+
+  function isTerminalVerifiedAnswerError(error) {
+    const code = String(error?.code || '');
+    if (['22023', '42501', '55000'].includes(code)) return true;
+    return code === '57014' && /assessment time expired/i.test(String(error?.message || ''));
   }
 
   function normalizeProgress(value) {
@@ -316,6 +358,7 @@
 
   async function startVerifiedAssessment(activitySessionId, questionIds) {
     const { client } = requireUser();
+    await flushPendingVerifiedAnswers();
     const ids = [...new Set((Array.isArray(questionIds) ? questionIds : [])
       .map((value) => String(value || '').trim())
       .filter(Boolean))];
@@ -338,23 +381,68 @@
   }
 
   async function submitVerifiedAnswer(attemptId, questionId, selectedIndices) {
-    const { client } = requireUser();
+    const { client, user } = requireUser();
+    const normalizedAttemptId = String(attemptId || '').trim();
+    const normalizedQuestionId = String(questionId || '').trim();
     const indices = [...new Set((Array.isArray(selectedIndices) ? selectedIndices : [])
       .map((value) => Math.trunc(Number(value)))
       .filter((value) => Number.isInteger(value) && value >= 0 && value <= 3))]
       .sort((left, right) => left - right);
     if (!indices.length) throw new Error('Selecciona al menos una respuesta.');
+    rememberPendingVerifiedAnswer(user.id, normalizedAttemptId, normalizedQuestionId, indices);
     const { data, error } = await client.rpc('submit_verified_answer', {
-      p_attempt_id: String(attemptId || '').trim(),
-      p_question_id: String(questionId || '').trim(),
+      p_attempt_id: normalizedAttemptId,
+      p_question_id: normalizedQuestionId,
       p_selected_indices: indices
     });
-    if (error) throw error;
+    if (error) {
+      if (isTerminalVerifiedAnswerError(error)) {
+        forgetPendingVerifiedAnswer(user.id, normalizedAttemptId, normalizedQuestionId);
+      }
+      throw error;
+    }
+    forgetPendingVerifiedAnswer(user.id, normalizedAttemptId, normalizedQuestionId);
+    await flushPendingVerifiedAnswers();
     return unwrap(data);
+  }
+
+  async function flushPendingVerifiedAnswers() {
+    const { client, user } = requireUser();
+    const queued = readPendingVerifiedAnswers(user.id);
+    let submitted = 0;
+    for (const item of queued) {
+      const indices = [...new Set((Array.isArray(item.selectedIndices) ? item.selectedIndices : [])
+        .map((value) => Math.trunc(Number(value)))
+        .filter((value) => Number.isInteger(value) && value >= 0 && value <= 3))]
+        .sort((left, right) => left - right);
+      if (!indices.length) {
+        forgetPendingVerifiedAnswer(user.id, item.attemptId, item.questionId);
+        continue;
+      }
+      const { error } = await client.rpc('submit_verified_answer', {
+        p_attempt_id: String(item.attemptId || '').trim(),
+        p_question_id: String(item.questionId || '').trim(),
+        p_selected_indices: indices
+      });
+      if (error) {
+        if (isTerminalVerifiedAnswerError(error)) {
+          forgetPendingVerifiedAnswer(user.id, item.attemptId, item.questionId);
+          continue;
+        }
+        break;
+      }
+      forgetPendingVerifiedAnswer(user.id, item.attemptId, item.questionId);
+      submitted += 1;
+    }
+    return { submitted, remaining: readPendingVerifiedAnswers(user.id).length };
   }
 
   async function completeVerifiedAssessment(attemptId) {
     const { client } = requireUser();
+    const pending = await flushPendingVerifiedAnswers();
+    if (pending.remaining > 0) {
+      throw new Error('Hay respuestas pendientes de sincronizar. Revisa tu conexión e intenta finalizar nuevamente.');
+    }
     const { data, error } = await client.rpc('complete_verified_assessment', {
       p_attempt_id: String(attemptId || '').trim()
     });
@@ -529,6 +617,44 @@
     const { data, error } = await client.rpc('list_my_contact_messages');
     if (error) throw error;
     return Array.isArray(data) ? data : [];
+  }
+
+  async function listMyAdminMessages() {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('list_my_admin_messages');
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function markMyAdminMessageRead(messageId) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('mark_my_admin_message_read', {
+      p_message_id: String(messageId || '').trim()
+    });
+    if (error) throw error;
+    return data === true;
+  }
+
+  async function sendAdminUserMessage(userId, subject, message) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_send_user_message', {
+      p_user_id: String(userId || '').trim(),
+      p_subject: String(subject || '').trim(),
+      p_message: String(message || '').trim()
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  }
+
+  async function listAdminSentUserMessages({ userId = '', limit = 100, offset = 0 } = {}) {
+    const { client } = requireUser();
+    const { data, error } = await client.rpc('admin_list_sent_user_messages', {
+      p_user_id: String(userId || '').trim() || null,
+      p_limit: Math.max(1, Math.min(200, Math.trunc(Number(limit) || 100))),
+      p_offset: Math.max(0, Math.trunc(Number(offset) || 0))
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : { total: 0, messages: [] };
   }
 
   async function listApprovedCourseReviews(courseKey = '', limit = 8) {
@@ -722,6 +848,7 @@
     flushProgress,
     startVerifiedAssessment,
     submitVerifiedAnswer,
+    flushPendingVerifiedAnswers,
     completeVerifiedAssessment,
     beginLearningActivity,
     touchLearningActivity,
@@ -737,6 +864,10 @@
     listAdminCertificates,
     submitContactMessage,
     listMyContactMessages,
+    listMyAdminMessages,
+    markMyAdminMessageRead,
+    sendAdminUserMessage,
+    listAdminSentUserMessages,
     listApprovedCourseReviews,
     getMyCourseReview,
     submitCourseReview,

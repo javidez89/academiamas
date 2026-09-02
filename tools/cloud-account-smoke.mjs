@@ -243,8 +243,8 @@ try {
   await page.getByText('Avance por capítulo', { exact: true }).click();
   await page.getByText(/C1 · Fundamentos de la Prueba/i).waitFor();
   const firstAccountChapterText = await courseCard.locator('.accountChapterDetails li').first().innerText();
-  assert.match(firstAccountChapterText, /Avance verificado\s+100%/i, 'Mi cuenta debe mostrar el avance verificable del capitulo.');
-  assert.match(firstAccountChapterText, /Dominio verificado\s+\d+%/i, 'Mi cuenta debe mostrar el dominio verificable del capitulo.');
+  assert.match(firstAccountChapterText, /Práctica completada al 100%/i, 'Mi cuenta debe mostrar el logro verificable de la práctica del capítulo.');
+  assert.match(firstAccountChapterText, /\d+\/\d+ preguntas logradas/i, 'Mi cuenta debe mostrar las preguntas logradas sin premiar reintentos.');
   assert.match(firstAccountChapterText, /\d+\/\d+ min/i, 'Mi cuenta debe mostrar el tiempo del capitulo en minutos.');
   const accountCourseText = await courseCard.innerText();
   assert.match(accountCourseText, /Dominio verificado \d+%/i, 'Mi cuenta debe mostrar el dominio verificable del curso completo.');

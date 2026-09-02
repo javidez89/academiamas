@@ -1,5 +1,5 @@
-export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, adminAnalytics = {}, certificates = [], certificateOrders = [], adminCertificates = [], contactMessages = [], courseReviews = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedAdminAnalytics, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance, mockedSocialSettings }) => {
+export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, adminAnalytics = {}, certificates = [], certificateOrders = [], adminCertificates = [], contactMessages = [], adminUserMessages = [], courseReviews = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedAdminAnalytics, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedAdminUserMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance, mockedSocialSettings, mockedVerifiedAnswerFailures }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const persistedEnrollments = JSON.parse(sessionStorage.getItem('__mock_enrollments') || 'null');
@@ -23,6 +23,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       certificateOrders: structuredClone(mockedCertificateOrders || []),
       adminCertificates: structuredClone(mockedAdminCertificates || []),
       contactMessages: structuredClone(mockedContactMessages || []),
+      adminUserMessages: structuredClone(mockedAdminUserMessages || []),
       courseReviews: structuredClone(mockedCourseReviews || []),
       socialSettings: structuredClone(mockedSocialSettings || { linkedin_url: 'https://www.linkedin.com/in/javierchilatra89/', facebook_url: '', tiktok_url: '', youtube_url: '', whatsapp_url: '' }),
       accessStatus: structuredClone(mockedAccessStatus || { blocked: false, admin_role: mockedAdmin ? 'admin' : null, certificate_entitlements: [] }),
@@ -35,6 +36,8 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       verifiedAssessment: null,
       verifiedAssessmentHistory: [],
       verifiedAssessmentCalls: [],
+      practiceAchievements: new Set(),
+      verifiedAnswerFailures: Math.max(0, Number(mockedVerifiedAnswerFailures) || 0),
       verifiedCourseOverrides: new Map((mockedVerifiedCourses || []).map((item) => [item.course_key, structuredClone(item)])),
       legacyProgress: structuredClone(mockedLegacyProgress || []),
       rpcCounts: {},
@@ -133,7 +136,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
           .filter((attempt) => attempt.course_key === item.course_key && attempt.activity_type === 'practice')
           .forEach((attempt) => Object.entries(attempt.answers || {}).forEach(([questionId, selected]) => {
             const question = courseQuestion(item.course_key, questionId);
-            if (question) latestPractice.set(questionId, { question, correct: equalIndices(selected, question.correct) });
+            if (question) latestPractice.set(questionId, {
+              question,
+              correct: state.practiceAchievements.has(`${item.course_key}:${questionId}`) || equalIndices(selected, question.correct)
+            });
           }));
         const chapters = (loadedCourse?.chapters || []).map((chapter) => {
           const chapterQuestions = (loadedCourse?.questions || []).filter((question) => Number(question.chapter) === Number(chapter.id));
@@ -162,8 +168,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             touched_objectives: new Set(answers.map((answer) => answer.question.lo)).size,
             reading_progress: readingProgress,
             practice_coverage: practiceCoverage,
-            coverage: Math.min(100, Math.round((readingProgress * 0.4) + (practiceCoverage * 0.6))),
+            coverage: domain,
             domain,
+            practice_complete: chapterQuestions.length > 0 && uniqueCorrect >= chapterQuestions.length,
+            practice_achieved_at: null,
             visited_at: readingSessions[0]?.started_at || null,
             last_studied_at: readingSessions.at(-1)?.last_seen_at || null
           };
@@ -174,7 +182,9 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
         const simulators = completedAttempts.filter((attempt) => attempt.activity_type === 'simulator');
         const finals = completedAttempts.filter((attempt) => attempt.activity_type === 'final_exam');
         const finalPassed = finals.some((attempt) => attempt.result?.passed === true);
-        const chapterAverage = chapters.length ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.coverage, 0) / chapters.length) : 0;
+        const chapterAverage = chapters.length ? Math.round(chapters.reduce((sum, chapter) => sum + chapter.domain, 0) / chapters.length) : 0;
+        const completedChapters = chapters.filter((chapter) => chapter.practice_complete).length;
+        const calculatedProgress = chapters.length ? Math.round((completedChapters * 95) / chapters.length) : 0;
         const totalQuestions = chapters.reduce((sum, chapter) => sum + chapter.question_count, 0);
         const chapterDomainAverage = totalQuestions
           ? Math.round(chapters.reduce((sum, chapter) => sum + (chapter.domain * chapter.question_count), 0) / totalQuestions)
@@ -202,9 +212,13 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
           chapter_average: chapterAverage,
           chapter_domain_average: chapterDomainAverage,
           question_count: totalQuestions,
-          progress_percent: finalPassed ? 100 : Math.min(95, Math.round(chapterAverage * 0.95)),
+          progress_percent: finalPassed ? 100 : calculatedProgress,
+          progress_floor_percent: 0,
+          calculated_progress_percent: calculatedProgress,
+          completed_chapters: completedChapters,
+          progress_rule: 'practice_achievements_v2',
           mastery_percent: Math.min(100, Math.round(((chapterDomainAverage * 95) + (finalScore * 5)) / 100)),
-          final_exam_eligible: finalPassed || Math.min(95, Math.round(chapterAverage * 0.95)) >= 95,
+          final_exam_eligible: finalPassed || calculatedProgress >= 95,
           verified: true,
           chapters
         };
@@ -464,6 +478,32 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
             if (name === 'list_my_contact_messages') {
               return { data: structuredClone(state.contactMessages.filter((item) => item.user_id === user?.id && !item.deleted_at)), error: null };
             }
+            if (name === 'list_my_admin_messages') {
+              return { data: structuredClone(state.adminUserMessages.filter((item) => item.recipient_user_id === user?.id)), error: null };
+            }
+            if (name === 'mark_my_admin_message_read') {
+              const message = state.adminUserMessages.find((item) => item.id === args.p_message_id && item.recipient_user_id === user?.id);
+              if (message && !message.read_at) message.read_at = new Date().toISOString();
+              return { data: Boolean(message), error: null };
+            }
+            if (name === 'admin_send_user_message') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const recipient = state.adminUsers.find((item) => item.id === args.p_user_id) || {};
+              const message = {
+                id: crypto.randomUUID(), recipient_user_id: args.p_user_id,
+                subject: args.p_subject, message: args.p_message, sent_by: user?.id,
+                full_name: recipient.full_name || recipient.email?.split('@')[0] || 'Usuario',
+                email: recipient.email || '', created_at: new Date().toISOString(), read_at: null
+              };
+              state.adminUserMessages.unshift(message);
+              return { data: structuredClone(message), error: null };
+            }
+            if (name === 'admin_list_sent_user_messages') {
+              if (!state.admin) return { data: null, error: { code: '42501', message: 'Administrator access required' } };
+              const userId = String(args?.p_user_id || '');
+              const matches = state.adminUserMessages.filter((item) => !userId || item.recipient_user_id === userId);
+              return { data: { total: matches.length, messages: structuredClone(matches) }, error: null };
+            }
             if (name === 'list_approved_course_reviews') {
               const courseKey = String(args?.p_course_key || '');
               const approved = state.courseReviews.filter((item) => !item.deleted_at && item.status === 'approved' && (!courseKey || item.course_key === courseKey));
@@ -662,6 +702,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               };
             }
             if (name === 'submit_verified_answer') {
+              if (state.verifiedAnswerFailures > 0) {
+                state.verifiedAnswerFailures -= 1;
+                return { data: null, error: { code: 'NETWORK', message: 'Network request failed' } };
+              }
               const attempt = state.verifiedAssessmentHistory.find((entry) => entry.id === args.p_attempt_id);
               const question = attempt ? courseQuestion(attempt.course_key, args.p_question_id) : null;
               const selected = normalizedIndices(args.p_selected_indices);
@@ -671,6 +715,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               const correct = equalIndices(selected, question.correct);
               attempt.answers[question.id] = selected;
               if (attempt.activity_type === 'practice') {
+                if (correct) state.practiceAchievements.add(`${attempt.course_key}:${question.id}`);
                 const uniqueAnswers = new Set();
                 state.verifiedAssessmentHistory
                   .filter((entry) => entry.course_key === attempt.course_key && entry.activity_type === 'practice')
@@ -862,6 +907,7 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedCertificateOrders: options.certificateOrders || [],
     mockedAdminCertificates: options.adminCertificates || [],
     mockedContactMessages: options.contactMessages || [],
+    mockedAdminUserMessages: options.adminUserMessages || [],
     mockedCourseReviews: options.courseReviews || [],
     mockedAudioFailure: Boolean(options.audioFailure),
     mockedPublicActivitySummary: options.publicActivitySummary || {
@@ -875,7 +921,8 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedLegacyProgress: options.legacyProgress || [],
     mockedAccessStatus: options.accessStatus || { blocked: false, admin_role: options.admin ? 'admin' : null, certificate_entitlements: [] },
     mockedAdminGovernance: options.adminGovernance || [],
-    mockedSocialSettings: options.socialSettings || { linkedin_url: 'https://www.linkedin.com/in/javierchilatra89/', facebook_url: '', tiktok_url: '', youtube_url: '', whatsapp_url: '' }
+    mockedSocialSettings: options.socialSettings || { linkedin_url: 'https://www.linkedin.com/in/javierchilatra89/', facebook_url: '', tiktok_url: '', youtube_url: '', whatsapp_url: '' },
+    mockedVerifiedAnswerFailures: Math.max(0, Number(options.verifiedAnswerFailures) || 0)
   });
 }
 

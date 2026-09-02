@@ -1,3 +1,26 @@
+project_id = "academiamas"
+
+[api]
+port = 58021
+
+[db]
+port = 58022
+shadow_port = 58020
+
+[db.pooler]
+port = 58029
+
+[studio]
+port = 58023
+
+[local_smtp]
+port = 58024
+smtp_port = 58025
+pop3_port = 58026
+
+[analytics]
+port = 58027
+
 [functions.certificate-service]
 verify_jwt = true
 

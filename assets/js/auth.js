@@ -4,6 +4,7 @@
   const Config = global.ACADEMY_CONFIG || {};
   const RETURN_TO_KEY = 'academiaqa.auth.returnTo';
   const SESSION_CLOSED_KEY = 'academiaqa.auth.sessionClosed';
+  const ADMIN_DRAFTS_KEY = 'qavance.admin.messageDrafts.v1';
   const STORAGE_KEY = 'academiaqa-auth';
   let client = null;
   let session = null;
@@ -262,6 +263,7 @@
       return result;
     }
     render(null);
+    global.sessionStorage.removeItem(ADMIN_DRAFTS_KEY);
     global.sessionStorage.setItem(SESSION_CLOSED_KEY, '1');
     global.location.assign(new URL('/', global.location.origin).href);
     return result;

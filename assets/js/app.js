@@ -21,6 +21,7 @@
   const SESSION_CLOSED_KEY = 'academiaqa.auth.sessionClosed';
   const READING_SCALE_KEY = 'academiaqa.accessibility.readingScale';
   const ADMIN_SECTION_KEY = 'academiaqa.admin.section';
+  const ADMIN_DRAFTS_KEY = 'qavance.admin.messageDrafts.v1';
   const FINAL_EXAM_UNLOCK_PROGRESS = 95;
   const DEVICE_NARRATION_CHUNK_LIMIT = 260;
   const COMMUNITY_ACTIVITY_REFRESH_MS = 15_000;
@@ -301,7 +302,31 @@
     }
   }
 
+  function loadAdminDrafts() {
+    try {
+      const parsed = JSON.parse(global.sessionStorage?.getItem(ADMIN_DRAFTS_KEY) || '{}');
+      return {
+        replies: parsed?.replies && typeof parsed.replies === 'object' ? parsed.replies : {},
+        direct: parsed?.direct && typeof parsed.direct === 'object' ? parsed.direct : {}
+      };
+    } catch {
+      return { replies: {}, direct: {} };
+    }
+  }
+
+  function saveAdminDrafts() {
+    try {
+      global.sessionStorage?.setItem(ADMIN_DRAFTS_KEY, JSON.stringify({
+        replies: state.adminReplyDrafts || {},
+        direct: state.adminDirectMessageDrafts || {}
+      }));
+    } catch {
+      // Los borradores siguen disponibles en memoria durante la sesión actual.
+    }
+  }
+
   function createState(view = 'home') {
+    const adminDrafts = loadAdminDrafts();
     return {
       view,
       session: [],
@@ -366,6 +391,11 @@
       adminCertificateTotal: 0,
       adminMessages: [],
       adminMessageTotal: 0,
+      adminSentMessages: [],
+      adminSentMessageTotal: 0,
+      adminReplyDrafts: adminDrafts.replies,
+      adminDirectMessageDrafts: adminDrafts.direct,
+      adminComposeUserId: '',
       adminReviews: [],
       adminReviewTotal: 0,
       adminMessageFilter: 'all',
@@ -647,6 +677,11 @@
       }
       return;
     }
+    try {
+      await Cloud?.flushPendingVerifiedAnswers?.();
+    } catch (error) {
+      console.warn('Las respuestas pendientes se reintentarán cuando la conexión esté disponible.', error);
+    }
     if (state.view === 'account') {
       if (authenticated) {
         await refreshAccount();
@@ -685,6 +720,13 @@
   }
 
   async function handleSubmit(event) {
+    const directMessageForm = event.target.closest('[data-admin-direct-message-form]');
+    if (directMessageForm) {
+      event.preventDefault();
+      await sendAdminDirectMessage(directMessageForm);
+      return;
+    }
+
     const socialSettingsForm = event.target.closest('[data-admin-social-form]');
     if (socialSettingsForm) {
       event.preventDefault();
@@ -853,6 +895,12 @@
       case 'admin-user-role':
         await updateAdminUserRole(actionTarget);
         break;
+      case 'admin-user-message-toggle':
+        state.adminComposeUserId = state.adminComposeUserId === actionTarget.dataset.userId
+          ? ''
+          : String(actionTarget.dataset.userId || '');
+        render();
+        break;
       case 'admin-certificate-eligibility':
         await updateAdminCertificateEligibility(actionTarget);
         break;
@@ -878,6 +926,9 @@
           view: actionTarget.dataset.courseView || 'dashboard',
           updateHash: false
         });
+        break;
+      case 'mark-admin-message-read':
+        await markAdminMessageRead(actionTarget.dataset.messageId);
         break;
       case 'enroll-course':
         await setCourse(actionTarget.dataset.course, {
@@ -1574,6 +1625,27 @@
   }
 
   function handleInput(event) {
+    const reply = event.target.closest('[data-admin-message-reply]');
+    if (reply) {
+      state.adminReplyDrafts[reply.dataset.adminMessageReply] = reply.value;
+      saveAdminDrafts();
+      return;
+    }
+
+    const direct = event.target.closest('[data-admin-direct-message-draft]');
+    if (direct) {
+      const userId = String(direct.dataset.userId || '');
+      const field = String(direct.dataset.adminDirectMessageDraft || '');
+      if (userId && ['subject', 'message'].includes(field)) {
+        state.adminDirectMessageDrafts[userId] = {
+          ...(state.adminDirectMessageDrafts[userId] || {}),
+          [field]: direct.value
+        };
+        saveAdminDrafts();
+      }
+      return;
+    }
+
     const seek = event.target.closest('[data-narration-seek]');
     if (!seek || seek.disabled) return;
     narrationSeekActive = true;
@@ -2466,6 +2538,8 @@
       uniqueCorrect: number(chapter.unique_correct),
       touched: number(chapter.touched_objectives),
       practiceCoverage: number(chapter.practice_coverage),
+      practiceComplete: chapter.practice_complete === true,
+      practiceAchievedAt: chapter.practice_achieved_at || '',
       accuracy: pct(number(chapter.unique_correct), number(chapter.unique_answered)),
       domain: number(chapter.domain),
       objectiveProgress: pct(number(chapter.touched_objectives), number(chapter.objective_count)),
@@ -2518,6 +2592,10 @@
       masteryPercent: number(official.mastery_percent),
       progressPercent: hasUnverifiedHistory ? historicalProgressPercent : verifiedProgressPercent,
       verifiedProgressPercent,
+      progressFloorPercent: number(official.progress_floor_percent),
+      calculatedProgressPercent: number(official.calculated_progress_percent),
+      completedChapters: number(official.completed_chapters),
+      progressRule: official.progress_rule || '',
       historicalProgressPercent: hasUnverifiedHistory ? historicalProgressPercent : 0,
       studySeconds: number(official.study_seconds),
       historicalStudySeconds: hasUnverifiedHistory ? number(legacyDetails?.studySeconds) : 0,
@@ -3402,18 +3480,22 @@
     state.accountError = '';
     render();
     try {
-      const [, certificates, certificateOrders, messages, access] = await Promise.all([
+      const [, certificates, certificateOrders, messages, adminMessages, access] = await Promise.all([
         refreshLearningSnapshot({ includeProfile: true }),
         Cloud.listCertificates(),
         Cloud.listCertificateOrders(),
         Cloud.listMyContactMessages(),
+        Cloud.listMyAdminMessages(),
         Cloud.getMyAccessStatus()
       ]);
       state.accountProfile = learningSnapshot.profile;
       state.enrollments = learningSnapshot.enrollments.filter((item) => !item.hidden_at);
       state.certificates = certificates;
       state.certificateOrders = certificateOrders;
-      state.accountMessages = messages;
+      state.accountMessages = [
+        ...(Array.isArray(messages) ? messages.map((message) => ({ ...message, kind: 'contact' })) : []),
+        ...(Array.isArray(adminMessages) ? adminMessages.map((message) => ({ ...message, kind: 'admin' })) : [])
+      ].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
       state.accountAccess = access;
     } catch (error) {
       console.error(error);
@@ -3525,8 +3607,8 @@
         && ['PENDING', 'APPROVED'].includes(order.status)
       ));
       const chapterRows = details.chapters.map((chapter) => `<li>
-        <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${chapter.uniqueAnswered}/${chapter.questionCount} preguntas únicas · ${chapter.practiceCoverage}% cubierto</span></div>
-        <div><strong>${chapter.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'} ${chapter.coverage}%</strong><span>Dominio verificado ${chapter.verifiedDomain ?? chapter.domain}% · ${chapter.studyMinutes}/${chapter.suggestedMinutes} min</span>${chapter.hasUnverifiedHistory ? `<small class="historicalProgressNote">Histórico no verificado · avance oficial ${chapter.verifiedCoverage}%</small>` : ''}</div>
+        <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${number(chapter.uniqueCorrect)}/${number(chapter.questionCount)} preguntas logradas · ${number(chapter.practiceCoverage)}% explorado</span></div>
+        <div><strong>${chapter.practiceComplete ? 'Práctica completada al 100%' : `Dominio acumulado ${chapter.verifiedDomain ?? chapter.domain}%`}</strong><span>${chapter.hasUnverifiedHistory ? `Avance histórico ${chapter.coverage}% · ` : ''}${chapter.studyMinutes}/${chapter.suggestedMinutes} min verificados</span>${chapter.hasUnverifiedHistory ? `<small class="historicalProgressNote">Histórico no verificado · avance oficial protegido ${chapter.verifiedCoverage}%</small>` : ''}</div>
         <div class="accountChapterProgressBars">
           <div><span>Avance</span><div class="progressbar" aria-label="Avance del capítulo ${number(chapter.chapterId)}: ${chapter.coverage}%"><div style="width:${chapter.coverage}%"></div></div></div>
           <div><span>Dominio del capítulo</span><div class="progressbar masteryProgress" aria-label="Dominio del capítulo ${number(chapter.chapterId)}: ${chapter.domain}%"><div style="width:${chapter.domain}%"></div></div></div>
@@ -3593,11 +3675,22 @@
       <div class="accountCertificateActions"><button class="btn good" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Descargar PDF</button><button class="btn linkedinButton" type="button" data-action="share-certificate-linkedin" data-code="${h(certificate.certificate_code)}">LinkedIn</button><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Ver</button><button class="btn secondary" type="button" data-action="copy-certificate-url" data-code="${h(certificate.certificate_code)}">Copiar URL</button></div>
     </article>`).join('');
 
-    const accountMessageCards = accountMessages.map((message) => `<article class="accountMessageCard">
-      <header><div><span class="reviewStatus ${h(message.status)}">${h(accountMessageStatusLabel(message.status))}</span><h3>${h(message.subject)}</h3></div><time datetime="${h(message.created_at)}">${h(formatDate(message.created_at))}</time></header>
-      <p>${h(message.message)}</p>
-      ${message.admin_reply ? `<div class="accountMessageReply"><b>Respuesta de QAvance</b><p>${h(message.admin_reply)}</p><small>${h(formatDate(message.replied_at || message.updated_at))}</small></div>` : '<small>Te avisaremos aquí cuando el equipo registre una respuesta.</small>'}
-    </article>`).join('');
+    const accountMessageCards = accountMessages.map((message) => {
+      if (message.kind === 'admin') {
+        const unread = !message.read_at;
+        return `<article class="accountMessageCard accountAdminMessage ${unread ? 'unread' : ''}">
+          <header><div><span class="reviewStatus ${unread ? 'new' : 'responded'}">${unread ? 'Nuevo' : 'Leído'}</span><h3>${h(message.subject)}</h3></div><time datetime="${h(message.created_at)}">${h(formatDate(message.created_at))}</time></header>
+          <p>${h(message.message)}</p>
+          <small>Mensaje enviado por el equipo de QAvance.</small>
+          ${unread ? `<div class="btnrow"><button class="btn secondary" type="button" data-action="mark-admin-message-read" data-message-id="${h(message.id)}">Marcar como leído</button></div>` : ''}
+        </article>`;
+      }
+      return `<article class="accountMessageCard">
+        <header><div><span class="reviewStatus ${h(message.status)}">${h(accountMessageStatusLabel(message.status))}</span><h3>${h(message.subject)}</h3></div><time datetime="${h(message.created_at)}">${h(formatDate(message.created_at))}</time></header>
+        <p>${h(message.message)}</p>
+        ${message.admin_reply ? `<div class="accountMessageReply"><b>Respuesta de QAvance</b><p>${h(message.admin_reply)}</p><small>${h(formatDate(message.replied_at || message.updated_at))}</small></div>` : '<small>Te avisaremos aquí cuando el equipo registre una respuesta.</small>'}
+      </article>`;
+    }).join('');
 
     return `<div class="publicHome publicPage accountPage" id="mi-cuenta">
       <section class="accountHeader" aria-labelledby="accountTitle">
@@ -3653,6 +3746,21 @@
     };
   }
 
+  async function markAdminMessageRead(messageId) {
+    try {
+      await Cloud.markMyAdminMessageRead(messageId);
+      state.accountMessages = state.accountMessages.map((message) => (
+        message.kind === 'admin' && message.id === messageId
+          ? { ...message, read_at: message.read_at || new Date().toISOString() }
+          : message
+      ));
+      render();
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible actualizar el mensaje.', 'error');
+    }
+  }
+
   async function refreshAdminAnalytics() {
     if (state.view !== 'admin' || !Auth?.isAuthenticated?.() || !Auth?.isAdmin?.()) return;
     state.adminAnalyticsLoading = true;
@@ -3675,13 +3783,14 @@
     state.adminError = '';
     if (!silent) render();
     try {
-      const [summary, analytics, result, certificateResult, messageResult, archivedMessageResult, reviewResult, archivedReviewResult, adminSocialSettings] = await Promise.all([
+      const [summary, analytics, result, certificateResult, messageResult, archivedMessageResult, sentMessageResult, reviewResult, archivedReviewResult, adminSocialSettings] = await Promise.all([
         Cloud.getAdminDashboardSummary(),
         Cloud.getAdminLearningAnalytics(adminAnalyticsRequest()),
         Cloud.listAdminUsers({ search: state.adminSearch, limit: 50, offset: 0 }),
         Cloud.listAdminCertificates({ search: state.adminSearch, limit: 100, offset: 0 }),
         Cloud.listAdminContactMessages({ search: state.adminSearch, limit: 100, offset: 0 }),
         Cloud.listAdminContactMessages({ status: 'archived', search: state.adminSearch, limit: 100, offset: 0 }),
+        Cloud.listAdminSentUserMessages({ limit: 100, offset: 0 }),
         Cloud.listAdminCourseReviews({ search: state.adminSearch, limit: 100, offset: 0 }),
         Cloud.listAdminCourseReviews({ status: 'archived', search: state.adminSearch, limit: 100, offset: 0 }),
         Cloud.getPublicSocialSettings()
@@ -3713,6 +3822,8 @@
         ...(Array.isArray(archivedMessageResult?.messages) ? archivedMessageResult.messages.map((item) => ({ ...item, archived: true })) : [])
       ];
       state.adminMessageTotal = number(messageResult?.total) + number(archivedMessageResult?.total);
+      state.adminSentMessages = Array.isArray(sentMessageResult?.messages) ? sentMessageResult.messages : [];
+      state.adminSentMessageTotal = number(sentMessageResult?.total);
       state.adminReviews = [
         ...(Array.isArray(reviewResult?.reviews) ? reviewResult.reviews : []),
         ...(Array.isArray(archivedReviewResult?.reviews) ? archivedReviewResult.reviews.map((item) => ({ ...item, archived: true })) : [])
@@ -3843,12 +3954,41 @@
     return ({ new: 'Enviado', in_progress: 'En gestión', responded: 'Completado', closed: 'Completado' })[status] || 'Enviado';
   }
 
+  async function sendAdminDirectMessage(form) {
+    if (!form.reportValidity()) return;
+    const data = new FormData(form);
+    const userId = String(data.get('userId') || '');
+    const subject = String(data.get('subject') || '').trim();
+    const message = String(data.get('message') || '').trim();
+    const submit = form.querySelector('[type="submit"]');
+    if (submit) submit.disabled = true;
+    try {
+      await Cloud.sendAdminUserMessage(userId, subject, message);
+      delete state.adminDirectMessageDrafts[userId];
+      state.adminComposeUserId = '';
+      saveAdminDrafts();
+      notify('Mensaje enviado al buzón del usuario.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible enviar el mensaje.', 'error');
+      if (submit) submit.disabled = false;
+    }
+  }
+
   async function updateAdminMessage(target) {
     const messageId = String(target.dataset.messageId || '');
     const status = String(target.dataset.status || 'in_progress');
-    const reply = document.querySelector(`[data-admin-message-reply="${messageId}"]`)?.value?.trim() || '';
+    const hasDraft = Object.prototype.hasOwnProperty.call(state.adminReplyDrafts, messageId);
+    const reply = String(hasDraft
+      ? state.adminReplyDrafts[messageId]
+      : document.querySelector(`[data-admin-message-reply="${messageId}"]`)?.value || '').trim();
     try {
       await Cloud.updateAdminContactMessage(messageId, status, reply);
+      if (['responded', 'closed'].includes(status)) {
+        delete state.adminReplyDrafts[messageId];
+        saveAdminDrafts();
+      }
       notify(status === 'responded' ? 'Respuesta enviada dentro de QAvance.' : 'Estado del mensaje actualizado.', 'success');
       await refreshAdmin({ silent: true });
     } catch (error) {
@@ -4097,11 +4237,13 @@
     const userRows = visibleRows.map(({ user, snapshot }) => {
       const name = user.full_name || user.email?.split('@')[0] || 'Usuario';
       const governance = state.adminGovernanceByUser.get(user.id) || {};
+      const composeOpen = state.adminComposeUserId === user.id;
+      const directDraft = state.adminDirectMessageDrafts[user.id] || {};
       return `<article class="adminManagerRow">
         <div class="adminManagerMain">
           <div class="adminManagerIdentity" data-label="Usuario">
             <span class="adminUserInitial" aria-hidden="true">${h(name.charAt(0).toUpperCase())}</span>
-            <span><strong>${h(name)}</strong><a href="mailto:${h(user.email || '')}">${h(user.email || 'Sin correo')}</a><small>${governance.admin_role ? `Rol: ${h(governance.admin_role === 'superadmin' ? 'Superadministrador' : 'Administrador')}` : 'Rol: Estudiante'}</small></span>
+            <span><strong>${h(name)}</strong><span>${h(user.email || 'Sin correo')}</span><small>${governance.admin_role ? `Rol: ${h(governance.admin_role === 'superadmin' ? 'Superadministrador' : 'Administrador')}` : 'Rol: Estudiante'}</small></span>
           </div>
           <div class="adminManagerCell" data-label="Estado">
             <span class="adminPresence ${snapshot.online ? 'online' : 'offline'}"><i aria-hidden="true"></i>${governance.blocked ? 'Bloqueado' : snapshot.online ? 'En línea' : 'Desconectado'}</span>
@@ -4111,13 +4253,23 @@
           <div class="adminManagerCell" data-label="Tiempo"><strong>${h(formatStudyDuration(snapshot.studySeconds))}</strong><small>estudio acumulado</small></div>
           <div class="adminManagerCell" data-label="Última actividad"><strong>${h(formatAdminActivity(snapshot.lastSeenAt))}</strong><small>${h(formatDate(snapshot.lastSeenAt))}</small></div>
         </div>
-        <details class="adminUserDetails">
+        <details class="adminUserDetails" ${composeOpen ? 'open' : ''}>
           <summary>Ver cursos y avance por capítulo</summary>
           <div class="adminUserRegistration"><span>Registro: ${h(formatDate(user.created_at))}</span><span>Último inicio de sesión: ${h(formatDate(user.last_sign_in_at))}</span>${governance.block_reason ? `<span>Motivo de bloqueo: ${h(governance.block_reason)}</span>` : ''}</div>
           <div class="adminGovernanceActions">
+            <button class="btn" type="button" data-action="admin-user-message-toggle" data-user-id="${h(user.id)}" aria-expanded="${composeOpen}">${composeOpen ? 'Cerrar mensaje' : 'Enviar mensaje'}</button>
             <button class="btn ${governance.blocked ? 'good' : 'bad'}" type="button" data-action="admin-user-block" data-user-id="${h(user.id)}" data-blocked="${governance.blocked ? 'false' : 'true'}">${governance.blocked ? 'Desbloquear cuenta' : 'Bloquear cuenta'}</button>
             ${isSuperadmin ? `<button class="btn secondary" type="button" data-action="admin-user-role" data-user-id="${h(user.id)}" data-role="${governance.admin_role ? 'none' : 'admin'}">${governance.admin_role ? 'Retirar rol administrativo' : 'Convertir en administrador'}</button>${governance.admin_role === 'admin' ? `<button class="btn secondary" type="button" data-action="admin-user-role" data-user-id="${h(user.id)}" data-role="superadmin">Convertir en superadministrador</button>` : ''}` : ''}
           </div>
+          ${composeOpen ? `<form class="adminDirectMessageForm" data-admin-direct-message-form>
+            <input type="hidden" name="userId" value="${h(user.id)}">
+            <div class="adminDirectMessageIntro"><strong>Mensaje para ${h(name)}</strong><small>Se mostrará en el buzón de Mi cuenta.</small></div>
+            <label for="adminDirectSubject${h(user.id)}">Asunto</label>
+            <input id="adminDirectSubject${h(user.id)}" name="subject" type="text" minlength="3" maxlength="160" required value="${h(directDraft.subject || '')}" data-admin-direct-message-draft="subject" data-user-id="${h(user.id)}">
+            <label for="adminDirectBody${h(user.id)}">Mensaje</label>
+            <textarea id="adminDirectBody${h(user.id)}" name="message" minlength="10" maxlength="5000" required data-admin-direct-message-draft="message" data-user-id="${h(user.id)}">${h(directDraft.message || '')}</textarea>
+            <div class="btnrow"><button class="btn" type="submit">Enviar al buzón</button><button class="btn secondary" type="button" data-action="admin-user-message-toggle" data-user-id="${h(user.id)}">Cancelar</button></div>
+          </form>` : ''}
           <div class="adminEnrollments">
             ${snapshot.enrollments.map((item) => adminEnrollmentView(item, user.id, governance, isSuperadmin)).join('') || '<p class="adminEmpty">Este usuario aún no tiene cursos inscritos.</p>'}
           </div>
@@ -4157,13 +4309,18 @@
       <div class="adminInboxIdentity"><strong>${h(message.full_name)}</strong><span>${h(message.email)}</span></div>
       <p class="adminInboxMessage">${h(message.message)}</p>
       ${message.archived ? `${message.admin_reply ? `<div class="adminRecordedReply"><b>Respuesta registrada</b><p>${h(message.admin_reply)}</p></div>` : ''}<p class="small">Archivado para auditoría. No se muestra en la bandeja activa.</p>` : `<label for="adminReply${h(message.id)}">Respuesta dentro de QAvance</label>
-      <textarea id="adminReply${h(message.id)}" data-admin-message-reply="${h(message.id)}" maxlength="5000" placeholder="El usuario verá esta respuesta en Mi cuenta...">${h(message.admin_reply || '')}</textarea>
+      <textarea id="adminReply${h(message.id)}" data-admin-message-reply="${h(message.id)}" maxlength="5000" placeholder="El usuario verá esta respuesta en Mi cuenta...">${h(Object.prototype.hasOwnProperty.call(state.adminReplyDrafts, message.id) ? state.adminReplyDrafts[message.id] : message.admin_reply || '')}</textarea>
       <div class="adminInboxActions">
         <button class="btn secondary" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="in_progress">Marcar en gestión</button>
         <button class="btn" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="responded">Responder en QAvance</button>
         <button class="btn secondary" type="button" data-action="admin-message-status" data-message-id="${h(message.id)}" data-status="closed">Cerrar</button>
         <button class="btn bad" type="button" data-action="admin-message-delete" data-message-id="${h(message.id)}">Archivar</button>
       </div>`}
+    </article>`).join('');
+    const sentMessageRows = (Array.isArray(state.adminSentMessages) ? state.adminSentMessages : []).map((message) => `<article class="adminSentMessageCard">
+      <div><span class="reviewStatus ${message.read_at ? 'responded' : 'new'}">${message.read_at ? 'Leído' : 'No leído'}</span><strong>${h(message.subject)}</strong><small>${h(message.full_name || 'Usuario')} · ${h(message.email || 'Sin correo')}</small></div>
+      <p>${h(message.message)}</p>
+      <time datetime="${h(message.created_at)}">Enviado ${h(formatDate(message.created_at))}</time>
     </article>`).join('');
     const allAdminReviews = Array.isArray(state.adminReviews) ? state.adminReviews : [];
     const reviewStatus = (review) => review.archived ? 'archived' : review.status;
@@ -4190,7 +4347,7 @@
     const adminTabs = [
       ['metrics', 'Métricas', 'Ver'],
       ['users', 'Usuarios', state.adminTotal],
-      ['messages', 'Mensajes', state.adminMessageTotal],
+      ['messages', 'Mensajes', state.adminMessageTotal + state.adminSentMessageTotal],
       ['reviews', 'Calificaciones', state.adminReviewTotal],
       ['certificates', 'Certificados', state.adminCertificateTotal],
       ['socials', 'Redes sociales', 'Configurar']
@@ -4238,6 +4395,10 @@
         <div class="adminDirectoryHead"><div><h2 id="adminMessagesTitle">Mensajes de contacto</h2><p>${state.adminMessageTotal} mensaje${state.adminMessageTotal === 1 ? '' : 's'} almacenado${state.adminMessageTotal === 1 ? '' : 's'}.</p></div></div>
         <div class="adminStateFilters" aria-label="Filtrar mensajes por estado">${messageFilters.map(([key, label, count]) => `<button type="button" data-action="admin-message-filter" data-filter="${key}" aria-pressed="${state.adminMessageFilter === key}" class="${state.adminMessageFilter === key ? 'active' : ''}"><span>${label}</span><strong>${count}</strong></button>`).join('')}</div>
         <div class="adminInboxGrid">${messageRows || (!state.adminLoading ? '<p class="adminEmpty">No se encontraron mensajes.</p>' : '')}</div>
+        <section class="adminSentMessages" aria-labelledby="adminSentMessagesTitle">
+          <div class="adminDirectoryHead"><div><h3 id="adminSentMessagesTitle">Mensajes enviados a usuarios</h3><p>${state.adminSentMessageTotal} mensaje${state.adminSentMessageTotal === 1 ? '' : 's'} directo${state.adminSentMessageTotal === 1 ? '' : 's'}.</p></div></div>
+          <div class="adminSentMessageGrid">${sentMessageRows || (!state.adminLoading ? '<p class="adminEmpty">Aún no se han enviado mensajes directos.</p>' : '')}</div>
+        </section>
       </section>
       <section class="adminReviews" aria-labelledby="adminReviewsTitle" ${state.adminSection === 'reviews' ? '' : 'hidden'}>
         <div class="adminDirectoryHead"><div><h2 id="adminReviewsTitle">Calificaciones de cursos</h2><p>Aprueba o declina cada experiencia antes de publicarla.</p></div></div>

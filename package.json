@@ -1,6 +1,6 @@
 {
   "name": "qavance",
-  "version": "0.25.1",
+  "version": "0.26.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,6 +11,9 @@
     "test:verified-time": "node tools/verified-study-sessions-unit.mjs",
     "test:verified-assessment": "node tools/generate-assessment-registry.mjs --check supabase/migrations/20260828190028_assessment_registry_v1.sql && node tools/verified-assessment-unit.mjs",
     "test:authoritative-progress": "node tools/generate-learning-requirements.mjs --check supabase/migrations/20260828190048_authoritative_learning_aggregates.sql && node tools/authoritative-progress-unit.mjs",
+    "test:progress-reliability": "node tools/progress-reliability-unit.mjs",
+    "test:progress-reliability:db": "npx --yes supabase@2.116.0 test db --local supabase/tests/progress_reliability_admin_messages_test.sql",
+    "test:progress-reliability:e2e": "node tools/progress-reliability-smoke.mjs",
     "test:legacy-transition": "node tools/legacy-progress-smoke.mjs",
     "test:routes": "node tools/route-refresh-smoke.mjs",
     "generate:seo": "node tools/generate-seo.mjs",
@@ -19,7 +22,7 @@
     "audio:cache-plan": "node tools/generate-course-audio-cache.mjs",
     "audio:cache-generate": "node tools/generate-course-audio-cache.mjs --generate",
     "translate:syllabus": "node tools/translate-syllabus-content.mjs",
-    "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs && node tools/audio-manifest-unit.mjs && node tools/admin-analytics-unit.mjs && npm run test:verified-time && npm run test:verified-assessment && npm run test:authoritative-progress",
+    "test:unit": "node tools/storage-unit.mjs && node tools/selection-unit.mjs && node tools/audio-manifest-unit.mjs && node tools/admin-analytics-unit.mjs && npm run test:verified-time && npm run test:verified-assessment && npm run test:authoritative-progress && npm run test:progress-reliability",
     "test:content": "node tools/course-content-audit.mjs && node tools/simulator-realism-audit.mjs && node tools/question-bank-sources-audit.mjs",
     "test:integration": "node tools/catalog-smoke.mjs",
     "test:seo": "node tools/seo-smoke.mjs",
