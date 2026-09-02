@@ -129,6 +129,9 @@ jobs:
       - name: Impedir pérdida de historial y avance protegido
         run: npm run test:progress-integrity:db
 
+      - name: Validar elegibilidad de evaluaciones en el servidor
+        run: npm run test:assessment-eligibility:db
+
       - name: Ejecutar asesores de seguridad y rendimiento
         run: >-
           npx --yes supabase@2.116.0 db advisors --local
