@@ -72,6 +72,16 @@ try {
   assert.match(await scrum.innerText(), /Avance verificado 0%/i,
     'El curso bajo el umbral debe conservar el indicador oficial.');
 
+  await ctfl.getByRole('link', { name: /Continuar curso/i }).click();
+  await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
+  const dashboard = page.locator('.card').filter({ hasText: 'Panel de estudio' }).first();
+  assert.match(await dashboard.innerText(), /Avance verificado\s+0%/i,
+    'El panel del curso debe presentar el avance verificado como métrica oficial.');
+  assert.match(await dashboard.innerText(), /Histórico conservado\s+38%/i,
+    'El panel del curso debe separar claramente el histórico conservado.');
+  assert.match(await dashboard.innerText(), /no modifica el avance oficial/i,
+    'El histórico debe explicar que no altera el avance oficial.');
+
   console.log('Legacy progress smoke OK: history >10% is preserved, labelled and never grants official eligibility.');
 } finally {
   await browser.close();

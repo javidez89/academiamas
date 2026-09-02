@@ -147,6 +147,6 @@ window.ACADEMY_CATALOG = Object.freeze([
     generatedAt: '2026-07-31T00:00:00-05:00',
     family: 'CertiProf',
     areas: Object.freeze(['cybersecurity']),
-    tags: Object.freeze(['Cybersecurity', 'Concientizacion', 'CAPC', 'CertiProf', 'Gratis'])
+    tags: Object.freeze(['Cybersecurity', 'Concientización', 'CAPC', 'CertiProf', 'Gratis'])
   })
 ]);

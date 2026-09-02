@@ -26,9 +26,9 @@
   const COMMUNITY_ACTIVITY_REFRESH_MS = 15_000;
   const LEARNING_ACTIVITY_HEARTBEAT_MS = 30_000;
   const DEFAULT_PRACTICE_FILTER = Object.freeze({
-    chapter: '',
-    k: '',
-    lo: '',
+    chapter: 'all',
+    k: 'all',
+    lo: 'all',
     count: 20,
     mode: 'study',
     configured: false
@@ -61,8 +61,8 @@
     Object.freeze({
       key: 'cybersecurity',
       name: 'Ciberseguridad',
-      description: 'Concientizacion, amenazas, controles, identidad, incidentes, politicas y cumplimiento.',
-      steps: Object.freeze(['Awareness', 'Controles basicos', 'Incidentes y cumplimiento'])
+      description: 'Concientización, amenazas, controles, identidad, incidentes, políticas y cumplimiento.',
+      steps: Object.freeze(['Awareness', 'Controles básicos', 'Incidentes y cumplimiento'])
     })
   ]);
 
@@ -659,6 +659,7 @@
       return;
     }
     if (authenticated && state.view === 'authGate' && authGateRequest) {
+      await refreshLearningSnapshot();
       await setCourse(authGateRequest.key, authGateRequest.options);
       return;
     }
@@ -864,6 +865,14 @@
           updateHash: false
         });
         break;
+      case 'enroll-course':
+        await setCourse(actionTarget.dataset.course, {
+          view: actionTarget.dataset.courseView || 'dashboard',
+          chapter: Number(actionTarget.dataset.courseChapter) || null,
+          enroll: true,
+          updateHash: false
+        });
+        break;
       case 'cancel-enrollment':
         await cancelEnrollment(actionTarget.dataset.course);
         break;
@@ -871,7 +880,7 @@
         await deleteEnrollment(actionTarget.dataset.course);
         break;
       case 'reactivate-enrollment':
-        await setCourse(actionTarget.dataset.course);
+        await setCourse(actionTarget.dataset.course, { enroll: true });
         break;
       case 'filter-courses':
         state.catalogFilter = learningRoute(actionTarget.dataset.filter)
@@ -1849,6 +1858,13 @@
       return false;
     }
 
+    const currentEnrollment = enrollmentForCourse(normalizedKey);
+    const hasActiveEnrollment = Boolean(currentEnrollment && currentEnrollment.status !== 'cancelled');
+    if (!hasActiveEnrollment && options.enroll !== true) {
+      showCourseAuthGate(normalizedKey, options);
+      return false;
+    }
+
     persistStudyTime();
     stopStudyTimer();
     clearRuntimeTimers();
@@ -1856,7 +1872,9 @@
     try {
       loadedCourse = await ensureCourseLoaded(normalizedKey);
       const nextStorageKey = loadedCourse.meta?.storageKey || `academy_${normalizedKey}_progress`;
-      const enrollment = await Cloud.enroll(normalizedKey, estimatedCourseHours(loadedCourse));
+      const enrollment = hasActiveEnrollment
+        ? currentEnrollment
+        : await Cloud.enroll(normalizedKey, estimatedCourseHours(loadedCourse));
       const localProgress = Storage.getProgress(nextStorageKey);
       const cloudProgress = await Cloud.loadProgress(normalizedKey);
       const mergedProgress = Cloud.mergeProgress(localProgress, cloudProgress);
@@ -2203,13 +2221,39 @@
     updateDocumentMetadata();
   }
 
+  function renderCoursePageHeading() {
+    const labels = {
+      study: 'Syllabus y capítulos',
+      objectives: 'Objetivos de aprendizaje',
+      practice: 'Práctica personalizada',
+      exam: 'Simulacro',
+      finalExam: 'Examen final',
+      k3lab: 'Laboratorio K3',
+      flashcards: 'Flashcards',
+      analytics: 'Estadísticas y refuerzo'
+    };
+    let label = labels[state.view] || 'Curso';
+    if (state.view === 'study' && state.studyChapter) {
+      const chapter = course?.chapters?.find((item) => Number(item.id) === Number(state.studyChapter));
+      label = chapter ? `Capítulo ${chapter.id}: ${chapter.title}` : label;
+    }
+    return `<header class="coursePageHeading">
+      <span class="sectionKicker">${h(course?.meta?.code || activeCourseKey.toUpperCase())}</span>
+      <h1>${h(label)}</h1>
+      <p>${h(courseLabel())}</p>
+    </header>`;
+  }
+
   function render() {
     if (!course && !PUBLIC_VIEWS.has(state.view) && state.view !== 'authGate') return;
     updateCourseUi();
     const renderer = VIEW_RENDERERS[state.view] || VIEW_RENDERERS.home;
 
     try {
-      const renderedHtml = renderer();
+      let renderedHtml = renderer();
+      if (!PUBLIC_VIEWS.has(state.view) && !['authGate', 'dashboard'].includes(state.view)) {
+        renderedHtml = `${renderCoursePageHeading()}${renderedHtml}`;
+      }
       const staticHome = state.view === 'home' ? dom.app.querySelector('[data-static-home]') : null;
       const currentHomeTitle = state.view === 'home' ? $('homeMainTitle') : null;
       if (staticHome) {
@@ -2941,7 +2985,7 @@
       const progress = courseProgressDetails(key, item);
       const best = Math.max(0, Math.min(100, number(progress.best, 0)));
 
-      return `<a class="availableCourseCard route-${h(routeKey)}" href="${h(coursePath(key))}" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}" aria-label="Entrar al curso ${h(meta.name || key)}">
+      return `<a class="availableCourseCard route-${h(routeKey)}" href="${h(coursePath(key))}" role="button" tabindex="0" data-action="select-course" data-course="${h(key)}" aria-label="Ver el curso ${h(meta.name || key)}">
         <div class="courseCardTop">
           <span class="statusDot">${catalog.access === 'free' ? 'Gratis' : 'Premium'}</span>
           <strong>${h(publicVersion)}</strong>
@@ -2964,7 +3008,7 @@
           <span>Aprueba ${h(pass)}</span>
           <span>Mejor ${best}%</span>
         </div>
-        <span class="courseEnter">Entrar al curso</span>
+        <span class="courseEnter">Ver curso</span>
       </a>`;
     }).join('');
   }
@@ -2992,7 +3036,7 @@
         <b>Examen CertiProf</b>
       </div>
       <div class="freeCertExamActions">
-        <a class="btn secondary" href="${h(coursePath(exam.courseKey))}" data-action="select-course" data-course="${h(exam.courseKey)}">Entrar al curso</a>
+        <a class="btn secondary" href="${h(coursePath(exam.courseKey))}" data-action="select-course" data-course="${h(exam.courseKey)}">Ver curso</a>
         <a class="btn freeCertLink" href="${h(exam.examUrl)}" target="_blank" rel="noopener noreferrer">Ir al examen</a>
       </div>
     </article>`).join('');
@@ -3003,7 +3047,7 @@
       <div class="freeCertCopy">
         <span class="freeCertKicker">CertiProf Open</span>
         <h2 id="freeCertTitle">Cursos gratis con examen gratuito</h2>
-        <p>Estas tres rutas quedan destacadas como preparacion gratuita en QAvance, con acceso directo al examen abierto de CertiProf. La disponibilidad y emision del certificado se confirman en CertiProf.</p>
+        <p>Estas tres rutas quedan destacadas como preparación gratuita en QAvance, con acceso directo al examen abierto de CertiProf. La disponibilidad y emisión del certificado se confirman en CertiProf.</p>
       </div>
       <div class="freeCertCards">${renderFreeCertCards()}</div>
     </section>`;
@@ -3042,7 +3086,7 @@
                 <b>${courseChapterCount(item)} capítulos</b>
                 <b>${courseObjectiveCount(item)} LO</b>
               </div>
-              <a class="btn" href="${h(coursePath(key))}" data-action="select-course" data-course="${h(key)}" aria-label="Entrar al curso ${h(meta.name || key)}">Entrar al curso</a>
+              <a class="btn" href="${h(coursePath(key))}" data-action="select-course" data-course="${h(key)}" aria-label="Ver el curso ${h(meta.name || key)}">Ver curso</a>
             </div>
           </article>`;
         }).join('')}
@@ -3187,12 +3231,16 @@
     const blueprint = entry.blueprint || {};
     const authenticated = Auth?.isAuthenticated?.();
     const error = state.authGateError;
+    const previousEnrollment = enrollmentForCourse(activeCourseKey);
+    const isReactivation = previousEnrollment?.status === 'cancelled';
+    const requestedView = authGateRequest?.options?.view || 'dashboard';
+    const requestedChapter = authGateRequest?.options?.chapter || '';
 
     return `<div class="publicHome publicPage courseAuthPage">
       <section class="courseAuthGate" aria-labelledby="courseAuthTitle">
         <div class="courseAuthSummary">
           <span class="sectionKicker">${h(meta.code || activeCourseKey.toUpperCase())}</span>
-          <h2 id="courseAuthTitle">${h(meta.name || 'Curso QAvance')}</h2>
+          <h1 id="courseAuthTitle">${h(meta.name || 'Curso QAvance')}</h1>
           <p>${h(meta.subtitle || 'Ruta de aprendizaje disponible en QAvance.')}</p>
           <div class="certBadgeLine">
             <span>${number(counts.chapters)} capítulos</span>
@@ -3203,14 +3251,18 @@
         </div>
         <div class="courseAuthAction">
           <span class="authLock" aria-hidden="true">G</span>
-          <h3>${authenticated ? 'Conecta tu matrícula' : 'Inicia sesión para entrar'}</h3>
+          <h2>${authenticated ? (isReactivation ? 'Reactiva este curso' : 'Inscríbete para comenzar') : 'Inicia sesión para entrar'}</h2>
           <p>${authenticated
-            ? 'Necesitamos conectar este curso con tu cuenta antes de abrir el contenido.'
+            ? (isReactivation
+              ? 'Tu avance anterior se conserva. Al reactivar el curso podrás continuar desde tu cuenta.'
+              : 'Revisa la información del curso y confirma tu inscripción. Solo entonces se agregará a Mi cuenta y comenzará a registrar avance.')
             : 'El acceso al curso requiere una cuenta de Google. Tu matrícula, avance y simulacros quedarán guardados en la nube.'}</p>
           ${error ? `<div class="badbox">${h(error)}</div>` : ''}
           <div class="btnrow">
             ${authenticated
-              ? `<button class="btn" type="button" data-action="retry-course" data-course="${h(activeCourseKey)}" data-course-view="${h(authGateRequest?.options?.view || 'dashboard')}">Intentar nuevamente</button>`
+              ? error
+                ? `<button class="btn" type="button" data-action="retry-course" data-course="${h(activeCourseKey)}" data-course-view="${h(requestedView)}">Intentar nuevamente</button>`
+                : `<button class="btn" type="button" data-action="enroll-course" data-course="${h(activeCourseKey)}" data-course-view="${h(requestedView)}" data-course-chapter="${h(requestedChapter)}">${isReactivation ? 'Reactivar curso' : 'Inscribirme al curso'}</button>`
               : '<button class="btn" type="button" data-action="sign-in-google">Iniciar sesión</button>'}
             <a class="btn secondary" href="${h(publicPath('courses'))}" data-view="courses">Volver a cursos</a>
           </div>
@@ -4431,7 +4483,7 @@
       : `<button class="courseAction courseFinalExamAction locked" type="button" disabled aria-disabled="true"><b>🎓 Examen final</b><span class="small">Se habilita al 95% verificable · actual ${verifiedProgressPercent(details)}%</span></button>`;
     return `<div class="courseHero">
       <span class="pill">${h(course.meta?.code || activeCourseKey.toUpperCase())}</span>
-      <h2>${h(courseLabel())}</h2>
+      <h1>${h(courseLabel())}</h1>
       <p>${h(course.meta?.subtitle || 'Curso disponible para estudio.')}</p>
       <div class="certBadgeLine">
         <span>${course.chapters.length} capítulos</span>
@@ -4458,6 +4510,7 @@
     const best = attempts.length ? Math.max(...attempts.map((attempt) => number(attempt.scorePct))) : 0;
     const last = attempts.at(-1);
     const details = courseProgressDetails(activeCourseKey, course);
+    const officialProgress = verifiedProgressPercent(details);
     const weak = Object.entries(progress.byLo || {})
       .filter(([, item]) => number(item.bad) > 0)
       .sort((left, right) => number(right[1].bad) - number(left[1].bad))
@@ -4466,13 +4519,18 @@
     return `${renderCourseIntro()}<div class="card">
       <h2>Panel de estudio · ${h(courseLabel())}</h2>
       <div class="grid3">
-        <div class="metric"><span>Avance del curso</span><strong>${details.progressPercent}%</strong></div>
-        <div class="metric"><span>Dominio real</span><strong>${details.masteryPercent}%</strong><small>Capítulos ${details.chapterDomainAverage}% · examen final ${details.finalExamScore}%</small></div>
+        <div class="metric"><span>Avance verificado</span><strong>${officialProgress}%</strong><small>Actividad confirmada por QAvance</small></div>
+        ${details.hasUnverifiedHistory ? `<div class="metric historicalMetric"><span>Histórico conservado</span><strong>${details.progressPercent}%</strong><small>Referencia anterior · no modifica el avance oficial</small></div>` : ''}
+        <div class="metric"><span>Dominio verificado</span><strong>${details.masteryPercent}%</strong><small>Capítulos ${details.chapterDomainAverage}% · examen final ${details.finalExamScore}%</small></div>
         <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(details.studySeconds))}</strong></div>
         <div class="metric"><span>Mejor simulacro</span><strong>${best}%</strong></div>
         <div class="metric"><span>Examen final</span><strong>${details.finalExamPassed ? 'Aprobado' : details.finalExamEligible ? 'Habilitado' : `Bloqueado · ${FINAL_EXAM_UNLOCK_PROGRESS}%`}</strong></div>
       </div>
-      <div class="progressbar accountCourseProgress" aria-label="Avance del curso"><div style="width:${details.progressPercent}%"></div></div>
+      <div class="courseProgressStatus">
+        <div><span>Avance oficial</span><strong>${officialProgress}%</strong></div>
+        <div class="progressbar accountCourseProgress" aria-label="Avance oficial verificado: ${officialProgress}%"><div style="width:${officialProgress}%"></div></div>
+        ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Tu histórico de ${details.progressPercent}% permanece protegido y visible, pero no se presenta como avance oficial.</p>` : ''}
+      </div>
       <div class="okbox"><b>Ruta recomendada:</b> 1) estudia cada capítulo → 2) practica por LO → 3) refuerza errores → 4) realiza simulacros → 5) presenta el examen final.</div>
       ${last ? `<p><b>Último intento:</b> ${number(last.correct)}/${number(last.total)} (${number(last.scorePct)}%) · ${h(formatDate(last.date))}</p>` : ''}
       <section class="weakTopicsPanel" aria-labelledby="weakTopicsTitle">
@@ -4708,13 +4766,18 @@
     const icon = status === 'playing' ? 'Ⅱ' : '🔊';
     const segmentStatus = active && narrationState.chunks?.length > 1 ? ` · parte ${narrationState.chunkIndex + 1} de ${narrationState.chunks.length}` : '';
     const timeline = narrationTimelineSnapshot(contentId);
+    const positionLabel = String(label || 'la narración')
+      .replace(/^el\s+/i, 'del ')
+      .replace(/^la\s+/i, 'de la ')
+      .replace(/^los\s+/i, 'de los ')
+      .replace(/^las\s+/i, 'de las ');
     return `<div class="narrationControls" data-narration-controls="${h(contentId)}">
       <button class="narrationPrimary" type="button" data-action="toggle-narration" data-narration-id="${h(contentId)}" data-narration-label="${h(label)}" aria-label="${h(primaryLabel)} ${h(label)}" ${status === 'loading' ? 'disabled' : ''}><span class="narrationIcon" aria-hidden="true">${icon}</span><span class="narrationButtonText">${h(primaryLabel)}</span></button>
       <button class="narrationIconButton" type="button" data-action="repeat-narration" aria-label="Repetir narración" title="Repetir" ${active && narrationState.text ? '' : 'disabled'}>↻</button>
       <div class="narrationSpeed" role="group" aria-label="Velocidad de narración">${[0.75, 1, 1.25].map((speed) => `<button type="button" data-action="narration-speed" data-speed="${speed}" aria-pressed="${narrationState.speed === speed}">${speed}x</button>`).join('')}</div>
       <span class="narrationStatus" aria-live="polite">${status === 'loading' ? `Preparando audio${segmentStatus}...` : active && narrationState.source === 'device' ? 'Voz del dispositivo' : active && narrationState.source === 'cloud' ? `Voz natural QAvance${segmentStatus}` : 'Disponible en texto y audio'}</span>
       <div class="narrationTimeline">
-        <input type="range" min="0" max="${timeline.total || 1}" step="0.1" value="${timeline.current}" data-narration-seek="${h(contentId)}" aria-label="Posición de ${h(label)}" aria-valuetext="${h(formatNarrationTime(timeline.current))} de ${h(formatNarrationTime(timeline.total))}" ${timeline.enabled ? '' : 'disabled'}>
+        <input type="range" min="0" max="${timeline.total || 1}" step="0.1" value="${timeline.current}" data-narration-seek="${h(contentId)}" aria-label="Posición ${h(positionLabel)}" aria-valuetext="${h(formatNarrationTime(timeline.current))} de ${h(formatNarrationTime(timeline.total))}" ${timeline.enabled ? '' : 'disabled'}>
         <div class="narrationTimes" aria-hidden="true"><span data-narration-current>${h(formatNarrationTime(timeline.current))}</span><span data-narration-duration>${h(formatNarrationTime(timeline.total))}</span></div>
       </div>
     </div>`;
@@ -5393,11 +5456,11 @@
     return `<div class="card"><h2>Práctica personalizada</h2>
       ${emptyState}
       <div class="grid3 practiceFormGrid">
-        <div><label for="fChapter">Capítulo</label><select id="fChapter"><option value=""${selectedAttr('', filter.chapter)}>Selecciona una opción</option><option value="all"${selectedAttr('all', filter.chapter)}>Todos los capítulos</option>${chapterOptions}</select></div>
-        <div><label for="fK">Nivel K</label><select id="fK"><option value=""${selectedAttr('', filter.k)}>Cualquier nivel</option><option value="all"${selectedAttr('all', filter.k)}>Todos los niveles</option>${kOptions}</select></div>
+        <div><label for="fChapter">Capítulo</label><select id="fChapter"><option value="all"${selectedAttr('all', filter.chapter)}>Todos los capítulos</option>${chapterOptions}</select></div>
+        <div><label for="fK">Nivel K</label><select id="fK"><option value="all"${selectedAttr('all', filter.k)}>Todos los niveles</option>${kOptions}</select></div>
         <div><label for="fCount">Cantidad</label><select id="fCount">${countSelectOptions}</select></div>
       </div>
-      <div class="practiceLoControl"><label for="fLo">Objetivo de aprendizaje</label><select id="fLo"><option value=""${selectedAttr('', filter.lo)}>Cualquier objetivo</option><option value="all"${selectedAttr('all', filter.lo)}>Todos los objetivos</option>${objectiveOptions}</select></div>
+      <div class="practiceLoControl"><label for="fLo">Objetivo de aprendizaje</label><select id="fLo"><option value="all"${selectedAttr('all', filter.lo)}>Todos los objetivos</option>${objectiveOptions}</select></div>
       <div class="btnrow practiceActionRow"><button class="btn" type="button" data-action="practice-filters" data-mode="study">Comenzar práctica con retroalimentación</button></div>
     </div><div id="sessionHost"></div>`;
   }
@@ -5827,7 +5890,7 @@
     return `<div class="card"><h2>Flashcards de glosario, fórmulas y trampas</h2>
       <div class="grid3"><div><label for="flashFilter">Filtrar capítulo</label><select id="flashFilter"><option value="all" ${state.flashFilter === 'all' ? 'selected' : ''}>Todos</option>${chapterOptions}</select></div><div class="metric"><span>Tarjetas visibles</span><strong>${list.length}</strong></div><div class="metric"><span>Actual</span><strong>${state.flashIndex + 1}/${list.length}</strong></div></div>
       <div class="flash" role="button" tabindex="0" data-action="flash-toggle"><div class="front">${h(flashcard.front)}</div><div>${flashcard.kind ? `<span class="pill">${h(flashcard.kind)}</span>` : ''}<span class="pill">C${number(flashcard.chapter)}</span>${flashcard.lo ? `<span class="pill">${h(flashcard.lo)}</span>` : ''}</div>
-        ${state.flashShow ? `<div class="back"><b>Significado / explicación:</b><br>${h(flashcard.meaning || flashcard.back)}${flashcard.back && flashcard.meaning && flashcard.back !== flashcard.meaning ? `<br><br>${h(flashcard.back)}` : ''}${flashcard.hint ? `<br><br><b>Pista:</b> ${h(flashcard.hint)}` : ''}</div>` : '<p class="small">Clic para ver significado y explicación</p>'}
+        ${state.flashShow ? `<div class="back"><b>Significado / explicación:</b><br>${h(flashcard.meaning || flashcard.back)}${flashcard.back && flashcard.meaning && flashcard.back !== flashcard.meaning ? `<br><br>${h(flashcard.back)}` : ''}${flashcard.hint ? `<br><br><b>Pista:</b> ${h(flashcard.hint)}` : ''}</div>` : '<p class="small">Mostrar respuesta para ver el significado y la explicación</p>'}
       </div>
       <div class="btnrow"><button class="btn secondary" type="button" data-action="flash-previous">Anterior</button><button class="btn" type="button" data-action="flash-next">Siguiente</button><button class="btn secondary" type="button" data-action="flash-random">Aleatoria</button></div>
     </div>`;

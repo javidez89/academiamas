@@ -31,6 +31,7 @@ try {
   for (const entry of catalog) {
     const key = encodeURIComponent(entry.key);
     await page.goto(`${BASE_URL}/curso/${key}/`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Inscribirme al curso/i }).click();
     await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
 
     const loaded = await page.evaluate((courseKey) => {

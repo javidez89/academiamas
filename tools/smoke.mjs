@@ -35,10 +35,19 @@ try {
   await page.getByRole('navigation', { name: /Menú principal/i }).locator('a', { hasText: 'Cursos' }).click();
   await page.getByRole('heading', { name: /^Cursos disponibles$/i }).waitFor();
 
-  await page.getByRole('button', { name: /Entrar al curso/i }).first().click();
+  await page.getByRole('button', { name: /Ver el curso/i }).first().click();
+  await page.getByRole('heading', { name: /Inscríbete para comenzar/i }).waitFor();
+  await page.getByRole('button', { name: /Inscribirme al curso/i }).click();
   await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
+  assert.equal(await page.locator('main h1').count(), 1, 'El panel del curso debe conservar un único H1 visible.');
+
+  await page.locator('[data-view="flashcards"]').first().click();
+  await page.getByText('Mostrar respuesta para ver el significado y la explicación', { exact: true }).waitFor();
+  assert.equal(await page.locator('main h1').count(), 1, 'Flashcards debe conservar un único H1 contextual.');
 
   await page.getByRole('button', { name: /Practicar/i }).first().click();
+  assert.equal(await page.getByText('Cualquier nivel', { exact: true }).count(), 0, 'La práctica no debe duplicar la opción de todos los niveles.');
+  assert.equal(await page.getByText('Selecciona una opción', { exact: true }).count(), 0, 'La práctica debe iniciar con filtros inclusivos claros.');
   assert.equal(await page.locator('.questionBox').count(), 0, 'La práctica no debe iniciar antes de elegir su configuración.');
   await page.getByRole('button', { name: /Comenzar práctica con retroalimentación/i }).click();
   await page.locator('.questionBox').waitFor();

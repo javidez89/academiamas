@@ -606,7 +606,7 @@ function courseCard(course) {
               <span>${h(counts.questions || 0)} preguntas</span>
               <span>${h(summary[3])}</span>
             </div>
-            <span class="courseEnter">Entrar al curso</span>
+            <span class="courseEnter">Ver curso</span>
           </a>`;
 }
 
@@ -754,7 +754,7 @@ function chapterContent(course, courseData, chapter) {
           <section><h3>Objetivos de aprendizaje</h3><ol class="seoObjectiveList">${objectiveItems}</ol></section>
           ${pitfalls ? `<section><h3>Errores frecuentes</h3><ul>${pitfalls}</ul></section>` : ''}
           ${examples ? `<section><h3>Ejemplos aplicados</h3><ul>${examples}</ul></section>` : ''}
-          <div class="btnrow"><a class="btn" href="${h(coursePath(course.key))}">Entrar al curso</a><a class="btn secondary" href="${h(coursePath(course.key, 'simulacro'))}">Ver simulacro</a></div>
+          <div class="btnrow"><a class="btn" href="${h(coursePath(course.key))}">Ver curso</a><a class="btn secondary" href="${h(coursePath(course.key, 'simulacro'))}">Ver simulacro</a></div>
           ${sourcePanel(course, courseData)}
         </article>`;
 }

@@ -239,6 +239,7 @@ async function validateBrowserRoutes(catalog, courseDataByKey) {
     page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
 
     await page.goto(`${LOCAL_BASE}/curso/${key}/`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Inscribirme al curso/i }).click();
     await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
     assert.equal(new URL(page.url()).pathname, `/curso/${key}/`, 'La ruta limpia del curso cambió inesperadamente.');
     assert.equal(await page.evaluate(() => typeof window.gtag), 'function', 'Google Analytics no inicializó gtag().');

@@ -10,6 +10,7 @@ try {
   await useMockedSupabase(page, MOCK_SESSION);
 
   await page.goto(`${BASE_URL}/curso/ctfl/capitulo/1/`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /Inscribirme al curso/i }).click();
   await page.locator('.chapterReading h2').filter({ hasText: /^Capítulo 1/i }).waitFor();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('.chapterReading h2').filter({ hasText: /^Capítulo 1/i }).waitFor();

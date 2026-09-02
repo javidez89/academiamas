@@ -2,12 +2,13 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
   return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance, mockedSocialSettings }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
+    const persistedEnrollments = JSON.parse(sessionStorage.getItem('__mock_enrollments') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
     const user = activeSession?.user || null;
     const progressByCourse = new Map();
     const state = {
       session: activeSession,
-      enrollments: structuredClone(mockedEnrollments || []).map((item) => ({
+      enrollments: structuredClone(persistedEnrollments || mockedEnrollments || []).map((item) => ({
         verified_study_seconds: 0,
         study_verification_started_at: new Date().toISOString(),
         ...item
@@ -66,6 +67,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       return state.enrollments.find((item) => item.course_key === courseKey) || null;
     }
 
+    function persistEnrollments() {
+      sessionStorage.setItem('__mock_enrollments', JSON.stringify(state.enrollments));
+    }
+
     function ensureEnrollment(courseKey, estimatedHours) {
       let item = enrollment(courseKey);
       if (!item) {
@@ -97,6 +102,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
         item.cancelled_at = null;
         item.estimated_hours = Number(estimatedHours) || item.estimated_hours;
       }
+      persistEnrollments();
       return item;
     }
 
@@ -586,6 +592,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               if (item) {
                 item.status = 'cancelled';
                 item.cancelled_at = new Date().toISOString();
+                persistEnrollments();
               }
               return { data: item ? [structuredClone(item)] : [], error: null };
             }
@@ -595,6 +602,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 return { data: null, error: { code: '55000', message: 'Cancelled enrollment required' } };
               }
               item.hidden_at = new Date().toISOString();
+              persistEnrollments();
               return { data: true, error: null };
             }
             if (name === 'sync_course_activity') {

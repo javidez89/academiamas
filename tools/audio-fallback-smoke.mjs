@@ -44,6 +44,7 @@ try {
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
 
   await page.goto(`${BASE_URL}/curso/ctfl/capitulo/1/`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /Inscribirme al curso/i }).click();
   await page.locator('#chapterDetail').getByRole('heading', { name: /Cap[ií]tulo 1 · Fundamentos de la Prueba/i }).waitFor();
   const expandedMaterial = page.locator('#chapterDetail details.contentDetails').filter({ hasText: 'Material de estudio ampliado' }).first();
   await expandedMaterial.locator(':scope > summary').click();

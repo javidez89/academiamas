@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.24.1] - 2026-08-31
+
+### Changed
+- Consultar la ficha de un curso ya no crea una matrícula: el usuario confirma con “Inscribirme al curso” o reactiva una matrícula cancelada de forma explícita.
+- El panel separa el avance verificado del histórico conservado y explica que este último no modifica el progreso oficial.
+- Las vistas internas incorporan un encabezado principal contextual y los filtros de práctica eliminan opciones redundantes.
+- Flashcards, controles de narración y textos visibles reciben ajustes de accesibilidad, redacción y tildes.
+
+### Security
+- La actualización no modifica matrículas existentes, progreso, sesiones, respuestas, intentos, certificados ni históricos académicos.
+
 ## [v0.24.0] - 2026-08-30
 
 ### Added

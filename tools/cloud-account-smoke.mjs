@@ -16,6 +16,9 @@ try {
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
 
   await page.goto(`${BASE_URL}/curso/ctfl/`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: /Inscríbete para comenzar/i }).waitFor();
+  assert.equal(await page.evaluate(() => window.__supabaseMock?.enrollments?.length), 0, 'Consultar un curso no debe crear una matrícula automática.');
+  await page.getByRole('button', { name: /Inscribirme al curso/i }).click();
   await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
   await page.waitForFunction(() => window.__supabaseMock?.enrollments?.some((item) => (
     item.course_key === 'ctfl' && item.status === 'active'

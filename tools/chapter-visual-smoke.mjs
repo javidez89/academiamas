@@ -27,6 +27,7 @@ async function openFirstChapter(viewport, label, takeScreenshot = false) {
 
   for (const courseKey of COURSES) {
     await page.goto(`${BASE_URL}/curso/${courseKey}/`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Inscribirme al curso/i }).click();
     await page.getByRole('heading', { name: /Panel de estudio/i }).waitFor();
     await page.locator('[data-view="study"]').first().click();
     await page.locator('.chapterCard').first().click();
