@@ -126,6 +126,9 @@ jobs:
       - name: Validar logros no regresivos y mensajería administrativa
         run: npm run test:progress-reliability:db
 
+      - name: Impedir pérdida de historial y avance protegido
+        run: npm run test:progress-integrity:db
+
       - name: Ejecutar asesores de seguridad y rendimiento
         run: >-
           npx --yes supabase@2.116.0 db advisors --local
