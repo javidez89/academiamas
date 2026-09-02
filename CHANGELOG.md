@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.25.1] - 2026-09-02
+
+### Fixed
+- Regenera todas las rutas HTML estáticas con la huella de recursos de la versión de métricas administrativas.
+- Evita que páginas profundas conserven recursos en caché de la versión anterior.
+
 ## [v0.25.0] - 2026-09-02
 
 ### Added
