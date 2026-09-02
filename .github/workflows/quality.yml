@@ -123,6 +123,9 @@ jobs:
       - name: Validar permisos y exactitud de métricas
         run: npm run test:admin-analytics:db
 
+      - name: Validar logros no regresivos y mensajería administrativa
+        run: npm run test:progress-reliability:db
+
       - name: Ejecutar asesores de seguridad y rendimiento
         run: >-
           npx --yes supabase@2.116.0 db advisors --local
@@ -191,6 +194,11 @@ jobs:
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:cloud
+
+      - name: Validar recuperación de respuestas verificadas
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:progress-reliability:e2e
 
       - name: Validar narración local, avance y navegación
         env:
