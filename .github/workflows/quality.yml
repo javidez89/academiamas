@@ -206,6 +206,11 @@ jobs:
           ACADEMIAQA_URL: http://127.0.0.1:8080/
         run: npm run test:progress-reliability:e2e
 
+      - name: Validar claridad y actualización del progreso
+        env:
+          ACADEMIAQA_URL: http://127.0.0.1:8080/
+        run: npm run test:progress-clarity:e2e
+
       - name: Validar narración local, avance y navegación
         env:
           ACADEMIAQA_URL: http://127.0.0.1:8080/

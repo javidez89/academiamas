@@ -2105,36 +2105,89 @@ body.modalOpen{
   margin:14px 0;
 }
 .chapterProgressGrid .metric small{margin-left:4px}
-.studyMasterySummary{
+.courseLearningSummary{
   display:grid;
-  grid-template-columns:minmax(0,1fr) minmax(180px,.75fr);
+  grid-template-columns:repeat(3,minmax(0,1fr));
   gap:12px 22px;
-  align-items:center;
   margin:16px 0 18px;
-  padding:12px 0;
+  padding:14px 0;
   border-top:1px solid #dbe8f6;
   border-bottom:1px solid #dbe8f6;
 }
-.studyMasterySummary span,
-.studyMasterySummary small{
+.courseLearningSummary>div:not(.courseLearningSummaryProgress){
+  min-width:0;
+}
+.courseLearningSummary span,
+.courseLearningSummary small{
   display:block;
   color:#667085;
 }
-.studyMasterySummary span{
+.courseLearningSummary span{
   font-size:.76rem;
   font-weight:900;
   text-transform:uppercase;
 }
-.studyMasterySummary strong{
+.courseLearningSummary strong{
   display:block;
-  margin:2px 0;
-  color:#0c6b45;
+  margin:3px 0;
+  color:#10233f;
   font-size:1.35rem;
 }
-.studyMasterySummary .progressbar{
-  width:100%;
-  margin:0;
+.courseLearningSummaryProgress,
+.courseLearningSummary .historicalProgressNote{
+  grid-column:1/-1;
 }
+.courseLearningSummaryProgress .progressbar{margin:0}
+.chapterAchievementState{
+  display:inline-flex;
+  align-items:center;
+  width:max-content;
+  margin-bottom:8px;
+  border:1px solid #cbd5e1;
+  border-radius:4px;
+  padding:4px 7px;
+  background:#f8fafc;
+  color:#475467;
+  font-size:.72rem;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.chapterAchievementState.progress{
+  border-color:#9ec5f1;
+  background:#eef6ff;
+  color:#174f94;
+}
+.chapterAchievementState.complete{
+  border-color:#86cfaa;
+  background:#eefaf3;
+  color:#08733f;
+}
+.verifiedAnswerStatus{
+  min-height:22px;
+  margin-top:12px;
+  border-left:4px solid #7b8ba1;
+  padding:7px 10px;
+  background:#f4f7fa;
+  color:#43536b;
+  font-size:.86rem;
+  font-weight:800;
+}
+.verifiedAnswerStatus.saving{
+  border-color:#1f66d1;
+  background:#eef6ff;
+  color:#174f94;
+}
+.verifiedAnswerStatus.saved{
+  border-color:#168454;
+  background:#eefaf3;
+  color:#08733f;
+}
+.verifiedAnswerStatus.pending{
+  border-color:#d78800;
+  background:#fff8e8;
+  color:#7a4b00;
+}
+.verifiedAnswerStatus[hidden]{display:none}
 .finalExamMilestone{
   grid-column:1/-1;
   min-height:190px;
@@ -2513,7 +2566,7 @@ body.modalOpen{
   .accountChapterProgressBars,
   .chapterProgressCompare,
   .chapterProgressBars,
-  .studyMasterySummary{
+  .courseLearningSummary{
     grid-template-columns:1fr;
   }
 }

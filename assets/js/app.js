@@ -339,6 +339,7 @@
       pendingAdvance: null,
       examFocus: false,
       questionLocked: false,
+      verifiedAnswerStatus: {},
       flashIndex: 0,
       flashShow: false,
       flashFilter: 'all',
@@ -1808,16 +1809,84 @@
     return verifiedAssessmentStartPromise;
   }
 
+  function verifiedAnswerSignature(selectedIndices) {
+    return [...new Set((Array.isArray(selectedIndices) ? selectedIndices : [])
+      .map((value) => Math.trunc(number(value)))
+      .filter((value) => Number.isInteger(value)))]
+      .sort((left, right) => left - right)
+      .join(',');
+  }
+
+  function updateVerifiedAnswerStatus(questionId, status, message, signature = '', targetState = state) {
+    const normalizedQuestionId = String(questionId || '').trim();
+    if (!normalizedQuestionId) return;
+    targetState.verifiedAnswerStatus[normalizedQuestionId] = { status, message, signature };
+    if (state !== targetState) return;
+    const host = $('verifiedAnswerStatus');
+    if (!host || host.dataset.questionId !== normalizedQuestionId) return;
+    host.className = `verifiedAnswerStatus ${h(status || 'idle')}`;
+    host.textContent = message || '';
+    host.hidden = !message;
+  }
+
+  function verifiedAnswerConfirmation(question, result, dashboardUpdated) {
+    if (!dashboardUpdated) return 'Respuesta guardada en la nube. El resumen se actualizará al abrir nuevamente el curso.';
+    const chapter = chapterProgressDetails(question.chapter);
+    if (chapter.practiceComplete) {
+      return `Respuesta guardada en la nube. Capítulo ${number(question.chapter)} completado: ${number(chapter.uniqueCorrect)}/${number(chapter.questionCount)} preguntas dominadas.`;
+    }
+    const resultLabel = result?.correct === true ? 'Logro confirmado.' : 'Respuesta confirmada.';
+    return `${resultLabel} ${number(chapter.uniqueCorrect)}/${number(chapter.questionCount)} preguntas dominadas en el capítulo ${number(question.chapter)}.`;
+  }
+
   function queueVerifiedAnswer(question, selectedIndices) {
     if (!Auth?.isAuthenticated?.() || !verifiedAssessmentStartPromise || !question?.id || !selectedIndices?.length) {
       return Promise.resolve(null);
     }
+    const signature = verifiedAnswerSignature(selectedIndices);
+    const answerState = state;
+    const answerCourseKey = activeCourseKey;
+    const previousStatus = answerState.verifiedAnswerStatus[question.id];
+    if (previousStatus?.signature === signature && ['saving', 'saved'].includes(previousStatus.status)) {
+      return verifiedAssessmentAnswerChain;
+    }
+    updateVerifiedAnswerStatus(question.id, 'saving', 'Guardando respuesta verificable...', signature, answerState);
     verifiedAssessmentAnswerChain = verifiedAssessmentAnswerChain
       .catch(() => null)
       .then(() => verifiedAssessmentStartPromise)
       .then((attempt) => attempt
         ? Cloud.submitVerifiedAnswer(attempt.attemptId, question.id, selectedIndices)
-        : null);
+        : null)
+      .then(async (result) => {
+        if (!result?.accepted) return result;
+        let dashboardUpdated = false;
+        try {
+          await refreshVerifiedLearningDashboard();
+          dashboardUpdated = true;
+        } catch (error) {
+          console.error(error);
+        }
+        updateVerifiedAnswerStatus(
+          question.id,
+          'saved',
+          state === answerState && activeCourseKey === answerCourseKey
+            ? verifiedAnswerConfirmation(question, result, dashboardUpdated)
+            : 'Respuesta guardada en la nube.',
+          signature,
+          answerState
+        );
+        return result;
+      })
+      .catch((error) => {
+        updateVerifiedAnswerStatus(
+          question.id,
+          'pending',
+          'La respuesta quedó pendiente de sincronización. Se reintentará al continuar cuando vuelva la conexión.',
+          signature,
+          answerState
+        );
+        throw error;
+      });
     return verifiedAssessmentAnswerChain;
   }
 
@@ -2595,6 +2664,7 @@
       progressFloorPercent: number(official.progress_floor_percent),
       calculatedProgressPercent: number(official.calculated_progress_percent),
       completedChapters: number(official.completed_chapters),
+      chapterCount: number(official.chapter_count, officialChapters.length),
       progressRule: official.progress_rule || '',
       historicalProgressPercent: hasUnverifiedHistory ? historicalProgressPercent : 0,
       studySeconds: number(official.study_seconds),
@@ -2602,6 +2672,9 @@
       enrollment: official,
       finalExamPassed: official.final_exam_passed === true,
       finalExamEligible: official.final_exam_eligible === true,
+      finalExamEligibilityReason: official.final_exam_eligibility_reason || '',
+      remainingChapters: number(official.remaining_chapters),
+      simulatorEligible: official.simulator_eligible !== false,
       isEnrolled: official.status !== 'cancelled',
       verified: true,
       hasUnverifiedHistory,
@@ -2613,6 +2686,18 @@
     return details?.verified === true
       ? number(details.verifiedProgressPercent, details.progressPercent)
       : number(details?.progressPercent);
+  }
+
+  function courseChapterCount(details) {
+    return Math.max(0, number(details?.chapterCount, details?.chapters?.length));
+  }
+
+  function chapterAchievementState(chapter) {
+    if (chapter?.practiceComplete) return { key: 'complete', label: 'Completado' };
+    if (number(chapter?.uniqueAnswered) > 0 || number(chapter?.uniqueCorrect) > 0) {
+      return { key: 'progress', label: 'En progreso' };
+    }
+    return { key: 'pending', label: 'Sin iniciar' };
   }
 
   function courseProgressDetails(key, item) {
@@ -3606,14 +3691,17 @@
         && !order.consumed_at
         && ['PENDING', 'APPROVED'].includes(order.status)
       ));
-      const chapterRows = details.chapters.map((chapter) => `<li>
-        <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${number(chapter.uniqueCorrect)}/${number(chapter.questionCount)} preguntas logradas · ${number(chapter.practiceCoverage)}% explorado</span></div>
-        <div><strong>${chapter.practiceComplete ? 'Práctica completada al 100%' : `Dominio acumulado ${chapter.verifiedDomain ?? chapter.domain}%`}</strong><span>${chapter.hasUnverifiedHistory ? `Avance histórico ${chapter.coverage}% · ` : ''}${chapter.studyMinutes}/${chapter.suggestedMinutes} min verificados</span>${chapter.hasUnverifiedHistory ? `<small class="historicalProgressNote">Histórico no verificado · avance oficial protegido ${chapter.verifiedCoverage}%</small>` : ''}</div>
+      const chapterRows = details.chapters.map((chapter) => {
+        const achievementState = chapterAchievementState(chapter);
+        return `<li>
+        <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${number(chapter.uniqueCorrect)}/${number(chapter.questionCount)} preguntas dominadas · ${number(chapter.uniqueAnswered)}/${number(chapter.questionCount)} exploradas</span></div>
+        <div><span class="chapterAchievementState ${achievementState.key}">${achievementState.label}</span><strong>Dominio verificado ${chapter.verifiedDomain ?? chapter.domain}%</strong><span>${chapter.studyMinutes}/${chapter.suggestedMinutes} min verificados</span>${chapter.hasUnverifiedHistory ? `<small class="historicalProgressNote">Histórico no verificado · avance oficial protegido ${chapter.verifiedCoverage}%</small>` : ''}</div>
         <div class="accountChapterProgressBars">
-          <div><span>Avance</span><div class="progressbar" aria-label="Avance del capítulo ${number(chapter.chapterId)}: ${chapter.coverage}%"><div style="width:${chapter.coverage}%"></div></div></div>
-          <div><span>Dominio del capítulo</span><div class="progressbar masteryProgress" aria-label="Dominio del capítulo ${number(chapter.chapterId)}: ${chapter.domain}%"><div style="width:${chapter.domain}%"></div></div></div>
+          <div><span>Preguntas exploradas</span><div class="progressbar" aria-label="Preguntas exploradas del capítulo ${number(chapter.chapterId)}: ${chapter.practiceCoverage}%"><div style="width:${chapter.practiceCoverage}%"></div></div></div>
+          <div><span>Preguntas dominadas</span><div class="progressbar masteryProgress" aria-label="Preguntas dominadas del capítulo ${number(chapter.chapterId)}: ${chapter.verifiedDomain ?? chapter.domain}%"><div style="width:${chapter.verifiedDomain ?? chapter.domain}%"></div></div></div>
         </div>
-      </li>`).join('');
+      </li>`;
+      }).join('');
       return `<article class="accountCourseCard">
         <div class="accountCourseHead">
           <div>
@@ -3625,7 +3713,7 @@
             <strong>${details.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'} ${details.progressPercent}%</strong>
             <span>Dominio verificado ${details.masteryPercent}%</span>
             ${details.hasUnverifiedHistory ? `<small>Avance oficial ${details.verifiedProgressPercent}% · no habilita examen ni constancia</small>` : ''}
-            <small>Capítulos ${details.chapterDomainAverage}% · examen final ${details.finalExamScore}%</small>
+            <small>Capítulos completados ${details.completedChapters}/${courseChapterCount(details)} · examen final ${details.finalExamScore}%</small>
           </div>
         </div>
         <div class="progressbar accountCourseProgress" aria-label="Avance del curso"><div style="width:${details.progressPercent}%"></div></div>
@@ -4828,6 +4916,7 @@
       <div class="grid3">
         <div class="metric"><span>Avance verificado</span><strong>${officialProgress}%</strong><small>Actividad confirmada por QAvance</small></div>
         ${details.hasUnverifiedHistory ? `<div class="metric historicalMetric"><span>Histórico conservado</span><strong>${details.progressPercent}%</strong><small>Referencia anterior · no modifica el avance oficial</small></div>` : ''}
+        <div class="metric"><span>Capítulos completados</span><strong>${details.completedChapters}/${courseChapterCount(details)}</strong><small>Cada capítulo requiere dominar todas sus preguntas</small></div>
         <div class="metric"><span>Dominio verificado</span><strong>${details.masteryPercent}%</strong><small>Capítulos ${details.chapterDomainAverage}% · examen final ${details.finalExamScore}%</small></div>
         <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(details.studySeconds))}</strong></div>
         <div class="metric"><span>Mejor simulacro</span><strong>${best}%</strong></div>
@@ -4938,18 +5027,20 @@
       const objectiveCount = course.objectives.filter((objective) => Number(objective.chapter) === Number(chapter.id)).length;
       const questionCount = questions.filter((question) => Number(question.chapter) === Number(chapter.id)).length;
       const chapterProgress = chapterProgressDetails(chapter.id);
+      const achievementState = chapterAchievementState(chapterProgress);
 
       return `<a class="chapterCard" href="${h(chapterPath(activeCourseKey, chapter.id))}" data-action="open-chapter" data-chapter="${number(chapter.id)}">
+        <span class="chapterAchievementState ${achievementState.key}">${achievementState.label}</span>
         <h3>Capítulo ${number(chapter.id)} · ${h(chapter.title)}</h3>
         <p class="small">Tiempo sugerido: ${number(chapter.minutes)} min · LO: ${objectiveCount} · Preguntas: ${questionCount} · Págs. syllabus: ${h(chapter.completeSyllabusPages || 'N/D')}</p>
         <div class="chapterProgressCompare">
-          <div><span>${chapterProgress.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'}</span><strong>${chapterProgress.coverage}%</strong><small>${chapterProgress.hasUnverifiedHistory ? `Oficial ${chapterProgress.verifiedCoverage}% · ` : ''}${chapterProgress.touched}/${chapterProgress.objectiveCount} LO recorridos</small></div>
-          <div><span>Dominio verificado</span><strong>${chapterProgress.verifiedDomain ?? chapterProgress.domain}%</strong><small>${chapterProgress.uniqueCorrect}/${chapterProgress.questionCount} dominadas · ${chapterProgress.uniqueAnswered} únicas respondidas</small></div>
-          <div><span>Tiempo</span><strong>${chapterProgress.studyMinutes}/${chapterProgress.suggestedMinutes} min</strong><small>estudiados / sugeridos</small></div>
+          <div><span>Preguntas exploradas</span><strong>${chapterProgress.uniqueAnswered}/${chapterProgress.questionCount}</strong><small>${chapterProgress.practiceCoverage}% del banco del capítulo</small></div>
+          <div><span>Preguntas dominadas</span><strong>${chapterProgress.uniqueCorrect}/${chapterProgress.questionCount}</strong><small>Dominio verificado ${chapterProgress.verifiedDomain ?? chapterProgress.domain}%</small></div>
+          <div><span>Tiempo verificado</span><strong>${chapterProgress.studyMinutes} min</strong><small>Sugerido ${chapterProgress.suggestedMinutes} min · no altera el dominio</small></div>
         </div>
         <div class="chapterProgressBars">
-          <div><span>Avance</span><div class="progressbar" aria-label="Avance del capítulo: ${chapterProgress.coverage}%"><div style="width:${chapterProgress.coverage}%"></div></div></div>
-          <div><span>Dominio del capítulo</span><div class="progressbar masteryProgress" aria-label="Dominio del capítulo: ${chapterProgress.domain}%"><div style="width:${chapterProgress.domain}%"></div></div></div>
+          <div><span>Exploración</span><div class="progressbar" aria-label="Preguntas exploradas del capítulo: ${chapterProgress.practiceCoverage}%"><div style="width:${chapterProgress.practiceCoverage}%"></div></div></div>
+          <div><span>Dominio</span><div class="progressbar masteryProgress" aria-label="Preguntas dominadas del capítulo: ${chapterProgress.verifiedDomain ?? chapterProgress.domain}%"><div style="width:${chapterProgress.verifiedDomain ?? chapterProgress.domain}%"></div></div></div>
         </div>
         <p>${h(chapter.summary)}</p><span class="chapterOpenAction">Abrir capítulo</span>
       </a>`;
@@ -4971,9 +5062,12 @@
         </div>`;
 
     return `<div class="card"><h2>Estudiar syllabus por capítulo</h2><p>Cada capítulo abre en su propia ruta e integra lectura, audio, objetivos y práctica.</p>
-      <div class="studyMasterySummary">
-        <div><span>Dominio real del curso</span><strong>${courseDetails.masteryPercent}%</strong><small>Todos los capítulos ${courseDetails.chapterDomainAverage}% · mejor examen final ${courseDetails.finalExamScore}%</small></div>
-        <div class="progressbar masteryProgress" aria-label="Dominio real del curso: ${courseDetails.masteryPercent}%"><div style="width:${courseDetails.masteryPercent}%"></div></div>
+      <div class="courseLearningSummary">
+        <div><span>Avance oficial</span><strong>${verifiedProgressPercent(courseDetails)}%</strong><small>Confirmado por QAvance</small></div>
+        <div><span>Capítulos completados</span><strong>${courseDetails.completedChapters}/${courseChapterCount(courseDetails)}</strong><small>Un capítulo se completa al dominar todas sus preguntas</small></div>
+        <div><span>Dominio verificado</span><strong>${courseDetails.masteryPercent}%</strong><small>Examen final ${courseDetails.finalExamScore}%</small></div>
+        <div class="courseLearningSummaryProgress"><div class="progressbar" aria-label="Avance oficial del curso: ${verifiedProgressPercent(courseDetails)}%"><div style="width:${verifiedProgressPercent(courseDetails)}%"></div></div></div>
+        ${courseDetails.hasUnverifiedHistory ? `<p class="historicalProgressNote">Histórico conservado ${courseDetails.progressPercent}% · avance oficial ${verifiedProgressPercent(courseDetails)}%. El histórico permanece visible y no habilita evaluaciones.</p>` : ''}
       </div>
       <div class="grid2">${cards}${finalExamCard}</div></div><div id="chapterDetail"></div>`;
   }
@@ -5658,6 +5752,7 @@
 
     const objectives = course.objectives.filter((objective) => Number(objective.chapter) === Number(id));
     const progress = chapterProgressDetails(id);
+    const achievementState = chapterAchievementState(progress);
     const rows = objectives.map((objective) => {
       const loProgress = objectiveProgress(objective.lo);
       return `<tr>
@@ -5675,11 +5770,11 @@
 
     host.innerHTML = `<div class="card chapterReading" style="--reading-scale:${readingScale}">
       <a class="chapterBackLink" href="${h(coursePath(activeCourseKey, 'study'))}" data-view="study">Volver al listado de capítulos</a>
-      <div class="chapterHeadingRow"><h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2>${readingSizeControls()}</div>${narrationControls(`chapter-${number(id)}`, `el capítulo ${number(id)}`)}<p class="chapterLead">${h(chapter.summary)}</p>
+      <div class="chapterHeadingRow"><div><span class="chapterAchievementState ${achievementState.key}">${achievementState.label}</span><h2>Capítulo ${number(id)} · ${h(chapter.title)}</h2></div>${readingSizeControls()}</div>${narrationControls(`chapter-${number(id)}`, `el capítulo ${number(id)}`)}<p class="chapterLead">${h(chapter.summary)}</p>
       <div class="grid3 chapterProgressGrid">
-        <div class="metric"><span>Avance</span><strong>${progress.coverage}%</strong><small>${progress.touched}/${progress.objectiveCount} LO recorridos</small></div>
-        <div class="metric"><span>Dominio del capítulo</span><strong>${progress.domain}%</strong><small>${progress.uniqueCorrect}/${progress.questionCount} dominadas · ${progress.uniqueAnswered} únicas respondidas</small></div>
-        <div class="metric"><span>Tiempo estudiado</span><strong>${progress.studyMinutes}/${progress.suggestedMinutes} min</strong><small>estudiados / sugeridos</small></div>
+        <div class="metric"><span>Preguntas exploradas</span><strong>${progress.uniqueAnswered}/${progress.questionCount}</strong><small>${progress.practiceCoverage}% del banco del capítulo</small></div>
+        <div class="metric"><span>Preguntas dominadas</span><strong>${progress.uniqueCorrect}/${progress.questionCount}</strong><small>Dominio verificado ${progress.verifiedDomain ?? progress.domain}%</small></div>
+        <div class="metric"><span>Tiempo verificado</span><strong>${progress.studyMinutes} min</strong><small>Sugerido ${progress.suggestedMinutes} min · se mide por separado</small></div>
       </div>
       <div class="chapterLearningContent">
         <h3>Aprende este capítulo</h3>${(chapter.theorySections || []).map(renderTheorySection).join('')}
@@ -5814,6 +5909,7 @@
     state.mode = filter.mode || 'study';
     state.startTime = Date.now();
     state.questionLocked = false;
+    state.verifiedAnswerStatus = {};
     activateCourseView('practice');
     dom.app.innerHTML = renderPractice();
     renderSession();
@@ -5834,6 +5930,7 @@
 
     const options = state.orders[question.id].map((option, displayIndex) => `<div class="opt ${answered.includes(option.originalIndex) ? 'selected' : ''}" role="button" tabindex="0" data-action="select-option" data-option-index="${option.originalIndex}"><b>${String.fromCharCode(65 + displayIndex)}.</b><span>${h(option.text)}</span></div>`).join('');
     const sessionCardClass = `card sessionCard${state.examFocus ? ' examQuestionCard' : ''}`;
+    const verifiedStatus = state.verifiedAnswerStatus[question.id] || {};
 
     host.innerHTML = `<div class="${sessionCardClass}">
       <div class="qhead"><div><span class="pill">${h(question.id)}</span><span class="pill">C${number(question.chapter)}</span><span class="pill">${h(question.k)}</span><span class="pill">${h(question.lo)}</span><span class="pill">${number(question.points, 1)} pts</span></div><div><b>${state.current + 1}/${state.session.length}</b></div></div>
@@ -5842,6 +5939,7 @@
         <div class="qtitle">${h(question.stem)}</div>
         <p class="small">Tema: ${h(question.topic)} · ${question.multi ? 'Puede tener varias respuestas.' : 'Una respuesta correcta.'}${question.source ? ` · Fuente: ${h(question.source)}` : ''}</p>
         <div id="options">${options}</div><div id="feedback" aria-live="polite"></div>
+        <div id="verifiedAnswerStatus" class="verifiedAnswerStatus ${h(verifiedStatus.status || 'idle')}" role="status" aria-live="polite" data-question-id="${h(question.id)}"${verifiedStatus.message ? '' : ' hidden'}>${h(verifiedStatus.message || '')}</div>
       </div>
       <div class="btnrow sessionActionRow">
         <button class="btn secondary" type="button" data-action="previous-question">Anterior</button>
@@ -6107,6 +6205,7 @@
     state.mode = 'exam';
     state.startTime = Date.now();
     state.questionLocked = false;
+    state.verifiedAnswerStatus = {};
     activateCourseView('exam');
     setExamFocus(true);
     dom.app.innerHTML = renderExam();
@@ -6136,6 +6235,7 @@
     state.mode = 'final-exam';
     state.startTime = Date.now();
     state.questionLocked = false;
+    state.verifiedAnswerStatus = {};
     activateCourseView('finalExam');
     setExamFocus(true);
     dom.app.innerHTML = renderFinalExam();
