@@ -38,7 +38,7 @@ try {
 
   assert.match(result.firstError, /Network request failed/i, 'La primera interrupción debe llegar al llamador.');
   assert.equal(result.queuedBefore, 1, 'La respuesta debe quedar en una cola durable antes de enviarse.');
-  assert.deepEqual(result.flushed, { submitted: 1, remaining: 0 }, 'La cola debe reenviar la respuesta al recuperar conexión.');
+  assert.deepEqual(result.flushed, { submitted: 1, rejected: 0, remaining: 0 }, 'La cola debe reenviar la respuesta al recuperar conexión.');
   assert.equal(result.queuedAfter, 0, 'La respuesta confirmada debe salir de la cola.');
   assert.equal(result.completed.answered_count, 1, 'El intento solo puede cerrarse después de sincronizar la respuesta.');
 

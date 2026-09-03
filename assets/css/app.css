@@ -2187,6 +2187,11 @@ body.modalOpen{
   background:#fff8e8;
   color:#7a4b00;
 }
+.verifiedAnswerStatus.rejected{
+  border-color:#c0392b;
+  background:#fff0ee;
+  color:#7a1b12;
+}
 .verifiedAnswerStatus[hidden]{display:none}
 .finalExamMilestone{
   grid-column:1/-1;

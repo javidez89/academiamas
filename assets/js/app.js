@@ -255,6 +255,7 @@
   let learningActivityGeneration = 0;
   let verifiedAssessmentStartPromise = null;
   let verifiedAssessmentAnswerChain = Promise.resolve();
+  let verifiedAnswerSyncRequest = null;
   let studyTimer = null;
   let lastStudyTickAt = Date.now();
   let lastUserActivityAt = Date.now();
@@ -526,6 +527,57 @@
     }
   }
 
+  async function synchronizePendingVerifiedAnswers({ announce = false } = {}) {
+    if (!Auth?.isAuthenticated?.() || !Cloud?.flushPendingVerifiedAnswers) {
+      return { submitted: 0, rejected: 0, remaining: 0 };
+    }
+    const pendingCount = Cloud?.getPendingVerifiedAnswerCount?.() || 0;
+    if (!pendingCount) return { submitted: 0, rejected: 0, remaining: 0 };
+    if (global.navigator?.onLine === false) {
+      if (announce) notify(`${pendingCount} respuesta${pendingCount === 1 ? '' : 's'} pendiente${pendingCount === 1 ? '' : 's'}. Se sincronizará al recuperar Internet.`, 'warning', 0);
+      return { submitted: 0, rejected: 0, remaining: pendingCount };
+    }
+    if (verifiedAnswerSyncRequest) return verifiedAnswerSyncRequest;
+    if (announce) notify(`Sincronizando ${pendingCount} respuesta${pendingCount === 1 ? '' : 's'} pendiente${pendingCount === 1 ? '' : 's'}...`, 'info', 0);
+
+    verifiedAnswerSyncRequest = (async () => {
+      const result = await Cloud.flushPendingVerifiedAnswers();
+      if (result.submitted > 0) {
+        try {
+          await refreshVerifiedLearningDashboard();
+        } catch (error) {
+          console.warn('La respuesta se sincronizó, pero el resumen se actualizará en la siguiente vista.', error);
+        }
+      }
+      if (result.rejected > 0) {
+        notify(`${result.rejected} respuesta${result.rejected === 1 ? '' : 's'} no ${result.rejected === 1 ? 'pudo' : 'pudieron'} acreditarse porque el intento ya no era válido. Vuelve a responder en una nueva práctica.`, 'error', 10_000);
+      } else if (result.remaining > 0) {
+        notify(`${result.remaining} respuesta${result.remaining === 1 ? '' : 's'} sigue${result.remaining === 1 ? '' : 'n'} pendiente${result.remaining === 1 ? '' : 's'}. Se reintentará al recuperar la conexión.`, 'warning', 0);
+      } else if (result.submitted > 0) {
+        notify(`${result.submitted} respuesta${result.submitted === 1 ? '' : 's'} sincronizada${result.submitted === 1 ? '' : 's'} correctamente.`, 'success', 7_000);
+      }
+      return result;
+    })().catch((error) => {
+      console.warn('Las respuestas pendientes se reintentarán cuando la conexión esté disponible.', error);
+      if (announce) notify('No fue posible sincronizar las respuestas pendientes. Se conservaron en este dispositivo.', 'warning', 0);
+      return { submitted: 0, rejected: 0, remaining: Cloud?.getPendingVerifiedAnswerCount?.() || pendingCount };
+    }).finally(() => {
+      verifiedAnswerSyncRequest = null;
+    });
+    return verifiedAnswerSyncRequest;
+  }
+
+  function handleConnectionRestored() {
+    synchronizePendingVerifiedAnswers({ announce: true });
+  }
+
+  function handleConnectionLost() {
+    const pendingCount = Cloud?.getPendingVerifiedAnswerCount?.() || 0;
+    if (pendingCount > 0) {
+      notify(`${pendingCount} respuesta${pendingCount === 1 ? '' : 's'} protegida${pendingCount === 1 ? '' : 's'} en este dispositivo. Se sincronizará al recuperar Internet.`, 'warning', 0);
+    }
+  }
+
   function showFatalError(error) {
     console.error(error);
     if (!dom.app) return;
@@ -628,6 +680,8 @@
     });
     document.addEventListener('visibilitychange', handleStudyVisibilityChange);
     global.addEventListener('pagehide', handlePageHide);
+    global.addEventListener('online', handleConnectionRestored);
+    global.addEventListener('offline', handleConnectionLost);
     global.addEventListener('hashchange', handleLocationRoute);
     global.addEventListener('popstate', handleLocationRoute);
     global.addEventListener('scroll', syncBackToTop, { passive: true });
@@ -678,11 +732,7 @@
       }
       return;
     }
-    try {
-      await Cloud?.flushPendingVerifiedAnswers?.();
-    } catch (error) {
-      console.warn('Las respuestas pendientes se reintentarán cuando la conexión esté disponible.', error);
-    }
+    await synchronizePendingVerifiedAnswers({ announce: true });
     if (state.view === 'account') {
       if (authenticated) {
         await refreshAccount();
@@ -1878,10 +1928,13 @@
         return result;
       })
       .catch((error) => {
+        const terminal = error?.academySyncTerminal === true;
         updateVerifiedAnswerStatus(
           question.id,
-          'pending',
-          'La respuesta quedó pendiente de sincronización. Se reintentará al continuar cuando vuelva la conexión.',
+          terminal ? 'rejected' : 'pending',
+          terminal
+            ? 'La respuesta no pudo acreditarse porque el intento ya no era válido. Inicia una nueva práctica para responderla.'
+            : 'La respuesta quedó pendiente de sincronización. Se reintentará automáticamente cuando vuelva la conexión.',
           signature,
           answerState
         );
@@ -6370,6 +6423,7 @@
       }
 
       if (initialRoute.view === 'account') await handleCertificatePaymentReturn();
+      await synchronizePendingVerifiedAnswers({ announce: true });
 
       scrollToAnchor(initialRoute.anchor);
       try {

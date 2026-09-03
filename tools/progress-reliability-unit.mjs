@@ -29,6 +29,14 @@ assert.match(cloud, /rememberPendingVerifiedAnswer[\s\S]*client\.rpc\('submit_ve
   'La respuesta debe guardarse localmente antes de enviarse al servidor.');
 assert.match(cloud, /completeVerifiedAssessment[\s\S]*flushPendingVerifiedAnswers\(\)[\s\S]*pending\.remaining > 0/i,
   'No se debe cerrar una evaluación mientras haya respuestas sin sincronizar.');
+assert.match(cloud, /pendingVerifiedAnswerFlush[\s\S]*performPendingVerifiedAnswerFlush\(\)[\s\S]*finally/i,
+  'Los reintentos simultáneos deben compartir una única ejecución de la cola.');
+assert.doesNotMatch(cloud, /items\.slice\(-500\)/i,
+  'La cola no debe descartar silenciosamente respuestas antiguas por un límite local arbitrario.');
+assert.match(app, /addEventListener\('online',\s*handleConnectionRestored\)/i,
+  'La aplicación debe reintentar las respuestas pendientes al recuperar Internet.');
+assert.match(app, /bootstrap[\s\S]*synchronizePendingVerifiedAnswers\(\{ announce: true \}\)/i,
+  'La aplicación debe recuperar respuestas pendientes después de F5 o reapertura.');
 assert.match(app, /ADMIN_DRAFTS_KEY[\s\S]*sessionStorage/i,
   'Los borradores administrativos deben sobrevivir a renderizados y recargas de la pestaña.');
 assert.match(app, /data-admin-direct-message-form/i,

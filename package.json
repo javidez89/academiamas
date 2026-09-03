@@ -17,6 +17,7 @@
     "test:assessment-eligibility": "node tools/assessment-eligibility-unit.mjs",
     "test:assessment-eligibility:db": "npx --yes supabase@2.116.0 test db --local supabase/tests/assessment_server_eligibility_v3_test.sql",
     "test:progress-reliability:e2e": "node tools/progress-reliability-smoke.mjs",
+    "test:progress-recovery:e2e": "node tools/progress-recovery-smoke.mjs",
     "test:progress-clarity:e2e": "node tools/progress-clarity-smoke.mjs",
     "test:legacy-transition": "node tools/legacy-progress-smoke.mjs",
     "test:routes": "node tools/route-refresh-smoke.mjs",

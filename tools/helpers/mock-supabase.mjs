@@ -1,8 +1,9 @@
 export function installMockSupabaseScript({ session, enrollments = [], admin = false, adminUsers = [], adminSummary = {}, adminAnalytics = {}, certificates = [], certificateOrders = [], adminCertificates = [], contactMessages = [], adminUserMessages = [], courseReviews = [], audioFailure = false, publicActivitySummary = {}, verifiedCourses = [] }) {
-  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedAdminAnalytics, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedAdminUserMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance, mockedSocialSettings, mockedVerifiedAnswerFailures }) => {
+  return ({ mockedSession, mockedEnrollments, mockedAdmin, mockedAdminUsers, mockedAdminSummary, mockedAdminAnalytics, mockedCertificates, mockedCertificateOrders, mockedAdminCertificates, mockedContactMessages, mockedAdminUserMessages, mockedCourseReviews, mockedAudioFailure, mockedPublicActivitySummary, mockedVerifiedCourses, mockedLegacyProgress, mockedAccessStatus, mockedAdminGovernance, mockedSocialSettings, mockedVerifiedAnswerFailures, mockedVerifiedAnswerTerminalFailures }) => {
     const persistedSignOut = localStorage.getItem('__mock_signed_out') === '1';
     const persistedSignOutCall = JSON.parse(localStorage.getItem('__mock_sign_out_call') || 'null');
     const persistedEnrollments = JSON.parse(sessionStorage.getItem('__mock_enrollments') || 'null');
+    const persistedVerifiedAssessmentHistory = JSON.parse(sessionStorage.getItem('__mock_verified_assessments') || 'null');
     const activeSession = persistedSignOut ? null : mockedSession;
     const user = activeSession?.user || null;
     const progressByCourse = new Map();
@@ -33,11 +34,12 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
       learningActivity: null,
       learningActivityHistory: [],
       learningActivityCalls: [],
-      verifiedAssessment: null,
-      verifiedAssessmentHistory: [],
+      verifiedAssessment: structuredClone(persistedVerifiedAssessmentHistory || []).findLast((item) => item.status === 'active') || null,
+      verifiedAssessmentHistory: structuredClone(persistedVerifiedAssessmentHistory || []),
       verifiedAssessmentCalls: [],
       practiceAchievements: new Set(),
       verifiedAnswerFailures: Math.max(0, Number(mockedVerifiedAnswerFailures) || 0),
+      verifiedAnswerTerminalFailures: Math.max(0, Number(mockedVerifiedAnswerTerminalFailures) || 0),
       verifiedCourseOverrides: new Map((mockedVerifiedCourses || []).map((item) => [item.course_key, structuredClone(item)])),
       legacyProgress: structuredClone(mockedLegacyProgress || []),
       rpcCounts: {},
@@ -73,6 +75,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
 
     function persistEnrollments() {
       sessionStorage.setItem('__mock_enrollments', JSON.stringify(state.enrollments));
+    }
+
+    function persistVerifiedAssessments() {
+      sessionStorage.setItem('__mock_verified_assessments', JSON.stringify(state.verifiedAssessmentHistory));
     }
 
     function ensureEnrollment(courseKey, estimatedHours) {
@@ -688,6 +694,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
               };
               state.verifiedAssessment = attempt;
               state.verifiedAssessmentHistory.push(attempt);
+              persistVerifiedAssessments();
               state.verifiedAssessmentCalls.push({ name, args: structuredClone(args), attemptId: attempt.id });
               return {
                 data: {
@@ -706,6 +713,10 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 state.verifiedAnswerFailures -= 1;
                 return { data: null, error: { code: 'NETWORK', message: 'Network request failed' } };
               }
+              if (state.verifiedAnswerTerminalFailures > 0) {
+                state.verifiedAnswerTerminalFailures -= 1;
+                return { data: null, error: { code: '57014', message: 'Assessment time expired' } };
+              }
               const attempt = state.verifiedAssessmentHistory.find((entry) => entry.id === args.p_attempt_id);
               const question = attempt ? courseQuestion(attempt.course_key, args.p_question_id) : null;
               const selected = normalizedIndices(args.p_selected_indices);
@@ -723,6 +734,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 const item = enrollment(attempt.course_key);
                 if (item) item.practice_answers = uniqueAnswers.size;
               }
+              persistVerifiedAssessments();
               state.verifiedAssessmentCalls.push({ name, args: structuredClone(args), correct });
               return {
                 data: {
@@ -789,6 +801,7 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 duration_seconds: Number(activity?.duration_seconds || 0),
                 enrollment: item ? structuredClone(item) : null
               };
+              persistVerifiedAssessments();
               state.verifiedAssessmentCalls.push({ name, args: structuredClone(args), result: structuredClone(attempt.result) });
               return { data: structuredClone(attempt.result), error: null };
             }
@@ -922,7 +935,8 @@ export async function useMockedSupabase(page, session, enrollments = [], options
     mockedAccessStatus: options.accessStatus || { blocked: false, admin_role: options.admin ? 'admin' : null, certificate_entitlements: [] },
     mockedAdminGovernance: options.adminGovernance || [],
     mockedSocialSettings: options.socialSettings || { linkedin_url: 'https://www.linkedin.com/in/javierchilatra89/', facebook_url: '', tiktok_url: '', youtube_url: '', whatsapp_url: '' },
-    mockedVerifiedAnswerFailures: Math.max(0, Number(options.verifiedAnswerFailures) || 0)
+    mockedVerifiedAnswerFailures: Math.max(0, Number(options.verifiedAnswerFailures) || 0),
+    mockedVerifiedAnswerTerminalFailures: Math.max(0, Number(options.verifiedAnswerTerminalFailures) || 0)
   });
 }
 

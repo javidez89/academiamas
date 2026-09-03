@@ -5,6 +5,7 @@
   const Storage = global.AcademyStorage;
   const pendingSyncs = new Map();
   const PENDING_VERIFIED_ANSWERS_PREFIX = 'qavance_pending_verified_answers_v1_';
+  let pendingVerifiedAnswerFlush = null;
 
   function requireUser() {
     const client = Auth?.getClient?.();
@@ -62,9 +63,17 @@
   function writePendingVerifiedAnswers(userId, items) {
     try {
       const key = pendingVerifiedAnswersKey(userId);
-      if (items.length) global.localStorage?.setItem(key, JSON.stringify(items.slice(-500)));
+      if (items.length) global.localStorage?.setItem(key, JSON.stringify(items));
       else global.localStorage?.removeItem(key);
-    } catch {}
+      return true;
+    } catch (error) {
+      console.warn('No fue posible actualizar la cola local de respuestas verificables.', error);
+      return false;
+    }
+  }
+
+  function emitVerifiedAnswerSync(detail = {}) {
+    global.dispatchEvent?.(new CustomEvent('academiaqa:verified-answer-sync', { detail }));
   }
 
   function rememberPendingVerifiedAnswer(userId, attemptId, questionId, selectedIndices) {
@@ -72,13 +81,24 @@
     const key = `${attemptId}|${questionId}`;
     const next = items.filter((item) => `${item.attemptId}|${item.questionId}` !== key);
     next.push({ attemptId, questionId, selectedIndices, queuedAt: new Date().toISOString() });
-    writePendingVerifiedAnswers(userId, next);
+    if (!writePendingVerifiedAnswers(userId, next)) {
+      throw new Error('No fue posible proteger la respuesta en este dispositivo. Libera espacio e inténtalo nuevamente.');
+    }
+    emitVerifiedAnswerSync({ status: 'queued', remaining: next.length });
+    return next.length;
   }
 
   function forgetPendingVerifiedAnswer(userId, attemptId, questionId) {
     const key = `${attemptId}|${questionId}`;
-    writePendingVerifiedAnswers(userId, readPendingVerifiedAnswers(userId)
-      .filter((item) => `${item.attemptId}|${item.questionId}` !== key));
+    const next = readPendingVerifiedAnswers(userId)
+      .filter((item) => `${item.attemptId}|${item.questionId}` !== key);
+    writePendingVerifiedAnswers(userId, next);
+    return next.length;
+  }
+
+  function getPendingVerifiedAnswerCount() {
+    const user = Auth?.getUser?.();
+    return user?.id ? readPendingVerifiedAnswers(user.id).length : 0;
   }
 
   function isTerminalVerifiedAnswerError(error) {
@@ -397,7 +417,9 @@
     });
     if (error) {
       if (isTerminalVerifiedAnswerError(error)) {
-        forgetPendingVerifiedAnswer(user.id, normalizedAttemptId, normalizedQuestionId);
+        const remaining = forgetPendingVerifiedAnswer(user.id, normalizedAttemptId, normalizedQuestionId);
+        try { error.academySyncTerminal = true; } catch {}
+        emitVerifiedAnswerSync({ status: 'rejected', submitted: 0, rejected: 1, remaining });
       }
       throw error;
     }
@@ -406,10 +428,13 @@
     return unwrap(data);
   }
 
-  async function flushPendingVerifiedAnswers() {
+  async function performPendingVerifiedAnswerFlush() {
     const { client, user } = requireUser();
     const queued = readPendingVerifiedAnswers(user.id);
+    if (!queued.length) return { submitted: 0, rejected: 0, remaining: 0 };
+    emitVerifiedAnswerSync({ status: 'syncing', submitted: 0, rejected: 0, remaining: queued.length });
     let submitted = 0;
+    let rejected = 0;
     for (const item of queued) {
       const indices = [...new Set((Array.isArray(item.selectedIndices) ? item.selectedIndices : [])
         .map((value) => Math.trunc(Number(value)))
@@ -417,6 +442,7 @@
         .sort((left, right) => left - right);
       if (!indices.length) {
         forgetPendingVerifiedAnswer(user.id, item.attemptId, item.questionId);
+        rejected += 1;
         continue;
       }
       const { error } = await client.rpc('submit_verified_answer', {
@@ -427,6 +453,7 @@
       if (error) {
         if (isTerminalVerifiedAnswerError(error)) {
           forgetPendingVerifiedAnswer(user.id, item.attemptId, item.questionId);
+          rejected += 1;
           continue;
         }
         break;
@@ -434,7 +461,18 @@
       forgetPendingVerifiedAnswer(user.id, item.attemptId, item.questionId);
       submitted += 1;
     }
-    return { submitted, remaining: readPendingVerifiedAnswers(user.id).length };
+    const result = { submitted, rejected, remaining: readPendingVerifiedAnswers(user.id).length };
+    emitVerifiedAnswerSync({ status: result.remaining ? 'pending' : 'synced', ...result });
+    return result;
+  }
+
+  function flushPendingVerifiedAnswers() {
+    if (pendingVerifiedAnswerFlush) return pendingVerifiedAnswerFlush;
+    pendingVerifiedAnswerFlush = performPendingVerifiedAnswerFlush()
+      .finally(() => {
+        pendingVerifiedAnswerFlush = null;
+      });
+    return pendingVerifiedAnswerFlush;
   }
 
   async function completeVerifiedAssessment(attemptId) {
@@ -848,6 +886,7 @@
     flushProgress,
     startVerifiedAssessment,
     submitVerifiedAnswer,
+    getPendingVerifiedAnswerCount,
     flushPendingVerifiedAnswers,
     completeVerifiedAssessment,
     beginLearningActivity,
