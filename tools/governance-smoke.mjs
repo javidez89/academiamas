@@ -77,10 +77,10 @@ try {
   });
   await admin.goto(`${baseUrl}/admin/?governance=${Date.now()}`, { waitUntil: 'domcontentloaded' });
   await admin.getByText('estudiante@example.com').first().waitFor();
-  await admin.getByText('Ver cursos y avance por capítulo').click();
+  await admin.getByText('Detalle del estudiante').click();
   await admin.getByRole('button', { name: 'Habilitar constancia' }).click();
   await admin.getByText(/Constancia habilitada para el usuario/i).waitFor();
-  await admin.getByText('Ver cursos y avance por capítulo').click();
+  await admin.getByText('Detalle del estudiante').click();
   await admin.getByRole('button', { name: 'Bloquear cuenta' }).click();
   await admin.getByText('Bloqueado', { exact: true }).waitFor();
 

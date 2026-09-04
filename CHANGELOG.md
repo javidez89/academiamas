@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.27.1] - 2026-09-04
+
+### Changed
+- Mi cuenta y administración priorizan visualmente el avance oficial verificado y dejan el histórico conservado como referencia separada.
+- El examen final muestra estados claros: No presentado, Habilitado, Presentado o Aprobado.
+- El detalle administrativo cambia a una lectura más gerencial por estudiante y curso.
+
+### Security
+- El histórico protegido no se usa para habilitar examen final ni constancias.
 ## [v0.27.0] - 2026-09-04
 
 ### Added

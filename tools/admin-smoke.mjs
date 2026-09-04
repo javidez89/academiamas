@@ -90,9 +90,9 @@ try {
   await adminPage.getByRole('heading', { name: 'Resumen gerencial de QAvance' }).waitFor();
   await adminPage.getByText(privateEmail).waitFor();
   await adminPage.getByText('En línea', { exact: true }).waitFor();
-  await adminPage.getByText('Ver cursos y avance por capítulo', { exact: true }).click();
+  await adminPage.getByText('Detalle del estudiante', { exact: true }).click();
   await adminPage.getByText(/Certified Tester Foundation Level 4\.0/).waitFor();
-  assert.match(await adminPage.locator('.adminEnrollmentRow').innerText(), /Avance verificado\s+40%/i,
+  assert.match(await adminPage.locator('.adminEnrollmentRow').innerText(), /Avance oficial\s+40%/i,
     'Administración debe mostrar el agregado oficial e ignorar el JSON de progreso manipulable.');
   await adminPage.getByRole('button', { name: /Métricas/i }).click();
   await adminPage.getByRole('heading', { name: 'Métricas verificadas de aprendizaje' }).waitFor();

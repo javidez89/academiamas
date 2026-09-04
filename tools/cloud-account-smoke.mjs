@@ -251,7 +251,7 @@ try {
   const accountCourseText = await courseCard.innerText();
   assert.match(accountCourseText, /Dominio verificado \d+%/i, 'Mi cuenta debe mostrar el dominio verificable del curso completo.');
   assert.match(accountCourseText, /Cap[ií]tulos completados \d+\/\d+.*examen final \d+%/i, 'Mi cuenta debe desglosar capítulos completados y examen final.');
-  await page.getByText(/Aprobado · 100%/i).waitFor();
+  await courseCard.locator('.accountFinalStatus').getByText(/Aprobado · 100%/i).waitFor();
   await courseCard.locator('.accountStatus.completed').waitFor();
   const certificateButton = page.getByRole('button', { name: /Obtener certificado · USD 25/i });
   await certificateButton.waitFor();

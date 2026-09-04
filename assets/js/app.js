@@ -3723,7 +3723,7 @@
       return courseProgressDetails(item.course_key, courseData || catalogCourseSummary(entry));
     });
     const overallProgress = enrolledProgressDetails.length
-      ? Math.round(enrolledProgressDetails.reduce((sum, details) => sum + number(details.progressPercent), 0) / enrolledProgressDetails.length)
+      ? Math.round(enrolledProgressDetails.reduce((sum, details) => sum + verifiedProgressPercent(details), 0) / enrolledProgressDetails.length)
       : 0;
     const hasHistoricalProgress = enrolledProgressDetails.some((details) => details.hasUnverifiedHistory);
 
@@ -3746,15 +3746,24 @@
       ));
       const chapterRows = details.chapters.map((chapter) => {
         const achievementState = chapterAchievementState(chapter);
+        const chapterOfficial = number(chapter.verifiedCoverage ?? chapter.practiceProgress ?? chapter.practiceCoverage);
+        const chapterDomain = number(chapter.verifiedDomain ?? chapter.domain);
+        const chapterProgressLabel = chapter.hasUnverifiedHistory ? 'oficial' : 'avance';
         return `<li>
         <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${number(chapter.uniqueCorrect)}/${number(chapter.questionCount)} preguntas dominadas · ${number(chapter.uniqueAnswered)}/${number(chapter.questionCount)} exploradas</span></div>
-        <div><span class="chapterAchievementState ${achievementState.key}">${achievementState.label}</span><strong>Dominio verificado ${chapter.verifiedDomain ?? chapter.domain}%</strong><span>${chapter.studyMinutes}/${chapter.suggestedMinutes} min verificados</span>${chapter.hasUnverifiedHistory ? `<small class="historicalProgressNote">Histórico no verificado · avance oficial protegido ${chapter.verifiedCoverage}%</small>` : ''}</div>
+        <div><span class="chapterAchievementState ${achievementState.key}">${achievementState.label}</span><strong>${chapterOfficial}% ${chapterProgressLabel}</strong><span>Dominio verificado ${chapterDomain}% · ${chapter.studyMinutes}/${chapter.suggestedMinutes} min</span>${chapter.hasUnverifiedHistory ? `<small class="historicalProgressNote">Histórico conservado · no habilita examen ni constancia</small>` : ''}</div>
         <div class="accountChapterProgressBars">
           <div><span>Preguntas exploradas</span><div class="progressbar" aria-label="Preguntas exploradas del capítulo ${number(chapter.chapterId)}: ${chapter.practiceCoverage}%"><div style="width:${chapter.practiceCoverage}%"></div></div></div>
-          <div><span>Preguntas dominadas</span><div class="progressbar masteryProgress" aria-label="Preguntas dominadas del capítulo ${number(chapter.chapterId)}: ${chapter.verifiedDomain ?? chapter.domain}%"><div style="width:${chapter.verifiedDomain ?? chapter.domain}%"></div></div></div>
+          <div><span>Preguntas dominadas</span><div class="progressbar masteryProgress" aria-label="Preguntas dominadas del capítulo ${number(chapter.chapterId)}: ${chapterDomain}%"><div style="width:${chapterDomain}%"></div></div></div>
         </div>
       </li>`;
       }).join('');
+      const officialProgress = verifiedProgressPercent(details);
+      const finalExamStatus = isCompleted
+        ? `Aprobado · ${number(item.best_final_exam_score)}% · curso al 100%`
+        : details.finalExamEligible
+          ? 'Habilitado · ya alcanzaste el 95% verificable'
+          : `No presentado · requiere ${FINAL_EXAM_UNLOCK_PROGRESS}% verificable${details.hasUnverifiedHistory ? ` · histórico conservado ${details.progressPercent}%` : ''}`;
       return `<article class="accountCourseCard">
         <div class="accountCourseHead">
           <div>
@@ -3763,13 +3772,14 @@
             <h3>${h(meta.name || item.course_key)}</h3>
           </div>
           <div class="accountCourseScores">
-            <strong>${details.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'} ${details.progressPercent}%</strong>
+            <strong>Avance oficial ${officialProgress}%</strong>
             <span>Dominio verificado ${details.masteryPercent}%</span>
-            ${details.hasUnverifiedHistory ? `<small>Avance oficial ${details.verifiedProgressPercent}% · no habilita examen ni constancia</small>` : ''}
-            <small>Capítulos completados ${details.completedChapters}/${courseChapterCount(details)} · examen final ${details.finalExamScore}%</small>
+            ${details.hasUnverifiedHistory ? `<small>Histórico conservado ${details.progressPercent}% · no habilita examen ni constancia</small>` : ''}
+            <small>Capítulos completados ${details.completedChapters}/${courseChapterCount(details)} · ${details.finalExamPassed ? `examen final ${details.finalExamScore}%` : 'examen final no presentado'}</small>
           </div>
         </div>
-        <div class="progressbar accountCourseProgress" aria-label="Avance del curso"><div style="width:${details.progressPercent}%"></div></div>
+        <div class="progressbar accountCourseProgress" aria-label="Avance oficial del curso: ${officialProgress}%"><div style="width:${officialProgress}%"></div></div>
+        ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Tu histórico se conserva como referencia protegida. El avance oficial se actualiza con prácticas verificadas y examen final aprobado.</p>` : ''}
         <dl class="accountCourseMetrics">
           <div><dt>Fecha de inicio</dt><dd>${h(formatDate(item.started_at))}</dd></div>
           <div><dt>Última actividad</dt><dd>${h(formatDate(item.last_activity_at))}</dd></div>
@@ -3778,13 +3788,10 @@
           <div><dt>Duración estimada</dt><dd>${number(item.estimated_hours)} h</dd></div>
           <div><dt>Simulacros</dt><dd>${number(item.simulator_attempts)}</dd></div>
           <div><dt>Mejor simulacro</dt><dd>${number(item.best_simulator_score)}%</dd></div>
-          <div><dt>Exámenes finales</dt><dd>${number(item.final_exam_attempts)}</dd></div>
-          <div><dt>Mejor examen final</dt><dd>${number(item.best_final_exam_score)}%</dd></div>
+          <div><dt>Examen final</dt><dd>${details.finalExamPassed ? 'Aprobado' : number(item.final_exam_attempts) > 0 ? `Presentado · ${number(item.best_final_exam_score)}%` : 'No presentado'}</dd></div>
           <div><dt>Preguntas únicas respondidas</dt><dd>${number(item.practice_answers)}</dd></div>
         </dl>
-        <div class="${isCompleted ? 'okbox' : 'note'} accountFinalStatus"><b>Examen final:</b> ${isCompleted
-          ? `Aprobado · ${number(item.best_final_exam_score)}% · curso al 100%`
-           : details.finalExamEligible ? 'Habilitado · ya alcanzaste el 95% verificable' : `Bloqueado hasta el 95% verificable · avance oficial ${verifiedProgressPercent(details)}%${details.hasUnverifiedHistory ? ` · histórico conservado ${details.progressPercent}%` : ''}`}</div>
+        <div class="${isCompleted ? 'okbox' : 'note'} accountFinalStatus"><b>Examen final:</b> ${finalExamStatus}</div>
         ${administrativeEntitlement && !isCompleted ? '<div class="okbox"><b>Constancia habilitada por administración.</b> Este permiso permite solicitarla sin modificar tu avance ni tus métricas académicas.</div>' : ''}
         <details class="accountChapterDetails">
           <summary>Avance por capítulo</summary>
@@ -3992,10 +3999,20 @@
     const statusLabel = item.status === 'active' ? 'Activo' : item.status === 'completed' ? 'Completado' : 'Cancelado';
     const entitlement = (Array.isArray(governance?.certificate_entitlements) ? governance.certificate_entitlements : [])
       .find((entry) => entry.course_key === item.course_key);
-    const chapterRows = details.chapters.map((chapter) => `<li>
-      <span><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><small>${chapter.touched}/${chapter.objectiveCount} LO · ${chapter.studyMinutes} min</small></span>
-      <span><b>${chapter.coverage}% avance</b><small>${chapter.domain}% dominio</small></span>
-    </li>`).join('');
+    const officialProgress = verifiedProgressPercent(details);
+    const finalExamLabel = details.finalExamPassed
+      ? `Aprobado · ${number(item.best_final_exam_score)}%`
+      : number(item.final_exam_attempts) > 0
+        ? `Presentado · ${number(item.best_final_exam_score)}%`
+        : details.finalExamEligible ? 'Habilitado' : 'No presentado';
+    const chapterRows = details.chapters.map((chapter) => {
+      const chapterDomain = chapter.verifiedDomain ?? chapter.domain;
+      const chapterOfficial = number(chapter.verifiedCoverage ?? chapter.coverage);
+      return `<li>
+      <span><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><small>${chapter.uniqueCorrect ?? chapter.touched}/${chapter.questionCount ?? chapter.objectiveCount} preguntas dominadas · ${chapter.studyMinutes} min verificados</small></span>
+      <span><b>${chapterOfficial}% oficial</b><small>${chapterDomain}% dominio${chapter.hasUnverifiedHistory ? ' · histórico protegido' : ''}</small></span>
+    </li>`;
+    }).join('');
     return `<div class="adminEnrollmentRow">
       <div class="adminEnrollmentTitle">
         <span class="accountStatus ${h(item.status)}">${statusLabel}</span>
@@ -4004,16 +4021,17 @@
         <small>Inicio ${h(formatDate(item.started_at))} · última actividad ${h(formatDate(item.last_activity_at))}</small>
       </div>
       <dl class="adminEnrollmentMetrics">
-        <div><dt>${details.hasUnverifiedHistory ? 'Avance histórico' : 'Avance verificado'}</dt><dd>${details.progressPercent}%</dd></div>
-        <div><dt>Avance oficial</dt><dd>${verifiedProgressPercent(details)}%</dd></div>
+        ${details.hasUnverifiedHistory ? `<div class="historicalMetric"><dt>Histórico conservado</dt><dd>${details.progressPercent}%</dd></div>` : ''}
+        <div><dt>Avance oficial</dt><dd>${officialProgress}%</dd></div>
         <div><dt>Dominio verificado</dt><dd>${details.masteryPercent}%</dd></div>
         <div><dt>Tiempo verificado</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
         ${details.hasUnverifiedHistory ? `<div><dt>Tiempo histórico</dt><dd>${h(formatStudyDuration(details.historicalStudySeconds))}</dd></div>` : ''}
         <div><dt>Simulacros</dt><dd>${number(item.simulator_attempts)}</dd></div>
         <div><dt>Mejor simulacro</dt><dd>${number(item.best_simulator_score)}%</dd></div>
-        <div><dt>Examen final</dt><dd>${number(item.final_exam_attempts)} · ${number(item.best_final_exam_score)}%</dd></div>
+        <div><dt>Examen final</dt><dd>${h(finalExamLabel)}</dd></div>
       </dl>
-      <div class="progressbar accountCourseProgress" aria-label="Avance de ${h(entry.meta?.name || item.course_key)}: ${details.progressPercent}%"><div style="width:${details.progressPercent}%"></div></div>
+      <div class="progressbar accountCourseProgress" aria-label="Avance oficial de ${h(entry.meta?.name || item.course_key)}: ${officialProgress}%"><div style="width:${officialProgress}%"></div></div>
+      ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Histórico conservado ${details.progressPercent}% · avance oficial ${officialProgress}%. El histórico no habilita examen ni constancia.</p>` : ''}
       <details class="adminChapterDetails">
         <summary>Avance por capítulo</summary>
         ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Sin actividad registrada por capítulo.</p>'}
@@ -4060,6 +4078,9 @@
     const progressPercent = details.length
       ? Math.round(details.reduce((sum, item) => sum + number(item.progressPercent), 0) / details.length)
       : 0;
+    const officialProgressPercent = details.length
+      ? Math.round(details.reduce((sum, item) => sum + verifiedProgressPercent(item), 0) / details.length)
+      : 0;
     const masteryPercent = details.length
       ? Math.round(details.reduce((sum, item) => sum + number(item.masteryPercent), 0) / details.length)
       : 0;
@@ -4069,6 +4090,7 @@
       online: adminIsOnline(user.last_seen_at),
       lastSeenAt,
       progressPercent,
+      officialProgressPercent,
       masteryPercent,
       hasUnverifiedHistory: details.some((item) => item.hasUnverifiedHistory),
       studySeconds: details.reduce((sum, item) => sum + number(item.studySeconds), 0),
@@ -4380,6 +4402,10 @@
       const governance = state.adminGovernanceByUser.get(user.id) || {};
       const composeOpen = state.adminComposeUserId === user.id;
       const directDraft = state.adminDirectMessageDrafts[user.id] || {};
+      const summaryProgress = snapshot.hasUnverifiedHistory ? snapshot.officialProgressPercent : snapshot.progressPercent;
+      const summaryLabel = snapshot.hasUnverifiedHistory
+        ? `Histórico conservado ${snapshot.progressPercent}%`
+        : `Dominio verificado ${snapshot.masteryPercent}%`;
       return `<article class="adminManagerRow">
         <div class="adminManagerMain">
           <div class="adminManagerIdentity" data-label="Usuario">
@@ -4390,12 +4416,12 @@
             <span class="adminPresence ${snapshot.online ? 'online' : 'offline'}"><i aria-hidden="true"></i>${governance.blocked ? 'Bloqueado' : snapshot.online ? 'En línea' : 'Desconectado'}</span>
           </div>
           <div class="adminManagerCell" data-label="Cursos"><strong>${snapshot.learningEnrollments.length}</strong><small>${snapshot.activeCourses} activos · ${snapshot.completedCourses} completados</small></div>
-          <div class="adminManagerCell adminProgressCell" data-label="Avance"><strong>${snapshot.progressPercent}%</strong><small>${snapshot.hasUnverifiedHistory ? 'Incluye histórico no verificado' : `Dominio verificado ${snapshot.masteryPercent}%`}</small><span class="adminMiniProgress"><i style="width:${snapshot.progressPercent}%"></i></span></div>
+          <div class="adminManagerCell adminProgressCell" data-label="Avance"><strong>${summaryProgress}%</strong><small>${summaryLabel}</small><span class="adminMiniProgress"><i style="width:${summaryProgress}%"></i></span></div>
           <div class="adminManagerCell" data-label="Tiempo"><strong>${h(formatStudyDuration(snapshot.studySeconds))}</strong><small>estudio acumulado</small></div>
           <div class="adminManagerCell" data-label="Última actividad"><strong>${h(formatAdminActivity(snapshot.lastSeenAt))}</strong><small>${h(formatDate(snapshot.lastSeenAt))}</small></div>
         </div>
         <details class="adminUserDetails" ${composeOpen ? 'open' : ''}>
-          <summary>Ver cursos y avance por capítulo</summary>
+          <summary>Detalle del estudiante</summary>
           <div class="adminUserRegistration"><span>Registro: ${h(formatDate(user.created_at))}</span><span>Último inicio de sesión: ${h(formatDate(user.last_sign_in_at))}</span>${governance.block_reason ? `<span>Motivo de bloqueo: ${h(governance.block_reason)}</span>` : ''}</div>
           <div class="adminGovernanceActions">
             <button class="btn" type="button" data-action="admin-user-message-toggle" data-user-id="${h(user.id)}" aria-expanded="${composeOpen}">${composeOpen ? 'Cerrar mensaje' : 'Enviar mensaje'}</button>
