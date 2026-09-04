@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.27.3] - 2026-09-04
+
+### Changed
+- Los íconos instalables de la PWA, favicon y Apple Touch Icon se regeneran con la identidad visual de QAvance.
+- Las páginas estáticas usan una nueva versión de assets para evitar que los dispositivos conserven el ícono anterior.
+
 ## [v0.27.2] - 2026-09-04
 
 ### Changed
