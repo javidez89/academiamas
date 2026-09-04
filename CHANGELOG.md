@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.27.0] - 2026-09-04
+
+### Added
+- Elegibilidad de prácticas, simulacros y examen final validada desde Supabase antes de iniciar evaluaciones.
+- Recuperación de respuestas verificadas pendientes después de recargar, volver en línea o cambiar de pestaña.
+- Pruebas de regresión para impedir pérdida de histórico, duplicación de logros o habilitación anticipada del examen final.
+
+### Changed
+- Mi cuenta y el panel de curso muestran con más claridad el avance verificado, histórico protegido y respuestas pendientes por sincronizar.
+- La cola local de respuestas conserva intentos hasta que el servidor los acepte o los marque como rechazados de forma definitiva.
+
+### Security
+- La actualización mantiene el piso histórico de avance mayor al 10% y bloquea regresiones en servidor.
+- El avance oficial se calcula con logros verificados: prácticas de capítulos completadas al 100% y examen final aprobado.
 ## [v0.26.0] - 2026-09-02
 
 ### Added
