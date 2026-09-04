@@ -53,23 +53,35 @@ try {
   await page.goto(`${BASE_URL}/mi-cuenta/`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('heading', { name: 'Mis cursos' }).waitFor();
 
+  await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded' });
+  const heroProgressPanel = page.locator('.heroProgressPanel');
+  await heroProgressPanel.getByText('Tu progreso oficial', { exact: true }).waitFor();
+  assert.match(await heroProgressPanel.innerText(), /QAvance\s+0%/i,
+    'El progreso general del home debe promediar avance oficial, no avance anterior.');
+  assert.doesNotMatch(await heroProgressPanel.innerText(), /38%|100%/i,
+    'El home no debe presentar el avance anterior como progreso general.');
+
+  await page.goto(`${BASE_URL}/mi-cuenta/`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: 'Mis cursos' }).waitFor();
+
   const ctfl = page.locator('.accountCourseCard').filter({ hasText: 'ISTQB® Certified Tester Foundation Level 4.0 (CTFL)' });
-  await ctfl.getByText('Histórico no verificado', { exact: true }).waitFor();
-  assert.match(await ctfl.innerText(), /Avance histórico 38%/i,
-    'El avance previo superior al 10% debe permanecer visible como histórico.');
+  assert.equal(await ctfl.getByText('Histórico no verificado', { exact: true }).count(), 0,
+    'La etiqueta técnica de histórico no debe mostrarse al estudiante.');
+  assert.match(await ctfl.innerText(), /Avance anterior 38%/i,
+    'El avance previo superior al 10% debe permanecer visible como avance anterior.');
   assert.match(await ctfl.innerText(), /Avance oficial 0%/i,
     'El avance verificable debe mostrarse por separado.');
-  assert.match(await ctfl.innerText(), /no habilita examen ni constancia/i,
-    'La interfaz debe explicar que el histórico no concede elegibilidad.');
+  assert.doesNotMatch(await ctfl.innerText(), /no habilita examen ni constancia|Histórico conservado/i,
+    'La interfaz no debe mostrar rótulos técnicos que confundan al estudiante.');
   assert.equal(await ctfl.getByRole('button', { name: /Certificado disponible al 100%/i }).isDisabled(), true,
     'El histórico no debe habilitar la constancia.');
-  assert.match(await ctfl.locator('.accountFinalStatus').innerText(), /Bloqueado.*avance oficial 0%.*histórico conservado 38%/i,
+  assert.match(await ctfl.locator('.accountFinalStatus').innerText(), /requiere 95% verificable/i,
     'El examen final debe depender solamente del avance oficial.');
 
   const scrum = page.locator('.accountCourseCard').filter({ hasText: 'Scrum Master' });
   assert.equal(await scrum.getByText('Histórico no verificado', { exact: true }).count(), 0,
-    'Un histórico de 10% o menos no debe sustituir el avance verificable.');
-  assert.match(await scrum.innerText(), /Avance verificado 0%/i,
+    'Un avance anterior de 10% o menos no debe sustituir el avance verificable.');
+  assert.match(await scrum.innerText(), /Avance oficial 0%/i,
     'El curso bajo el umbral debe conservar el indicador oficial.');
 
   await ctfl.getByRole('link', { name: /Continuar curso/i }).click();
@@ -77,10 +89,10 @@ try {
   const dashboard = page.locator('.card').filter({ hasText: 'Panel de estudio' }).first();
   assert.match(await dashboard.innerText(), /Avance verificado\s+0%/i,
     'El panel del curso debe presentar el avance verificado como métrica oficial.');
-  assert.match(await dashboard.innerText(), /Histórico conservado\s+38%/i,
-    'El panel del curso debe separar claramente el histórico conservado.');
-  assert.match(await dashboard.innerText(), /no modifica el avance oficial/i,
-    'El histórico debe explicar que no altera el avance oficial.');
+  assert.match(await dashboard.innerText(), /Avance anterior\s+38%/i,
+    'El panel del curso debe separar claramente el avance anterior.');
+  assert.doesNotMatch(await dashboard.innerText(), /Histórico conservado|Histórico no verificado|no modifica el avance oficial/i,
+    'El panel del curso no debe mostrar rótulos técnicos de histórico.');
 
   console.log('Legacy progress smoke OK: history >10% is preserved, labelled and never grants official eligibility.');
 } finally {

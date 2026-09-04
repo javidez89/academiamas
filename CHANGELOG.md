@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.27.2] - 2026-09-04
+
+### Changed
+- El home calcula el progreso general con avance oficial verificado, sin sumar avance anterior conservado.
+- Mi cuenta, administración y panel de curso muestran el avance anterior con textos más claros para el estudiante.
+
+### Security
+- El avance anterior continúa separado del avance oficial y no habilita examen final ni constancias.
+
 ## [v0.27.1] - 2026-09-04
 
 ### Changed

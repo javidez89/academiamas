@@ -2731,7 +2731,7 @@
       isEnrolled: official.status !== 'cancelled',
       verified: true,
       hasUnverifiedHistory,
-      progressLabel: hasUnverifiedHistory ? 'Histórico no verificado' : 'Avance verificado'
+      progressLabel: hasUnverifiedHistory ? 'Avance anterior' : 'Avance verificado'
     };
   }
 
@@ -2999,7 +2999,7 @@
     const totalAnswered = courses.reduce((sum, entry) => sum + number(entry.details.answered), 0);
     const totalStudySeconds = courses.reduce((sum, entry) => sum + number(entry.details.studySeconds), 0);
     const averageProgress = totalCourses
-      ? Math.round(courses.reduce((sum, entry) => sum + number(entry.details.progressPercent), 0) / totalCourses)
+      ? Math.round(courses.reduce((sum, entry) => sum + verifiedProgressPercent(entry.details), 0) / totalCourses)
       : 0;
     const lastEntry = courses
       .filter((entry) => entry.details.last)
@@ -3026,7 +3026,7 @@
   function renderHeroProgressCard() {
     if (!Auth?.isAuthenticated?.()) {
       return `<aside class="heroProgressPanel" aria-label="Acceso al progreso">
-        <span>Tu progreso general</span>
+        <span>Tu progreso oficial</span>
         <div class="heroProgressTop"><strong>QAvance</strong></div>
         <p>Inicia sesión para guardar tus cursos, tiempo de estudio y resultados en la nube.</p>
         <button class="btn heroResume" type="button" data-action="sign-in-google">Iniciar sesión</button>
@@ -3052,7 +3052,7 @@
     const actionText = summary.startedCourses ? 'Retomar curso' : 'Comenzar curso';
 
     return `<aside class="heroProgressPanel" aria-label="Resumen de progreso">
-      <span>Tu progreso general</span>
+      <span>Tu progreso oficial</span>
       <div class="heroProgressTop"><strong>QAvance</strong><b>${pctValue}%</b></div>
       <div class="progressbar heroProgressBar" aria-hidden="true"><div style="width:${pctValue}%"></div></div>
       <div class="heroProgressStats" aria-label="Detalle de progreso general">
@@ -3751,7 +3751,7 @@
         const chapterProgressLabel = chapter.hasUnverifiedHistory ? 'oficial' : 'avance';
         return `<li>
         <div><b>C${number(chapter.chapterId)} · ${h(chapter.title)}</b><span>${number(chapter.uniqueCorrect)}/${number(chapter.questionCount)} preguntas dominadas · ${number(chapter.uniqueAnswered)}/${number(chapter.questionCount)} exploradas</span></div>
-        <div><span class="chapterAchievementState ${achievementState.key}">${achievementState.label}</span><strong>${chapterOfficial}% ${chapterProgressLabel}</strong><span>Dominio verificado ${chapterDomain}% · ${chapter.studyMinutes}/${chapter.suggestedMinutes} min</span>${chapter.hasUnverifiedHistory ? `<small class="historicalProgressNote">Histórico conservado · no habilita examen ni constancia</small>` : ''}</div>
+        <div><span class="chapterAchievementState ${achievementState.key}">${achievementState.label}</span><strong>${chapterOfficial}% ${chapterProgressLabel}</strong><span>Dominio verificado ${chapterDomain}% · ${chapter.studyMinutes}/${chapter.suggestedMinutes} min</span></div>
         <div class="accountChapterProgressBars">
           <div><span>Preguntas exploradas</span><div class="progressbar" aria-label="Preguntas exploradas del capítulo ${number(chapter.chapterId)}: ${chapter.practiceCoverage}%"><div style="width:${chapter.practiceCoverage}%"></div></div></div>
           <div><span>Preguntas dominadas</span><div class="progressbar masteryProgress" aria-label="Preguntas dominadas del capítulo ${number(chapter.chapterId)}: ${chapterDomain}%"><div style="width:${chapterDomain}%"></div></div></div>
@@ -3763,23 +3763,22 @@
         ? `Aprobado · ${number(item.best_final_exam_score)}% · curso al 100%`
         : details.finalExamEligible
           ? 'Habilitado · ya alcanzaste el 95% verificable'
-          : `No presentado · requiere ${FINAL_EXAM_UNLOCK_PROGRESS}% verificable${details.hasUnverifiedHistory ? ` · histórico conservado ${details.progressPercent}%` : ''}`;
+          : `No presentado · requiere ${FINAL_EXAM_UNLOCK_PROGRESS}% verificable`;
       return `<article class="accountCourseCard">
         <div class="accountCourseHead">
           <div>
             <span class="accountStatus ${h(item.status)}">${item.status === 'active' ? 'Activo' : item.status === 'cancelled' ? 'Cancelado' : 'Completado'}</span>
-            ${details.hasUnverifiedHistory ? '<span class="accountStatus historical">Histórico no verificado</span>' : ''}
             <h3>${h(meta.name || item.course_key)}</h3>
           </div>
           <div class="accountCourseScores">
             <strong>Avance oficial ${officialProgress}%</strong>
             <span>Dominio verificado ${details.masteryPercent}%</span>
-            ${details.hasUnverifiedHistory ? `<small>Histórico conservado ${details.progressPercent}% · no habilita examen ni constancia</small>` : ''}
+            ${details.hasUnverifiedHistory ? `<small>Avance anterior ${details.progressPercent}%</small>` : ''}
             <small>Capítulos completados ${details.completedChapters}/${courseChapterCount(details)} · ${details.finalExamPassed ? `examen final ${details.finalExamScore}%` : 'examen final no presentado'}</small>
           </div>
         </div>
         <div class="progressbar accountCourseProgress" aria-label="Avance oficial del curso: ${officialProgress}%"><div style="width:${officialProgress}%"></div></div>
-        ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Tu histórico se conserva como referencia protegida. El avance oficial se actualiza con prácticas verificadas y examen final aprobado.</p>` : ''}
+        ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Tu avance anterior permanece visible como referencia. El avance oficial se actualiza con prácticas verificadas y examen final aprobado.</p>` : ''}
         <dl class="accountCourseMetrics">
           <div><dt>Fecha de inicio</dt><dd>${h(formatDate(item.started_at))}</dd></div>
           <div><dt>Última actividad</dt><dd>${h(formatDate(item.last_activity_at))}</dd></div>
@@ -3847,7 +3846,7 @@
         <p>${h(profile.email || user?.email || '')}</p>
         <div class="grid3 accountTotals">
           <div class="metric"><span>Cursos inscritos</span><strong>${active}</strong></div>
-          <div class="metric"><span>Progreso general${hasHistoricalProgress ? ' · histórico' : ''}</span><strong>${overallProgress}%</strong></div>
+          <div class="metric"><span>Progreso oficial${hasHistoricalProgress ? ' · histórico separado' : ''}</span><strong>${overallProgress}%</strong></div>
           <div class="metric"><span>Tiempo verificado</span><strong>${h(formatStudyDuration(studySecondsTotal))}</strong></div>
           <div class="metric"><span>Horas estimadas</span><strong>${hoursTotal}</strong></div>
           <div class="metric"><span>Simulacros realizados</span><strong>${simulatorTotal}</strong></div>
@@ -4016,12 +4015,11 @@
     return `<div class="adminEnrollmentRow">
       <div class="adminEnrollmentTitle">
         <span class="accountStatus ${h(item.status)}">${statusLabel}</span>
-        ${details.hasUnverifiedHistory ? '<span class="accountStatus historical">Histórico no verificado</span>' : ''}
         <b>${h(entry.meta?.name || item.course_key)}</b>
         <small>Inicio ${h(formatDate(item.started_at))} · última actividad ${h(formatDate(item.last_activity_at))}</small>
       </div>
       <dl class="adminEnrollmentMetrics">
-        ${details.hasUnverifiedHistory ? `<div class="historicalMetric"><dt>Histórico conservado</dt><dd>${details.progressPercent}%</dd></div>` : ''}
+        ${details.hasUnverifiedHistory ? `<div class="historicalMetric"><dt>Avance anterior</dt><dd>${details.progressPercent}%</dd></div>` : ''}
         <div><dt>Avance oficial</dt><dd>${officialProgress}%</dd></div>
         <div><dt>Dominio verificado</dt><dd>${details.masteryPercent}%</dd></div>
         <div><dt>Tiempo verificado</dt><dd>${h(formatStudyDuration(details.studySeconds))}</dd></div>
@@ -4031,7 +4029,7 @@
         <div><dt>Examen final</dt><dd>${h(finalExamLabel)}</dd></div>
       </dl>
       <div class="progressbar accountCourseProgress" aria-label="Avance oficial de ${h(entry.meta?.name || item.course_key)}: ${officialProgress}%"><div style="width:${officialProgress}%"></div></div>
-      ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Histórico conservado ${details.progressPercent}% · avance oficial ${officialProgress}%. El histórico no habilita examen ni constancia.</p>` : ''}
+      ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Avance anterior ${details.progressPercent}% · avance oficial ${officialProgress}%.</p>` : ''}
       <details class="adminChapterDetails">
         <summary>Avance por capítulo</summary>
         ${chapterRows ? `<ol>${chapterRows}</ol>` : '<p class="small">Sin actividad registrada por capítulo.</p>'}
@@ -4404,7 +4402,7 @@
       const directDraft = state.adminDirectMessageDrafts[user.id] || {};
       const summaryProgress = snapshot.hasUnverifiedHistory ? snapshot.officialProgressPercent : snapshot.progressPercent;
       const summaryLabel = snapshot.hasUnverifiedHistory
-        ? `Histórico conservado ${snapshot.progressPercent}%`
+        ? `Avance anterior ${snapshot.progressPercent}%`
         : `Dominio verificado ${snapshot.masteryPercent}%`;
       return `<article class="adminManagerRow">
         <div class="adminManagerMain">
@@ -4994,7 +4992,7 @@
       <h2>Panel de estudio · ${h(courseLabel())}</h2>
       <div class="grid3">
         <div class="metric"><span>Avance verificado</span><strong>${officialProgress}%</strong><small>Actividad confirmada por QAvance</small></div>
-        ${details.hasUnverifiedHistory ? `<div class="metric historicalMetric"><span>Histórico conservado</span><strong>${details.progressPercent}%</strong><small>Referencia anterior · no modifica el avance oficial</small></div>` : ''}
+        ${details.hasUnverifiedHistory ? `<div class="metric historicalMetric"><span>Avance anterior</span><strong>${details.progressPercent}%</strong><small>Referencia informativa</small></div>` : ''}
         <div class="metric"><span>Capítulos completados</span><strong>${details.completedChapters}/${courseChapterCount(details)}</strong><small>Cada capítulo requiere dominar todas sus preguntas</small></div>
         <div class="metric"><span>Dominio verificado</span><strong>${details.masteryPercent}%</strong><small>Capítulos ${details.chapterDomainAverage}% · examen final ${details.finalExamScore}%</small></div>
         <div class="metric"><span>Tiempo estudiado</span><strong>${h(formatStudyDuration(details.studySeconds))}</strong></div>
@@ -5004,7 +5002,7 @@
       <div class="courseProgressStatus">
         <div><span>Avance oficial</span><strong>${officialProgress}%</strong></div>
         <div class="progressbar accountCourseProgress" aria-label="Avance oficial verificado: ${officialProgress}%"><div style="width:${officialProgress}%"></div></div>
-        ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Tu histórico de ${details.progressPercent}% permanece protegido y visible, pero no se presenta como avance oficial.</p>` : ''}
+        ${details.hasUnverifiedHistory ? `<p class="historicalProgressNote">Tu avance anterior de ${details.progressPercent}% permanece visible como referencia.</p>` : ''}
       </div>
       <div class="okbox"><b>Ruta recomendada:</b> 1) estudia cada capítulo → 2) practica por LO → 3) refuerza errores → 4) realiza simulacros → 5) presenta el examen final.</div>
       ${last ? `<p><b>Último intento:</b> ${number(last.correct)}/${number(last.total)} (${number(last.scorePct)}%) · ${h(formatDate(last.date))}</p>` : ''}
@@ -5146,7 +5144,7 @@
         <div><span>Capítulos completados</span><strong>${courseDetails.completedChapters}/${courseChapterCount(courseDetails)}</strong><small>Un capítulo se completa al dominar todas sus preguntas</small></div>
         <div><span>Dominio verificado</span><strong>${courseDetails.masteryPercent}%</strong><small>Examen final ${courseDetails.finalExamScore}%</small></div>
         <div class="courseLearningSummaryProgress"><div class="progressbar" aria-label="Avance oficial del curso: ${verifiedProgressPercent(courseDetails)}%"><div style="width:${verifiedProgressPercent(courseDetails)}%"></div></div></div>
-        ${courseDetails.hasUnverifiedHistory ? `<p class="historicalProgressNote">Histórico conservado ${courseDetails.progressPercent}% · avance oficial ${verifiedProgressPercent(courseDetails)}%. El histórico permanece visible y no habilita evaluaciones.</p>` : ''}
+        ${courseDetails.hasUnverifiedHistory ? `<p class="historicalProgressNote">Avance anterior ${courseDetails.progressPercent}% · avance oficial ${verifiedProgressPercent(courseDetails)}%.</p>` : ''}
       </div>
       <div class="grid2">${cards}${finalExamCard}</div></div><div id="chapterDetail"></div>`;
   }
