@@ -964,6 +964,9 @@
       case 'admin-certificate-status':
         await updateAdminCertificateStatus(actionTarget);
         break;
+      case 'admin-certificate-publish':
+        await publishAdminCertificate(actionTarget);
+        break;
       case 'admin-refresh':
         await refreshAdmin();
         break;
@@ -4255,6 +4258,20 @@
     }
   }
 
+  async function publishAdminCertificate(target) {
+    if (!global.confirm('Se regenerará el PDF sin identificación y quedará disponible públicamente. ¿Continuar?')) return;
+    target.disabled = true;
+    try {
+      await Cloud.publishAdminCertificate(target.dataset.code);
+      notify('El PDF del certificado ya es público.', 'success');
+      await refreshAdmin({ silent: true });
+    } catch (error) {
+      console.error(error);
+      notify(error?.message || 'No fue posible publicar el certificado.', 'error');
+      target.disabled = false;
+    }
+  }
+
   function adminAnalyticsCourseName(courseKey) {
     const entry = catalogEntry(courseKey) || {};
     return entry.meta?.shortName || entry.meta?.name || String(courseKey || '').toUpperCase();
@@ -4457,7 +4474,7 @@
       <div><strong>${h(certificate.full_name)}</strong><a href="mailto:${h(certificate.email || '')}">${h(certificate.email || 'Sin correo')}</a></div>
       <div><strong>${h(certificate.course_name)}</strong></div>
       <div><strong>${h(formatDate(certificate.issued_at))}</strong><small>${number(certificate.estimated_hours)} h estimadas</small></div>
-      <div class="adminCertificateActions"><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Validar</button><button class="btn" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Ver PDF</button><button class="btn secondary" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.archived_at ? 'unarchive' : 'archive'}">${certificate.archived_at ? 'Restaurar' : 'Archivar'}</button><button class="btn ${certificate.status === 'VALID' ? 'bad' : 'good'}" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.status === 'VALID' ? 'revoke' : 'restore'}">${certificate.status === 'VALID' ? 'Revocar' : 'Restaurar validez'}</button></div>
+      <div class="adminCertificateActions"><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Validar</button><button class="btn" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Ver PDF</button>${isSuperadmin && !certificate.public_pdf && certificate.status === 'VALID' && !certificate.archived_at ? `<button class="btn good" type="button" data-action="admin-certificate-publish" data-code="${h(certificate.certificate_code)}">Publicar PDF</button>` : ''}<button class="btn secondary" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.archived_at ? 'unarchive' : 'archive'}">${certificate.archived_at ? 'Restaurar' : 'Archivar'}</button><button class="btn ${certificate.status === 'VALID' ? 'bad' : 'good'}" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.status === 'VALID' ? 'revoke' : 'restore'}">${certificate.status === 'VALID' ? 'Revocar' : 'Restaurar validez'}</button></div>
     </article>`).join('');
     const allAdminMessages = Array.isArray(state.adminMessages) ? state.adminMessages : [];
     const messageStatus = (message) => message.archived ? 'archived' : message.status;

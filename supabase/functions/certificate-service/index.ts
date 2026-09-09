@@ -475,6 +475,60 @@ async function certificateDownload(request: Request, body: JsonObject) {
   return jsonResponse(request, { downloadUrl: signed.data.signedUrl });
 }
 
+async function publishCertificate(request: Request, body: JsonObject) {
+  const { admin, currentUser } = await authenticatedContext(request);
+  const code = String(body.certificateCode || '').trim().toUpperCase();
+  if (!/^ACQA-[A-Z0-9]{12}$/.test(code)) throw Object.assign(new Error('Código no válido.'), { status: 400 });
+
+  const superadmin = await admin
+    .schema('private')
+    .from('platform_admins')
+    .select('user_id')
+    .eq('user_id', currentUser.id)
+    .eq('role', 'superadmin')
+    .maybeSingle();
+  if (superadmin.error) throw superadmin.error;
+  if (!superadmin.data) throw Object.assign(new Error('Solo un superadministrador puede publicar certificados.'), { status: 403 });
+
+  const certificateResult = await admin.from('certificates').select('*').eq('certificate_code', code).maybeSingle();
+  if (certificateResult.error) throw certificateResult.error;
+  const certificate = certificateResult.data;
+  if (!certificate) throw Object.assign(new Error('Certificado no encontrado.'), { status: 404 });
+  if (certificate.status !== 'VALID' || certificate.archived_at) {
+    throw Object.assign(new Error('Solo se puede publicar un certificado vigente y no archivado.'), { status: 409 });
+  }
+
+  const modules = await certificateModules(admin, certificate.course_key);
+  const validationUrl = `${siteOrigin()}/validar-certificado/?codigo=${encodeURIComponent(code)}`;
+  const pdf = await createCertificatePdf({
+    code,
+    fullName: certificate.full_name,
+    courseName: certificate.course_name,
+    estimatedHours: Number(certificate.estimated_hours),
+    startedAt: certificate.started_at,
+    completedAt: certificate.completed_at,
+    issuedAt: certificate.issued_at,
+    validationUrl,
+    logoUrl: String(Deno.env.get('ACADEMIAQA_LOGO_URL') || `${siteOrigin()}/assets/img/qavance-logo.png`),
+    signatureUrl: String(Deno.env.get('ACADEMIAQA_SIGNATURE_URL') || '').trim() || undefined,
+    modules
+  });
+  const upload = await admin.storage.from(CERTIFICATE_BUCKET).upload(certificate.pdf_path, pdf, {
+    contentType: 'application/pdf',
+    cacheControl: '3600',
+    upsert: true
+  });
+  if (upload.error) throw upload.error;
+
+  const updated = await admin.from('certificates').update({
+    document_type: null,
+    document_last4: null,
+    public_pdf: true
+  }).eq('id', certificate.id).select('*').single();
+  if (updated.error) throw updated.error;
+  return jsonResponse(request, { certificate: publicCertificate(updated.data), validationUrl });
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) });
   if (request.method !== 'POST') return jsonResponse(request, { error: 'Método no permitido.' }, 405);
@@ -492,6 +546,8 @@ Deno.serve(async (request: Request) => {
         return await issueCertificate(request, body);
       case 'download-certificate':
         return await certificateDownload(request, body);
+      case 'publish-certificate':
+        return await publishCertificate(request, body);
       default:
         return jsonResponse(request, { error: 'Acción no válida.' }, 400);
     }

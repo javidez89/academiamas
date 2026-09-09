@@ -865,6 +865,12 @@
     return data && typeof data === 'object' ? data : null;
   }
 
+  async function publishAdminCertificate(certificateCode) {
+    return certificateService('publish-certificate', {
+      certificateCode: String(certificateCode || '').trim().toUpperCase()
+    });
+  }
+
   global.AcademyCloud = Object.freeze({
     getProfile,
     listEnrollments,
@@ -922,6 +928,7 @@
     softDeleteAdminContactMessage,
     softDeleteAdminCourseReview,
     updateAdminCertificateStatus,
+    publishAdminCertificate,
     mergeProgress
   });
 }(window));
