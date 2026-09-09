@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.28.1] - 2026-09-08
+
+- Regenera certificados antiguos sin identificación antes de habilitar su PDF público.
+- Añade la acción protegida `Publicar PDF` para superadministradores.
+
 ## [v0.28.0] - 2026-09-08
 
 ### Added
