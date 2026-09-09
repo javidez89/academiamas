@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.28.3] - 2026-09-09
+
+- Estabiliza el visor público de certificados para evitar redibujados y parpadeos durante la carga del PDF.
+
 ## [v0.28.2] - 2026-09-09
 
 - Simplifica la publicación administrativa de certificados heredados manteniendo la autorización de superadministrador en el servidor.

@@ -32,6 +32,17 @@ try {
       const canvas = document.querySelector('.credentialCanvasArea canvas');
       return canvas && !canvas.hidden && document.querySelector('[data-preview-status]').hidden;
     }).catch(async (error) => { console.log(await page.locator('[data-public-certificate]').innerText()); throw error; });
+    const previewSizes = await page.evaluate(async () => {
+      const sizes = [];
+      for (let index = 0; index < 12; index++) {
+        const area = document.querySelector('.credentialCanvasArea');
+        const canvas = area.querySelector('canvas');
+        sizes.push(`${area.clientWidth}:${area.clientHeight}:${canvas.style.width}:${canvas.style.height}`);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      return sizes;
+    });
+    assert.equal(new Set(previewSizes).size, 1, 'La vista previa no debe cambiar de tamaño durante la visualización.');
     const pixelCheck = await page.locator('canvas').evaluate((canvas) => {
       const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
       let dark = 0; for (let i = 0; i < pixels.length; i += 16) if (pixels[i] < 180 && pixels[i + 3]) dark++;

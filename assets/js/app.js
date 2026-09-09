@@ -2491,7 +2491,7 @@
       const certificateRoot = dom.app.querySelector('[data-public-certificate]');
       if (certificateRoot) {
         const certificate = state.certificateValidationResult;
-        import('/assets/js/certificate-viewer.js').then(({ mountCertificate }) => {
+        import('/assets/js/certificate-viewer.js?v=2026-09-09-preview-stability').then(({ mountCertificate }) => {
           if (certificateRoot.isConnected) return mountCertificate(certificateRoot, certificate, {
             validationUrl: certificateValidationUrl(certificate.code),
             refresh: () => Cloud.validateCertificate(certificate.code),

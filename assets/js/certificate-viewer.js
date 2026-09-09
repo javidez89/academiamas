@@ -8,7 +8,7 @@ export async function mountCertificate(root, certificate, { validationUrl, refre
   if (!document.querySelector('[data-certificate-style]')) {
     const style = document.createElement('link');
     style.rel = 'stylesheet';
-    style.href = '/assets/css/certificate-viewer.css';
+    style.href = '/assets/css/certificate-viewer.css?v=2026-09-09-preview-stability';
     style.dataset.certificateStyle = '';
     document.head.append(style);
   }
@@ -94,15 +94,19 @@ export async function mountCertificate(root, certificate, { validationUrl, refre
       const width = Math.max(200, area.clientWidth - 32) * zoom;
       const viewport = page.getViewport({ scale: width / base.width });
       const ratio = Math.min(devicePixelRatio || 1, 2);
-      canvas.width = Math.floor(viewport.width * ratio);
-      canvas.height = Math.floor(viewport.height * ratio);
-      canvas.style.width = `${viewport.width}px`;
-      canvas.style.height = `${viewport.height}px`;
-      canvas.hidden = false;
-      canvas.setAttribute('aria-label', `Página ${pageNumber} del certificado`);
-      renderTask = page.render({ canvasContext: canvas.getContext('2d'), viewport, transform: [ratio, 0, 0, ratio, 0, 0] });
+      const buffer = document.createElement('canvas');
+      buffer.width = Math.floor(viewport.width * ratio);
+      buffer.height = Math.floor(viewport.height * ratio);
+      renderTask = page.render({ canvasContext: buffer.getContext('2d'), viewport, transform: [ratio, 0, 0, ratio, 0, 0] });
       await renderTask.promise;
       if (version !== generation || disposed) return;
+      canvas.width = buffer.width;
+      canvas.height = buffer.height;
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+      canvas.getContext('2d').drawImage(buffer, 0, 0);
+      canvas.hidden = false;
+      canvas.setAttribute('aria-label', `Página ${pageNumber} del certificado`);
       status.hidden = true;
       retry.hidden = true;
       controls();

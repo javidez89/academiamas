@@ -2,7 +2,7 @@
 
 window.ACADEMY_CONFIG = Object.freeze({
   title: 'QAvance',
-  version: '0.28.2',
+  version: '0.28.3',
   homeTitle: 'Explora rutas de aprendizaje',
   homeBadge: '🚀 Plataforma de aprendizaje profesional',
   description: 'Aprende, practica y prepárate para certificaciones y retos profesionales en testing, inteligencia artificial, Scrum y gestión de proyectos.',
