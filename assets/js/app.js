@@ -4259,7 +4259,6 @@
   }
 
   async function publishAdminCertificate(target) {
-    if (!global.confirm('Se regenerará el PDF sin identificación y quedará disponible públicamente. ¿Continuar?')) return;
     target.disabled = true;
     try {
       await Cloud.publishAdminCertificate(target.dataset.code);
