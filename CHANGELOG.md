@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.28.2] - 2026-09-09
+
+- Simplifica la publicación administrativa de certificados heredados manteniendo la autorización de superadministrador en el servidor.
+
 ## [v0.28.1] - 2026-09-08
 
 - Regenera certificados antiguos sin identificación antes de habilitar su PDF público.
