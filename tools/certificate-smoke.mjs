@@ -47,7 +47,8 @@ try {
   await publicPage.getByRole('button', { name: 'Validar', exact: true }).click();
   await publicPage.getByText('Certificado válido', { exact: true }).waitFor();
   await publicPage.getByText(certificate.full_name, { exact: true }).waitFor();
-  await publicPage.getByText('CC ••••4506', { exact: true }).waitFor();
+  assert.equal(await publicPage.getByText('CC ••••4506', { exact: true }).count(), 0);
+  await publicPage.getByText('El PDF de este certificado es privado.', { exact: false }).waitFor();
   assert.equal(await publicPage.getByText(/123456789ABC.*4506/s).count(), 0, 'La validación no debe exponer un documento completo.');
   const publicOverflow = await publicPage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(publicOverflow <= 1, `La validación móvil tiene ${publicOverflow}px de desbordamiento.`);
@@ -88,13 +89,15 @@ try {
   assert.equal(new URL(paymentPage.url()).pathname, '/mi-cuenta/', 'El retorno de Wompi debe conservar la ruta de Mi cuenta.');
   assert.equal(new URL(paymentPage.url()).search, '', 'La transacción debe limpiarse de la barra después de confirmarse.');
   await paymentPage.getByLabel('Nombre completo').fill('Javier QAvance');
-  await paymentPage.getByLabel('Tipo de documento').selectOption('CC');
-  await paymentPage.getByLabel('Número de documento').fill('1020304506');
+  assert.equal(await paymentPage.locator('[name="documentType"], [name="documentNumber"]').count(), 0);
   await paymentPage.locator('input[name="publicConsent"]').check();
   await paymentPage.getByRole('button', { name: 'Emitir certificado' }).click();
   await paymentPage.getByRole('heading', { name: 'Tu certificado ya está disponible' }).waitFor();
   await paymentPage.getByRole('dialog').getByText(certificate.course_name, { exact: true }).waitFor();
   const certificateCalls = await paymentPage.evaluate(() => window.__supabaseMock.calls.certificateService);
+  const issuance = certificateCalls.find((call) => call.action === 'issue-certificate');
+  assert.equal('documentType' in issuance, false);
+  assert.equal('documentNumber' in issuance, false);
   assert.deepEqual(certificateCalls.map((call) => call.action), ['confirm-payment', 'issue-certificate'], 'El retorno debe confirmar el pago antes de emitir.');
 
   const adminCertificate = {

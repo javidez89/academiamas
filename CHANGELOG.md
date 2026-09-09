@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.28.0] - 2026-09-08
+
+### Added
+- Visor público de certificados con páginas, zoom, descarga y acciones para compartir y añadir la credencial a LinkedIn.
+- Firma del instructor incluida en la generación del PDF.
+
+### Changed
+- La emisión solicita únicamente nombre completo y consentimiento; los PDF anteriores con identificación permanecen privados.
+- El servidor valida la vigencia antes de autorizar enlaces de descarga de corta duración.
+
 ## [v0.27.3] - 2026-09-04
 
 ### Changed

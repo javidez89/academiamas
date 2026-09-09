@@ -36,21 +36,39 @@ Deno.serve(async (request: Request) => {
     const code = String(body?.certificateCode || '').trim().toUpperCase();
     if (!/^ACQA-[A-Z0-9]{12}$/.test(code)) return jsonResponse(request, invalidCertificate(code));
 
-    const result = await adminClient()
+    const admin = adminClient();
+    const result = await admin
       .from('certificates')
-      .select('certificate_code,status,full_name,document_type,document_last4,course_key,course_name,estimated_hours,started_at,completed_at,issued_at')
+      .select('certificate_code,status,full_name,document_type,document_last4,public_pdf,pdf_path,course_key,course_name,estimated_hours,started_at,completed_at,issued_at')
       .eq('certificate_code', code)
       .eq('status', 'VALID')
       .maybeSingle();
     if (result.error) throw result.error;
     if (!result.data) return jsonResponse(request, invalidCertificate(code));
 
+    let previewUrl: string | null = null;
+    let downloadUrl: string | null = null;
+    // Never publish legacy PDFs containing identification, even with a mistaken flag.
+    if (result.data.public_pdf && result.data.document_type === null && result.data.document_last4 === null) {
+      const filename = `Constancia-QAvance-${code}.pdf`;
+      const [preview, download] = await Promise.all([
+        admin.storage.from('certificates').createSignedUrl(result.data.pdf_path, 300),
+        admin.storage.from('certificates').createSignedUrl(result.data.pdf_path, 300, { download: filename })
+      ]);
+      if (!preview.error && !download.error) {
+        previewUrl = preview.data.signedUrl;
+        downloadUrl = download.data.signedUrl;
+      }
+    }
+
     return jsonResponse(request, {
       valid: true,
       code: result.data.certificate_code,
       status: result.data.status,
       full_name: result.data.full_name,
-      document: `${result.data.document_type} ••••${result.data.document_last4}`,
+      preview_url: previewUrl,
+      download_url: downloadUrl,
+      public_pdf: result.data.public_pdf === true && result.data.document_type === null && result.data.document_last4 === null,
       course_key: result.data.course_key,
       course_name: result.data.course_name,
       estimated_hours: result.data.estimated_hours,

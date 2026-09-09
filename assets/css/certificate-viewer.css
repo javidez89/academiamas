@@ -1,0 +1,44 @@
+.certificatePublicPage{display:block;background:#fff;max-width:1440px!important;margin:0 auto;padding:28px 24px!important;color:#242a30;letter-spacing:0}
+.certificatePublicPage .credentialHeading{background:none;box-shadow:none;padding:0;color:#242a30;border:0}
+.credentialHeading{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:26px}
+.credentialHeading h1{font-size:30px;line-height:1.25;margin:12px 0;overflow-wrap:anywhere;letter-spacing:0}
+.credentialHeading p{margin:0;line-height:1.6}
+.credentialStatus{display:flex;align-items:center;gap:10px;color:#258545;font-size:18px;font-weight:700}
+.credentialSearch{display:flex;align-items:center;gap:8px;color:#0871ce;font-size:14px;white-space:nowrap}
+.certificatePublicPage svg{width:19px;height:19px;flex-shrink:0;stroke-width:1.7}
+.credentialLayout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;align-items:start}
+.credentialViewer{min-width:0;background:#f4f5f6;border:1px solid #dce0e3;border-radius:6px;overflow:hidden}
+.credentialToolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#fff;border-bottom:1px solid #dce0e3}
+.credentialTabs,.credentialTools{display:flex;align-items:center;gap:4px}
+.credentialTabs{flex-wrap:wrap}
+.certificatePublicPage button{font:inherit;cursor:pointer;letter-spacing:0}
+.credentialTabs button{display:flex;align-items:center;gap:7px;min-height:42px;padding:8px;border:0;border-bottom:2px solid transparent;background:transparent;font-size:13px;border-radius:0;color:#454e59}
+.credentialTabs [aria-selected=true]{border-color:#00a4a6;color:#17262c;font-weight:700}
+.credentialTools button,.credentialCode button{display:grid;place-items:center;width:32px;height:34px;min-width:32px;padding:0;background:#fff;border:1px solid #e1e4e7;border-radius:4px;color:#343d44}
+.credentialTools output{min-width:46px;text-align:center;font-size:12px;color:#343d44}
+.certificatePublicPage button:disabled{opacity:.4;cursor:default}
+.certificatePublicPage button:focus-visible,.certificatePublicPage a:focus-visible{outline:3px solid #1688e5;outline-offset:3px}
+.credentialCanvasArea{overflow:auto;padding:16px;min-height:280px;aspect-ratio:1.415;position:relative;max-height:78vh}
+.credentialCanvasArea canvas{display:block;margin:0 auto;background:#fff;box-shadow:0 2px 10px #00000014}
+.credentialCanvasArea canvas[hidden]{display:none}
+.credentialCanvasArea p{padding:35px 20px;text-align:center;font-size:14px;line-height:1.6;color:#59646d}
+.credentialViewer:fullscreen{background:#f4f5f6;overflow:auto;border:0;border-radius:0}
+.credentialViewer:fullscreen .credentialCanvasArea{max-height:none;aspect-ratio:auto;height:calc(100vh - 70px)}
+.credentialRetry{margin:12px 16px;padding:8px 14px;border:1px solid #c9d1d8;border-radius:4px;background:#fff}
+.credentialDetails{min-width:0;border-left:1px solid #e0e4e7;padding-left:28px}
+.credentialDetails h2{font-size:19px;line-height:1.4;margin:8px 0 18px;letter-spacing:0}
+.credentialDetails dl{margin:0 0 22px;font-size:13px}
+.credentialDetails dl>div{display:flex;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid #edf0f2}
+.credentialDetails dt{color:#5b636b;flex-shrink:0}
+.credentialDetails dd{margin:0;text-align:right;overflow-wrap:anywhere;min-width:0}
+.credentialDetails dl>div:last-child{display:block}
+.credentialCode{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px!important;text-align:left!important;font-family:monospace}
+.credentialDownload{display:flex;justify-content:center;align-items:center;gap:10px;width:100%;box-sizing:border-box;background:#0670d3;color:#fff!important;border:0;border-radius:5px;min-height:48px;padding:12px 16px;text-decoration:none;font-weight:700!important}
+.credentialSharing{margin-top:24px;padding-top:20px;border-top:1px solid #dce0e3}
+.credentialSharing a,.credentialSharing button{display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;min-height:44px;text-align:left;background:none;border:0;border-bottom:1px solid #edf0f2;border-radius:0;padding:10px 0;font-size:14px;color:#343d44;text-decoration:none}
+.credentialSharing .credentialLinkedin{color:#0871ce;margin-top:12px;border-bottom:0}
+.credentialSharing a:hover,.credentialSharing button:hover{color:#0871ce}
+.credentialFeedback{font-size:13px;color:#285c44;line-height:1.5}
+.credentialDisclaimer{border-top:1px solid #e0e4e7;margin:28px 0 0;padding-top:16px;font-size:12px;color:#63707c;line-height:1.6}
+@media(max-width:1000px){.credentialLayout{grid-template-columns:minmax(0,1fr) 280px;gap:18px}.credentialDetails{padding-left:18px}.credentialHeading h1{font-size:26px}}
+@media(max-width:760px){.certificatePublicPage{padding:20px 12px!important}.credentialHeading{display:block}.credentialHeading h1{font-size:24px}.credentialSearch{margin-top:16px;white-space:normal}.credentialLayout{grid-template-columns:minmax(0,1fr)}.credentialDetails{border-left:0;padding-left:0;border-top:1px solid #e0e4e7;padding-top:16px}.credentialToolbar{padding:6px}.credentialTabs button{font-size:12px;padding:7px}.credentialTools{width:100%;justify-content:center}.credentialCanvasArea{min-height:180px;padding:16px}.credentialDetails dl{font-size:14px}.credentialHeading>div>p:last-child{font-size:14px}}

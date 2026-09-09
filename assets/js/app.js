@@ -1392,11 +1392,6 @@
 
     if (model.phase === 'identity') {
       const suggestedName = model.fullName || state.accountProfile?.full_name || authUserName();
-      const selectedDocumentType = model.documentType || 'CC';
-      const documentOptions = [
-        ['CC', 'Cédula de ciudadanía'], ['CE', 'Cédula de extranjería'], ['PP', 'Pasaporte'],
-        ['TI', 'Tarjeta de identidad'], ['DNI', 'DNI'], ['NIT', 'NIT'], ['RG', 'RG'], ['OTHER', 'Otro']
-      ].map(([value, label]) => `<option value="${value}" ${selectedDocumentType === value ? 'selected' : ''}>${label}</option>`).join('');
       dom.certificateModalBody.innerHTML = `<div class="certificateModalCopy">
         <span class="sectionKicker">Datos del certificado</span>
         <h2 id="certificateModalTitle">Confirma la información que aparecerá en el PDF</h2>
@@ -1404,11 +1399,7 @@
         <form class="certificateIdentityForm" data-certificate-identity-form>
           <label for="certificateFullName">Nombre completo</label>
           <input id="certificateFullName" name="fullName" type="text" minlength="3" maxlength="120" autocomplete="name" value="${h(suggestedName)}" required>
-          <div class="certificateIdentityGrid">
-            <div><label for="certificateDocumentType">Tipo de documento</label><select id="certificateDocumentType" name="documentType" required>${documentOptions}</select></div>
-            <div><label for="certificateDocumentNumber">Número de documento</label><input id="certificateDocumentNumber" name="documentNumber" type="text" minlength="4" maxlength="30" autocomplete="off" value="${h(model.documentNumber || '')}" required></div>
-          </div>
-          <label class="certificateConsent"><input name="publicConsent" type="checkbox" value="yes" ${model.publicConsent ? 'checked' : ''} required><span>Autorizo que mi nombre, curso, fechas y documento enmascarado se consulten mediante el código público de validación. El número completo solo aparecerá en mi PDF privado.</span></label>
+          <label class="certificateConsent"><input name="publicConsent" type="checkbox" value="yes" ${model.publicConsent ? 'checked' : ''} required><span>Confirmo que mi nombre está escrito correctamente y autorizo la consulta pública de mi nombre, curso y fechas, así como la visualización y descarga de mi certificado mediante su enlace y código QR.</span></label>
           ${model.formError ? `<div class="badbox">${h(model.formError)}</div>` : ''}
           <div class="btnrow"><button class="btn good" type="submit" ${model.submitting ? 'disabled' : ''}>${model.submitting ? 'Generando certificado...' : 'Emitir certificado'}</button><button class="btn secondary" type="button" data-action="close-certificate-modal">Cancelar</button></div>
         </form>
@@ -2494,6 +2485,19 @@
       } else {
         dom.app.innerHTML = renderedHtml;
       }
+      const certificateRoot = dom.app.querySelector('[data-public-certificate]');
+      if (certificateRoot) {
+        const certificate = state.certificateValidationResult;
+        import('/assets/js/certificate-viewer.js').then(({ mountCertificate }) => {
+          if (certificateRoot.isConnected) return mountCertificate(certificateRoot, certificate, {
+            validationUrl: certificateValidationUrl(certificate.code),
+            refresh: () => Cloud.validateCertificate(certificate.code),
+            notify
+          });
+        }).catch(() => {
+          if (certificateRoot.isConnected) certificateRoot.innerHTML = '<p role="alert">No se pudo abrir el visor. Recarga la página para intentarlo nuevamente.</p>';
+        });
+      }
       if (state.view === 'study' && state.studyChapter) {
         openChapter(state.studyChapter, { updateRoute: false, scroll: false });
       }
@@ -3539,6 +3543,7 @@
 
   function renderCertificateValidationPage() {
     const result = state.certificateValidationResult;
+    if (result?.valid) return '<div class="publicHome publicPage certificatePublicPage" data-public-certificate><p role="status">Cargando certificado...</p></div>';
     const hasLookup = Boolean(state.certificateValidationCode);
     const statusPanel = state.certificateValidationLoading
       ? '<div class="certificateValidationStatus" role="status">Consultando el registro seguro...</div>'
@@ -3550,7 +3555,6 @@
               <div><span class="sectionKicker">Certificado válido</span><h2 id="certificateResultTitle">${h(result.course_name)}</h2><p>Este certificado de finalización coincide con el registro de QAvance.</p></div>
               <dl class="certificateValidationDetails">
                 <div><dt>Estudiante</dt><dd>${h(result.full_name)}</dd></div>
-                <div><dt>Identificación</dt><dd>${h(result.document)}</dd></div>
                 <div><dt>Código</dt><dd>${h(result.code)}</dd></div>
                 <div><dt>Intensidad estimada</dt><dd>${number(result.estimated_hours)} h</dd></div>
                 <div><dt>Curso finalizado</dt><dd>${h(formatDate(result.completed_at))}</dd></div>
@@ -3583,9 +3587,8 @@
     const input = {
       orderId: model.orderId,
       fullName: String(data.get('fullName') || '').trim(),
-      documentType: String(data.get('documentType') || '').trim(),
-      documentNumber: String(data.get('documentNumber') || '').trim(),
-      publicConsent: data.get('publicConsent') === 'yes'
+      publicConsent: data.get('publicConsent') === 'yes',
+      publicPdfConsent: data.get('publicConsent') === 'yes'
     };
     state.certificateModal = { ...model, ...input, submitting: true, formError: '' };
     renderCertificateModal();
@@ -3816,7 +3819,7 @@
       <div class="accountCertificateMain">
         <span class="accountStatus completed">${certificate.status === 'VALID' ? 'Válido' : 'Revocado'}</span>
         <h3>${h(certificate.course_name)}</h3>
-        <p>${h(certificate.full_name)} · ${h(certificate.document_type)} ••••${h(certificate.document_last4)}</p>
+        <p>${h(certificate.full_name)}</p>
         <div class="accountCertificateMeta"><span>Emitido ${h(formatDate(certificate.issued_at))}</span><strong>${h(certificate.certificate_code)}</strong></div>
       </div>
       <div class="accountCertificateActions"><button class="btn good" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Descargar PDF</button><button class="btn linkedinButton" type="button" data-action="share-certificate-linkedin" data-code="${h(certificate.certificate_code)}">LinkedIn</button><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Ver</button><button class="btn secondary" type="button" data-action="copy-certificate-url" data-code="${h(certificate.certificate_code)}">Copiar URL</button></div>
@@ -4452,7 +4455,7 @@
     const certificateRows = adminCertificates.map((certificate) => `<article class="adminCertificateRow ${certificate.archived_at ? 'archived' : ''}">
       <div><span class="accountStatus ${certificate.status === 'VALID' ? 'completed' : 'cancelled'}">${certificate.status === 'VALID' ? 'Válido' : 'Revocado'}</span>${certificate.archived_at ? '<span class="accountStatus historical">Archivado</span>' : ''}<strong>${h(certificate.certificate_code)}</strong></div>
       <div><strong>${h(certificate.full_name)}</strong><a href="mailto:${h(certificate.email || '')}">${h(certificate.email || 'Sin correo')}</a></div>
-      <div><strong>${h(certificate.course_name)}</strong><small>${h(certificate.document)}</small></div>
+      <div><strong>${h(certificate.course_name)}</strong></div>
       <div><strong>${h(formatDate(certificate.issued_at))}</strong><small>${number(certificate.estimated_hours)} h estimadas</small></div>
       <div class="adminCertificateActions"><button class="btn secondary" type="button" data-action="view-certificate" data-code="${h(certificate.certificate_code)}">Validar</button><button class="btn" type="button" data-action="download-certificate" data-code="${h(certificate.certificate_code)}">Ver PDF</button><button class="btn secondary" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.archived_at ? 'unarchive' : 'archive'}">${certificate.archived_at ? 'Restaurar' : 'Archivar'}</button><button class="btn ${certificate.status === 'VALID' ? 'bad' : 'good'}" type="button" data-action="admin-certificate-status" data-certificate-id="${h(certificate.id)}" data-status-action="${certificate.status === 'VALID' ? 'revoke' : 'restore'}">${certificate.status === 'VALID' ? 'Revocar' : 'Restaurar validez'}</button></div>
     </article>`).join('');
@@ -4606,7 +4609,7 @@
             <p>Cancelar un curso detiene su estado activo, pero conserva el historial para que puedas reactivarlo. Después de cancelarlo, puedes usar <b>Quitar de mi cuenta</b> para ocultarlo sin perder matrícula, avance, tiempo ni intentos. Para solicitar la eliminación completa de datos personales usa el formulario de contacto.</p>
             <p>QAvance utiliza Google Analytics para conocer de forma agregada qué páginas y cursos se visitan. Google puede usar cookies o identificadores técnicos conforme a sus propias políticas de privacidad.</p>
             <p>Wompi procesa los pagos de certificados y aportes. QAvance conserva la referencia, el estado y el valor de la transacción, pero no recibe ni almacena números de tarjeta ni credenciales bancarias.</p>
-            <p>Para emitir un certificado se solicita nombre completo, tipo y número de documento. El número completo aparece únicamente en el PDF privado; la validación pública muestra solo los últimos caracteres enmascarados. El usuario autoriza expresamente esa consulta pública antes de la emisión.</p>
+            <p>Para emitir un certificado se solicita el nombre completo. El usuario confirma sus datos y autoriza la consulta, visualización y descarga del certificado mediante su enlace público. Los PDF anteriores que contienen identificación permanecen privados.</p>
           </article>
           <article class="legalCard" id="terminos">
             <h3>Términos y condiciones</h3>

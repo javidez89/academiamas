@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'npm:pdf-lib@1.17.1';
 import QRCode from 'npm:qrcode@1.5.4';
+import { CERTIFICATE_SIGNATURE_PNG } from './certificate-signature.ts';
 
 const PAGE_WIDTH = 842;
 const PAGE_HEIGHT = 595;
@@ -22,8 +23,6 @@ export type CertificateModule = {
 export type CertificatePdfInput = {
   code: string;
   fullName: string;
-  documentType: string;
-  documentNumber: string;
   courseName: string;
   estimatedHours: number;
   startedAt: string;
@@ -175,16 +174,22 @@ async function drawBrand(document: PDFDocument, page: PDFPage, logoUrl: string, 
   centered(page, 'QAvance', 530, 27, bold, NAVY);
 }
 
-async function drawSignature(document: PDFDocument, page: PDFPage, signatureUrl: string | undefined, regular: PDFFont, bold: PDFFont) {
+async function drawSignature(
+  document: PDFDocument,
+  page: PDFPage,
+  signatureUrl: string | undefined,
+  regular: PDFFont,
+  bold: PDFFont
+) {
+  let signature = null;
   try {
-    const signature = await remoteImage(document, signatureUrl);
-    if (signature) {
-      const size = signature.scaleToFit(150, 42);
-      page.drawImage(signature, { x: (PAGE_WIDTH - size.width) / 2, y: 113, width: size.width, height: size.height });
-    }
+    signature = await remoteImage(document, signatureUrl);
   } catch {
-    // An empty signing area is intentional until a digitized signature is configured.
+    // Use the bundled original when the optional remote override is unavailable.
   }
+  signature ??= await document.embedPng(CERTIFICATE_SIGNATURE_PNG);
+  const size = signature.scaleToFit(170, 52);
+  page.drawImage(signature, { x: (PAGE_WIDTH - size.width) / 2, y: 113, width: size.width, height: size.height });
   page.drawLine({ start: { x: 326, y: 108 }, end: { x: 516, y: 108 }, thickness: 0.8, color: NAVY });
   centered(page, INSTRUCTOR_NAME, 92, 10.5, bold, NAVY, 190);
   centered(page, INSTRUCTOR_ROLE, 79, 8.5, regular, MUTED, 190);
@@ -237,8 +242,7 @@ export async function createCertificatePdf(input: CertificatePdfInput): Promise<
 
   centered(page, 'CONSTANCIA DE PARTICIPACIÓN Y APROBACIÓN', 458, 25, bold, NAVY, 770, 18);
   centered(page, 'QAvance hace constar que', 421, 14, regular, TEXT);
-  centered(page, input.fullName.toUpperCase(), 379, 24, bold, NAVY, 700, 16);
-  centered(page, `Identificación ${input.documentType}: ${input.documentNumber}`, 350, 12.5, regular, MUTED);
+  centered(page, input.fullName.toUpperCase(), 367, 24, bold, NAVY, 700, 16);
   centered(page, 'participó y aprobó satisfactoriamente el programa:', 317, 13.5, regular, TEXT);
   centeredParagraph(page, courseName, 285, 18, 21, bold, NAVY, 700, 2);
   centered(page, MODALITY, 235, 11.5, regular, TEXT);
