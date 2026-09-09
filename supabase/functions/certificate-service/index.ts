@@ -476,19 +476,15 @@ async function certificateDownload(request: Request, body: JsonObject) {
 }
 
 async function publishCertificate(request: Request, body: JsonObject) {
-  const { admin, currentUser } = await authenticatedContext(request);
+  const { admin, user } = await authenticatedContext(request);
   const code = String(body.certificateCode || '').trim().toUpperCase();
   if (!/^ACQA-[A-Z0-9]{12}$/.test(code)) throw Object.assign(new Error('Código no válido.'), { status: 400 });
 
-  const superadmin = await admin
-    .schema('private')
-    .from('platform_admins')
-    .select('user_id')
-    .eq('user_id', currentUser.id)
-    .eq('role', 'superadmin')
-    .maybeSingle();
-  if (superadmin.error) throw superadmin.error;
-  if (!superadmin.data) throw Object.assign(new Error('Solo un superadministrador puede publicar certificados.'), { status: 403 });
+  const access = await user.rpc('get_my_access_status');
+  if (access.error) throw access.error;
+  if (access.data?.admin_role !== 'superadmin') {
+    throw Object.assign(new Error('Solo un superadministrador puede publicar certificados.'), { status: 403 });
+  }
 
   const certificateResult = await admin.from('certificates').select('*').eq('certificate_code', code).maybeSingle();
   if (certificateResult.error) throw certificateResult.error;
