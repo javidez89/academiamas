@@ -17,7 +17,6 @@ const CERTIFICATE_PRICE_USD = 25;
 const CERTIFICATE_TEST_PRICE_USD = 1;
 const CERTIFICATE_BUCKET = 'certificates';
 const CANONICAL_ORIGIN = 'https://academiaqaoficial.com';
-const DOCUMENT_TYPES = new Set(['CC', 'CE', 'NIT', 'PP', 'TI', 'DNI', 'RG', 'OTHER']);
 
 type JsonObject = Record<string, unknown>;
 type EnrollmentRecord = {
@@ -119,8 +118,6 @@ function publicCertificate(certificate: JsonObject | null): JsonObject | null {
     course_key: certificate.course_key,
     course_name: certificate.course_name,
     full_name: certificate.full_name,
-    document_type: certificate.document_type,
-    document_last4: certificate.document_last4,
     estimated_hours: certificate.estimated_hours,
     started_at: certificate.started_at,
     completed_at: certificate.completed_at,
@@ -361,14 +358,9 @@ async function confirmPayment(request: Request, body: JsonObject) {
 
 function identityInput(body: JsonObject) {
   const fullName = String(body.fullName || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
-  const documentType = String(body.documentType || '').trim().toUpperCase();
-  const documentNumber = String(body.documentNumber || '').normalize('NFKC').replace(/\s+/g, '').trim().toUpperCase();
   if (!/^[\p{L}\p{M} .'-]{3,120}$/u.test(fullName)) throw Object.assign(new Error('Ingresa tu nombre completo.'), { status: 400 });
-  if (!DOCUMENT_TYPES.has(documentType)) throw Object.assign(new Error('Selecciona un tipo de documento válido.'), { status: 400 });
-  if (!/^[A-Z0-9.-]{4,30}$/.test(documentNumber)) throw Object.assign(new Error('Ingresa un documento de identidad válido.'), { status: 400 });
   if (body.publicConsent !== true) throw Object.assign(new Error('Debes autorizar la validación pública del certificado.'), { status: 400 });
-  const characters = documentNumber.replace(/[^A-Z0-9]/g, '');
-  return { fullName, documentType, documentNumber, documentLast4: characters.slice(-4) };
+  return { fullName };
 }
 
 async function issueCertificate(request: Request, body: JsonObject) {
@@ -411,8 +403,6 @@ async function issueCertificate(request: Request, body: JsonObject) {
   const pdf = await createCertificatePdf({
     code,
     fullName: identity.fullName,
-    documentType: identity.documentType,
-    documentNumber: identity.documentNumber,
     courseName,
     estimatedHours: Number(enrollment.estimated_hours),
     startedAt: enrollment.started_at,
@@ -436,8 +426,7 @@ async function issueCertificate(request: Request, body: JsonObject) {
     course_key: course.key,
     certificate_code: code,
     full_name: identity.fullName,
-    document_type: identity.documentType,
-    document_last4: identity.documentLast4,
+    public_pdf: body.publicPdfConsent === true,
     course_name: courseName,
     estimated_hours: Number(enrollment.estimated_hours),
     started_at: enrollment.started_at,

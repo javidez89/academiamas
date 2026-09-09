@@ -189,7 +189,7 @@
     const { client } = requireUser();
     const { data, error } = await client
       .from('certificates')
-      .select('certificate_code,course_key,course_name,full_name,document_type,document_last4,estimated_hours,started_at,completed_at,issued_at,status')
+      .select('certificate_code,course_key,course_name,full_name,estimated_hours,started_at,completed_at,issued_at,status')
       .order('issued_at', { ascending: false });
     if (error) throw error;
     return Array.isArray(data) ? data : [];
@@ -235,9 +235,8 @@
     return certificateService('issue-certificate', {
       orderId: String(value.orderId || '').trim(),
       fullName: String(value.fullName || '').trim(),
-      documentType: String(value.documentType || '').trim(),
-      documentNumber: String(value.documentNumber || '').trim(),
-      publicConsent: value.publicConsent === true
+      publicConsent: value.publicConsent === true,
+      publicPdfConsent: value.publicPdfConsent === true
     });
   }
 

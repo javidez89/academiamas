@@ -22,8 +22,6 @@ await Deno.mkdir(new URL('../output/pdf/', import.meta.url), { recursive: true }
 const pdfBytes = await createCertificatePdf({
   code: CODE,
   fullName: 'Nombre del estudiante',
-  documentType: 'CC',
-  documentNumber: '**********',
   courseName: 'ISTQB® Certified Tester Foundation Level 4.0 (CTFL)',
   estimatedHours: 40,
   startedAt: '2026-08-01T15:00:00.000Z',

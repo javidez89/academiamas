@@ -1,6 +1,6 @@
 {
   "name": "qavance",
-  "version": "0.27.3",
+  "version": "0.28.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -37,7 +37,7 @@
     "test:audio": "node tools/audio-fallback-smoke.mjs",
     "test:admin": "node tools/admin-smoke.mjs",
     "test:admin-analytics:db": "npx --yes supabase@2.116.0 test db --local supabase/tests/admin_verified_learning_analytics_test.sql",
-    "test:certificates": "node tools/certificate-smoke.mjs",
+    "test:certificates": "npm run test:certificate-pdf && node tools/certificate-smoke.mjs && node tools/certificate-viewer-smoke.mjs",
     "test:home-advantages": "node tools/home-advantages-smoke.mjs",
     "test:feedback": "node tools/contact-reviews-security-unit.mjs && node tools/contact-reviews-smoke.mjs",
     "test:governance": "node tools/governance-migration-unit.mjs && node tools/governance-smoke.mjs",

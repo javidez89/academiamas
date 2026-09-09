@@ -827,10 +827,12 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                 return {
                   data: certificate ? {
                     valid: true,
+                    public_pdf: certificate.public_pdf === true,
+                    preview_url: certificate.preview_url || null,
+                    download_url: certificate.download_url || null,
                     code: certificate.certificate_code,
                     status: certificate.status,
                     full_name: certificate.full_name,
-                    document: certificate.document || `${certificate.document_type || 'CC'} ••••${certificate.document_last4 || '0000'}`,
                     course_key: certificate.course_key,
                     course_name: certificate.course_name,
                     estimated_hours: certificate.estimated_hours,
@@ -883,8 +885,6 @@ export function installMockSupabaseScript({ session, enrollments = [], admin = f
                   course_key: order.course_key || 'ctfl',
                   course_name: order.course_name || 'ISTQB Certified Tester Foundation Level 4.0 (CTFL)',
                   full_name: body.fullName,
-                  document_type: body.documentType,
-                  document_last4: String(body.documentNumber || '').replace(/[^A-Z0-9]/gi, '').slice(-4),
                   estimated_hours: 40,
                   started_at: '2026-08-01T00:00:00.000Z',
                   completed_at: '2026-08-15T00:00:00.000Z',
