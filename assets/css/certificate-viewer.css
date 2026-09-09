@@ -18,7 +18,7 @@
 .credentialTools output{min-width:46px;text-align:center;font-size:12px;color:#343d44}
 .certificatePublicPage button:disabled{opacity:.4;cursor:default}
 .certificatePublicPage button:focus-visible,.certificatePublicPage a:focus-visible{outline:3px solid #1688e5;outline-offset:3px}
-.credentialCanvasArea{overflow:auto;padding:16px;min-height:280px;aspect-ratio:1.415;position:relative;max-height:78vh}
+.credentialCanvasArea{overflow:auto;scrollbar-gutter:stable;padding:16px;min-height:280px;aspect-ratio:1.415;position:relative;max-height:78vh}
 .credentialCanvasArea canvas{display:block;margin:0 auto;background:#fff;box-shadow:0 2px 10px #00000014}
 .credentialCanvasArea canvas[hidden]{display:none}
 .credentialCanvasArea p{padding:35px 20px;text-align:center;font-size:14px;line-height:1.6;color:#59646d}
