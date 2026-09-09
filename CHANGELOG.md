@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.28.4] - 2026-09-09
+
+- Fuerza la actualización del visor estable en navegadores que conservaban recursos de una versión anterior.
+
 ## [v0.28.3] - 2026-09-09
 
 - Estabiliza el visor público de certificados para evitar redibujados y parpadeos durante la carga del PDF.
