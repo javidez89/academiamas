@@ -8,7 +8,7 @@ window.ACADEMY_CONFIG = Object.freeze({
   description: 'Aprende, practica y prepárate para certificaciones y retos profesionales en testing, inteligencia artificial, Scrum y gestión de proyectos.',
   footerHome: '',
   importLimit: 500,
-  assetVersion: '2026-09-08-public-certificate-pdf',
+  assetVersion: '2026-09-09-preview-stability',
   supabaseUrl: 'https://sysdlcsdvvbaybhqfivj.supabase.co',
   supabasePublishableKey: 'sb_publishable_Sb8DamBQsYTWfC6KauRZUA_IMP6ElWx'
 });
