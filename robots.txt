@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /mi-cuenta/
+Disallow: /auth/
 
 Sitemap: https://academiaqaoficial.com/sitemap.xml
+Sitemap: https://academiaqaoficial.com/sitemap-seo.xml
